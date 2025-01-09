@@ -11,10 +11,8 @@ if platform.system() == "Windows":
     from subprocess import CREATE_NO_WINDOW
 
 # Proxy management (Windows-specific)
-def set_proxy(enable, server=None, port=None):
-    if platform.system() != "Windows":
-        return  # Proxy management only needed on Windows
-        
+def set_windows_proxy(enable, server=None, port=None):
+    
     if platform.system() == "Windows":
         import winreg as reg
         import ctypes
@@ -30,6 +28,29 @@ def set_proxy(enable, server=None, port=None):
         ctypes.windll.Wininet.InternetSetOptionW(0, 39, 0, 0)
         reg.CloseKey(internet_settings)
 
+def set_macos_proxy(enable, server=None, port=None):
+    """Manage proxy settings for macOS using networksetup."""
+    if platform.system() != "Darwin":
+        return
+
+    # Get list of network services
+    network_services = subprocess.check_output(['networksetup', '-listallnetworkservices']).decode().split('\n')
+    # Skip the first line which is a header
+    for service in network_services[1:]:
+        if not service or service.startswith('*'):  # Skip empty lines and disabled services
+            continue
+            
+        if enable and server and port:
+            # Enable HTTP proxy
+            subprocess.run(['networksetup', '-setwebproxy', service, server, str(port)])
+            # Enable HTTPS proxy
+            subprocess.run(['networksetup', '-setsecurewebproxy', service, server, str(port)])
+        else:
+            # Disable HTTP proxy
+            subprocess.run(['networksetup', '-setwebproxystate', service, 'off'])
+            # Disable HTTPS proxy
+            subprocess.run(['networksetup', '-setsecurewebproxystate', service, 'off'])
+
 # Worker Thread for Running Commands
 class CommandWorker(QThread):
     output = Signal(str)
@@ -43,7 +64,10 @@ class CommandWorker(QThread):
 
     def run(self):
         if platform.system() == "Windows" and self.proxy_enabled:
-            set_proxy(True, server="127.0.0.1", port=1081)
+            set_windows_proxy(True, server="127.0.0.1", port=1081)
+
+        if platform.system() == "Darwin" and self.proxy_enabled:
+            set_macos_proxy(True, server="127.0.0.1", port=1081)
         
         creation_flags = CREATE_NO_WINDOW if platform.system() == "Windows" else 0
         self.process = subprocess.Popen(
@@ -59,7 +83,10 @@ class CommandWorker(QThread):
         self.process.wait()
         
         if platform.system() == "Windows" and self.proxy_enabled:
-            set_proxy(False)
+            set_windows_proxy(False)
+
+        if platform.system() == "Darwin" and self.proxy_enabled:
+            set_macos_proxy(False)
         
         self.finished.emit()
 
