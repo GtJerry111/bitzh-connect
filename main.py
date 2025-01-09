@@ -7,7 +7,8 @@ from PySide6.QtCore import QThread, Signal
 import subprocess
 import platform
 import shlex
-from subprocess import CREATE_NO_WINDOW
+if platform.system() == "Windows":
+    from subprocess import CREATE_NO_WINDOW
 
 # Proxy management (Windows-specific)
 def set_proxy(enable, server=None, port=None):
