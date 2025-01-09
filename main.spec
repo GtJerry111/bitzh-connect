@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='hitsz-connect-verge',
+    name='main',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,11 +35,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns'],
+    icon=['assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico'],
 )
 app = BUNDLE(
     exe,
-    name='hitsz-connect-verge.app',
-    icon='assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns',
+    name='main.app',
+    icon='assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico',
     bundle_identifier=None,
 )
