@@ -51,7 +51,8 @@ jobs:
     - name: Zip macOS Executable
       if: runner.os == 'macOS'
       run: |
-        zip -r dist/hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip dist/hitsz-connect-verge.app
+        cd dist
+        zip -r hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip hitsz-connect-verge.app
 
     - name: Build Executable(Windows only)
       if: runner.os == 'Windows'
@@ -66,8 +67,7 @@ jobs:
       with:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
-          dist/${{ matrix.artifact_name }}
-          dist/hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip
+          ${{ runner.os == 'Windows' && 'dist/hitsz-connect-verge.exe' || 'dist/*.zip' }}
           
 
   release:

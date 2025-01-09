@@ -17,6 +17,9 @@ HITSZ Connect Verge is an application that helps you connect to the campus netwo
 
 HITSZ Connect Verge provides out-of-the-box binaries for Windows. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
 
+> [!NOTE]
+> In macOS, you need to go to `Privacy & Security` -> `Security` to allow hitsz-connect-verge.
+
 ### Method 2: Build from Source
 
 1. Clone the repository:
