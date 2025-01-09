@@ -48,6 +48,11 @@ jobs:
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
           -n hitsz-connect-verge main.py
 
+    - name: Zip macOS Executable
+      if: runner.os == 'macOS'
+      run: |
+        zip -r dist/hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip dist/hitsz-connect-verge.app
+
     - name: Build Executable(Windows only)
       if: runner.os == 'Windows'
       run: |
@@ -62,6 +67,7 @@ jobs:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
           dist/${{ matrix.artifact_name }}
+          
 
   release:
     permissions: write-all
