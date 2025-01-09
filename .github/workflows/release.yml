@@ -14,13 +14,14 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: hitsz-connect-verge.exe
+            arch: x64
             data_separator: ";"
           - os: macos-latest
-            artifact_name: hitsz-connect-verge
+            artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: x64
           - os: macos-latest
-            artifact_name: hitsz-connect-verge
+            artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: arm64
     runs-on: ${{ matrix.os }}
@@ -61,7 +62,6 @@ jobs:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
           dist/${{ matrix.artifact_name }}
-          dist/*.dmg
 
   release:
     permissions: write-all
