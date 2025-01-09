@@ -67,6 +67,7 @@ jobs:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
           dist/${{ matrix.artifact_name }}
+          dist/hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip
           
 
   release:
