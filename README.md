@@ -2,14 +2,15 @@
 
 ## Introduction
 
-HITSZ Connect Verge is an application that helps you connect to the campus network of Harbin Institute of Technology, Shenzhen. It is a GUI wrapper of [zju-connect](https://github.com/Mythologyli/zju-connect) project and adapted to the HITSZ network.
+HITSZ Connect Verge is an application that helps you connect to the campus network of Harbin Institute of Technology, Shenzhen. It is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect) and adapted for the HITSZ network.
 
 ## Features
 
 - Fast and green compared to **Easy Connect** developed by Sangfor.
 - Simplified user interface and good-looking icons.
 - Built with PySide6 and Python, make it beginner-friendly to contribute and maintain.
-- [ ] Support for Linux, and macOS. (Coming soon)
+- [x] Supports macOS.
+- [ ] Supports Linux.
 
 ## Installation
 
