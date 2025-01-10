@@ -100,8 +100,7 @@ jobs:
       with:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
-          ${{ runner.os == 'Windows' && format('dist/hitsz-connect-verge-{}.exe', matrix.arch) || 'dist/*.zip' }}
-      
+          ${{ runner.os == 'Windows' && format('dist/hitsz-connect-verge-{0}.exe', matrix.arch) || 'dist/*.zip' }}
           
 
   release:
