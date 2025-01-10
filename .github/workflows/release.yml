@@ -53,7 +53,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Build Executable (macOS only)
+    - name: Build Executable (macOS)
       if: runner.os == 'macOS'
       run: |
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
@@ -67,9 +67,10 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         cd dist
-        zip -r hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip hitsz-connect-verge.app
+        echo "Run `sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app` to grand access before you run!" > README.txt
+        zip -r hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.zip hitsz-connect-verge.app README.txt
 
-    - name: Build Executable (Windows only)
+    - name: Build Executable (Windows)
       if: runner.os == 'Windows'
       run: |
         Rename-Item -Path core\zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.exe -NewName zju-connect.exe
@@ -79,7 +80,7 @@ jobs:
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
           -n hitsz-connect-verge-${{ matrix.arch }} main.py
 
-    - name: Build Executable (Linux only)
+    - name: Build Executable (Linux)
       if: runner.os == 'Linux'
       run: |
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
@@ -93,12 +94,12 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         cd dist
-        zip -r hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip hitsz-connect-verge
+        zip -r hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.zip hitsz-connect-verge
 
     - name: Archive Executable
       uses: actions/upload-artifact@v4
       with:
-        name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
+        name: hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}
         path: |
           ${{ runner.os == 'Windows' && format('dist/hitsz-connect-verge-{0}.exe', matrix.arch) || 'dist/*.zip' }}
           

@@ -25,54 +25,67 @@ You can install HITSZ Connect Verge in two ways: downloading pre-built binaries 
 
 HITSZ Connect Verge provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
 
-> [!NOTE]
-> For macOS version, you need to go to `Privacy & Security` -> `Security` to allow hitsz-connect-verge.
+> [!IMPORTANT]
+> For macOS version, you need to grant access to the application by running:
+>
+> ```bash
+> sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
+> ```
+>
+> If some case, you might need to go to `System Preferences` -> 
+> `Security & Privacy` -> `Security & Privacy` -> `Open Anyway`.
 
 ### Method 2: Build from source
 
 1. Clone the repository:
 
-```bash
-git clone https://github.com/kowyo/hitsz-connect-verge.git
-cd hitsz-connect-verge
-```
+    ```bash
+    git clone https://github.com/kowyo/hitsz-connect-verge.git
+    cd hitsz-connect-verge
+    ```
 
 2. Install dependencies:
 
-It is strongly recommended to use a virtual environment. You can create a virtual environment by running:
+    It is strongly recommended to use a virtual environment. You can create a virtual environment by running:
 
-```bash
-python -m venv venv
-source venv/bin/activate # activate the virtual environment
-```
+    ```bash
+    python -m venv venv
+    source venv/bin/activate # activate the virtual environment
+    ```
 
-Then, install the dependencies:
+    Then, install the dependencies:
 
-```bash
-pip install -r requirements.txt
-```
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 3. Run the application:
 
-```bash
-python main.py
-```
+    ```bash
+    python main.py
+    ```
 
 4. (Optional) Build the binaries:
 
-You can build the binaries for Windows by running:
+    You can build the binaries for Windows by running:
 
-```bash
- pyinstaller --clean --onefile --noconsole --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico --add-data "assets;assets" -n hitsz-connect-verge main.py
-```
+    ```bash
+    pyinstaller --clean --onefile --noconsole `
+    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
+    --add-data "assets;assets" `
+    --add-data "core/zju-connect;core" `
+    -n hitsz-connect-verge main.py
+    ```
 
-For macOS, you can run:
+    For macOS/Linux, you can run the following commands:
 
-```bash
-pyinstaller --clean --onefile --noconsole --windowed \
---icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
---add-data "assets:assets" -n hitsz-connect-verge main.py
-```
+    ```bash
+    pyinstaller --clean --onefile --noconsole --windowed \
+    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
+    --add-data "assets:assets" \
+    --add-data "core/zju-connect:core" \
+    -n hitsz-connect-verge main.py
+    ```
 
 ## Screenshots
 
