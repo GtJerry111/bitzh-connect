@@ -65,7 +65,7 @@ jobs:
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --clean --onefile --noconsole --windowed \
           --add-data "assets${{ matrix.data_separator }}assets" \
-          --add-data "core/zju-connect:core/zju-connect" \
+          --add-data "core/zju-connect:core" \
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
           -n hitsz-connect-verge main.py
 
@@ -81,7 +81,7 @@ jobs:
         Rename-Item -Path core\zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.exe -NewName zju-connect.exe
         pyinstaller --clean --onefile --noconsole `
           --add-data "assets${{ matrix.data_separator }}assets" `
-          --add-data "core/zju-connect.exe:core/zju-connect.exe" `
+          --add-data "core\zju-connect.exe${{ matrix.data_separator }}core" `
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
           -n hitsz-connect-verge main.py
 
@@ -91,7 +91,7 @@ jobs:
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --clean --onefile --noconsole \
           --add-data "assets${{ matrix.data_separator }}assets" \
-          --add-data "core/zju-connect:core/zju-connect" \
+          --add-data "core/zju-connect:core" \
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.png \
           -n hitsz-connect-verge main.py
 
