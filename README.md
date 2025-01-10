@@ -14,14 +14,16 @@ HITSZ Connect Verge is an application that helps you connect to the campus netwo
 
 ## Installation
 
-### Method 1: Install Binaries (Recommended)
+You can install HITSZ Connect Verge in two ways: downloading pre-built binaries or building from source.
 
-HITSZ Connect Verge provides out-of-the-box binaries for Windows. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
+### Method 1: Downloading pre-built binaries
+
+HITSZ Connect Verge provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
 
 > [!NOTE]
-> In macOS, you need to go to `Privacy & Security` -> `Security` to allow hitsz-connect-verge.
+> For macOS version, you need to go to `Privacy & Security` -> `Security` to allow hitsz-connect-verge.
 
-### Method 2: Build from Source
+### Method 2: Build from source
 
 1. Clone the repository:
 
@@ -32,7 +34,7 @@ cd hitsz-connect-verge
 
 2. Install dependencies:
 
-It is strongly recommended to use a virtual environment in this project. You can create a virtual environment by running:
+It is strongly recommended to use a virtual environment. You can create a virtual environment by running:
 
 ```bash
 python -m venv venv
@@ -59,6 +61,14 @@ You can build the binaries for Windows by running:
  pyinstaller --clean --onefile --noconsole --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico --add-data "assets;assets" -n hitsz-connect-verge main.py
 ```
 
+For macOS, you can run:
+
+```bash
+pyinstaller --clean --onefile --noconsole --windowed \
+--icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
+--add-data "assets:assets" -n hitsz-connect-verge main.py
+```
+
 ## Screenshots
 
 <!-- dark mode and light mode -->
@@ -70,4 +80,4 @@ You can build the binaries for Windows by running:
 
 Contributions are welcome! Feel free to open an issue or submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
 
-Also, any typo or grammatical error is welcome to be fixed.
+Also, any typo is welcome to be fixed.
