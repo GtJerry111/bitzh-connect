@@ -1,5 +1,11 @@
 # HITSZ Connect Verge
 
+![Action](https://github.com/kowyo/hitsz-connect-verge/actions/workflows/release.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
+![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
+![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
+![License](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+
 ## Introduction
 
 HITSZ Connect Verge is an application that helps you connect to the campus network of Harbin Institute of Technology, Shenzhen. It is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect) and adapted for the HITSZ network.
