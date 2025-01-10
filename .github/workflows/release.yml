@@ -28,11 +28,11 @@ jobs:
             os_name: darwin
             data_separator: ":"
             arch: arm64
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             os_name: linux
             data_separator: ":"
             arch: x64
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             os_name: linux
             data_separator: ":"
             arch: arm64
