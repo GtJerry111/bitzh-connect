@@ -24,6 +24,10 @@ jobs:
             artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: arm64
+          - os: ubuntu-latest
+            artifact_name: hitsz-connect-verge
+            data_separator: ":"
+            arch: x64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -61,6 +65,20 @@ jobs:
           --add-data "assets${{ matrix.data_separator }}assets" `
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
           -n hitsz-connect-verge main.py
+
+    - name: Build Executable (Linux only)
+      if: runner.os == 'Linux'
+      run: |
+        pyinstaller --clean --onefile --noconsole \
+          --add-data "assets${{ matrix.data_separator }}assets" \
+          --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.png \
+          -n hitsz-connect-verge main.py
+
+    - name: Zip Linux Executable
+      if: runner.os == 'Linux'
+      run: |
+        cd dist
+        zip -r hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}.zip hitsz-connect-verge
 
     - name: Archive Executable
       uses: actions/upload-artifact@v4

@@ -43,6 +43,17 @@ def set_macos_proxy(enable, server=None, port=None):
             subprocess.run(['networksetup', '-setwebproxystate', service, 'off'])
             subprocess.run(['networksetup', '-setsecurewebproxystate', service, 'off'])
 
+def set_linux_proxy(enable, server=None, port=None):
+    """Manage proxy settings for Linux using gsettings."""
+    if enable and server and port:
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy', 'mode', 'manual'])
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy.http', 'host', server])
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy.http', 'port', str(port)])
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy.https', 'host', server])
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy.https', 'port', str(port)])
+    else:
+        subprocess.run(['gsettings', 'set', 'org.gnome.system.proxy', 'mode', 'none'])
+
 # Worker Thread for Running Commands
 class CommandWorker(QThread):
     output = Signal(str)
@@ -57,13 +68,16 @@ class CommandWorker(QThread):
     def run(self):
         if platform.system() == "Windows" and self.proxy_enabled:
             set_windows_proxy(True, server="127.0.0.1", port=1081)
-
-        if platform.system() == "Darwin" and self.proxy_enabled:
+        elif platform.system() == "Darwin" and self.proxy_enabled:
             set_macos_proxy(True, server="127.0.0.1", port=1081)
+        elif platform.system() == "Linux" and self.proxy_enabled:
+            set_linux_proxy(True, server="127.0.0.1", port=1081)
     
         if platform.system() == "Windows":
             creation_flags = CREATE_NO_WINDOW
         elif platform.system() == "Darwin":
+            creation_flags = 0
+        elif platform.system() == "Linux":
             creation_flags = 0
 
         self.process = subprocess.Popen(
@@ -80,9 +94,10 @@ class CommandWorker(QThread):
         
         if platform.system() == "Windows" and self.proxy_enabled:
             set_windows_proxy(False)
-
-        if platform.system() == "Darwin" and self.proxy_enabled:
+        elif platform.system() == "Darwin" and self.proxy_enabled:
             set_macos_proxy(False)
+        elif platform.system() == "Linux" and self.proxy_enabled:
+            set_linux_proxy(False)
         
         self.finished.emit()
 
@@ -107,6 +122,8 @@ class MainWindow(QMainWindow):
             icon_path = self.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico")
         elif platform.system() == "Darwin":
             icon_path = self.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns")
+        elif platform.system() == "Linux":
+            icon_path = self.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.png")
         self.tray_icon.setIcon(QIcon(icon_path))
         self.create_tray_menu()
         self.tray_icon.show()
@@ -259,9 +276,9 @@ class MainWindow(QMainWindow):
             
         if platform.system() == "Windows":
             command = os.path.join(base_path, "assets", "zju-connect.exe")
-        elif platform.system() == "Darwin":
+        else:
             command = os.path.join(base_path, "assets", "zju-connect")
-            # Ensure executable permissions on macOS
+            # Ensure executable permissions on Unix-like systems
             if os.path.exists(command):
                 os.chmod(command, 0o755)
 
