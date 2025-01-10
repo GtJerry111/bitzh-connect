@@ -32,7 +32,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 > sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
 > ```
 >
-> If some case, you might need to go to `System Preferences` -> 
+> If some case, you need to go to macOS `Settings` -> `System Preferences` -> 
 > `Security & Privacy` -> `Open Anyway`.
 
 ### Method 2: Build from source
