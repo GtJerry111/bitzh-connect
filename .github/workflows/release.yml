@@ -78,7 +78,7 @@ jobs:
     - name: Build Executable (Windows only)
       if: runner.os == 'Windows'
       run: |
-        Rename-Item -Path core\zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} -NewName zju-connect.exe
+        Rename-Item -Path core\zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.exe -NewName zju-connect.exe
         pyinstaller --clean --onefile --noconsole `
           --add-data "assets${{ matrix.data_separator }}assets" `
           --add-binary "core/zju-connect.exe:core/zju-connect.exe" `
