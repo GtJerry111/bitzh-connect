@@ -33,7 +33,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 > ```
 >
 > If some case, you might need to go to `System Preferences` -> 
-> `Security & Privacy` -> `Security & Privacy` -> `Open Anyway`.
+> `Security & Privacy` -> `Open Anyway`.
 
 ### Method 2: Build from source
 
