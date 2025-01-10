@@ -16,6 +16,10 @@ jobs:
             artifact_name: hitsz-connect-verge.exe
             arch: x64
             data_separator: ";"
+          - os: windows-latest
+            artifact_name: hitsz-connect-verge.exe
+            arch: arm64
+            data_separator: ";"
           - os: macos-latest
             artifact_name: hitsz-connect-verge.app
             data_separator: ":"
@@ -24,10 +28,15 @@ jobs:
             artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: arm64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact_name: hitsz-connect-verge
             data_separator: ":"
             arch: x64
+          - os: ubuntu-22.04
+            artifact_name: hitsz-connect-verge
+            data_separator: ":"
+            arch: arm64
+            
     runs-on: ${{ matrix.os }}
 
     steps:
