@@ -275,9 +275,9 @@ class MainWindow(QMainWindow):
             base_path = os.path.dirname(os.path.abspath(__file__))
             
         if platform.system() == "Windows":
-            command = os.path.join(base_path, "assets", "zju-connect.exe")
+            command = os.path.join(base_path, "core", "zju-connect.exe")
         else:
-            command = os.path.join(base_path, "assets", "zju-connect")
+            command = os.path.join(base_path, "core", "zju-connect")
             # Ensure executable permissions on Unix-like systems
             if os.path.exists(command):
                 os.chmod(command, 0o755)
@@ -327,7 +327,12 @@ if __name__ == "__main__":
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
     
-    icon_path = MainWindow.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico")
+    if platform.system() == "Windows":
+        icon_path = MainWindow.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico")
+    elif platform.system() == "Darwin":
+        icon_path = MainWindow.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns")
+    elif platform.system() == "Linux":
+        icon_path = MainWindow.get_resource_path("assets/Graphicloads-Colorful-Long-Shadow-Cloud.png")
     app_icon = QIcon(icon_path)
     app.setWindowIcon(app_icon)
     

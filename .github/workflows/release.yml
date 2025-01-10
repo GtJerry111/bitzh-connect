@@ -13,26 +13,32 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            os_name: windows
             artifact_name: hitsz-connect-verge.exe
             arch: x64
             data_separator: ";"
           - os: windows-latest
+            os_name: windows
             artifact_name: hitsz-connect-verge.exe
             arch: arm64
             data_separator: ";"
           - os: macos-latest
+            os_name: darwin
             artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: x64
           - os: macos-latest
+            os_name: darwin
             artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: arm64
           - os: ubuntu-22.04
+            os_name: linux
             artifact_name: hitsz-connect-verge
             data_separator: ":"
             arch: x64
           - os: ubuntu-22.04
+            os_name: linux
             artifact_name: hitsz-connect-verge
             data_separator: ":"
             arch: arm64
@@ -56,8 +62,10 @@ jobs:
     - name: Build Executable (macOS only)
       if: runner.os == 'macOS'
       run: |
+        mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --clean --onefile --noconsole --windowed \
           --add-data "assets${{ matrix.data_separator }}assets" \
+          --add-binary "core/zju-connect:core/zju-connect" \
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
           -n hitsz-connect-verge main.py
 
@@ -70,16 +78,20 @@ jobs:
     - name: Build Executable (Windows only)
       if: runner.os == 'Windows'
       run: |
+        Rename-Item -Path core\zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} -NewName zju-connect.exe
         pyinstaller --clean --onefile --noconsole `
           --add-data "assets${{ matrix.data_separator }}assets" `
+          --add-binary "core/zju-connect.exe:core/zju-connect.exe" `
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
           -n hitsz-connect-verge main.py
 
     - name: Build Executable (Linux only)
       if: runner.os == 'Linux'
       run: |
+        mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --clean --onefile --noconsole \
           --add-data "assets${{ matrix.data_separator }}assets" \
+          --add-binary "core/zju-connect:core/zju-connect" \
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.png \
           -n hitsz-connect-verge main.py
 
