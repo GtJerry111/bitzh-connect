@@ -14,32 +14,26 @@ jobs:
         include:
           - os: windows-latest
             os_name: windows
-            artifact_name: hitsz-connect-verge.exe
             arch: x64
             data_separator: ";"
           - os: windows-latest
             os_name: windows
-            artifact_name: hitsz-connect-verge.exe
             arch: arm64
             data_separator: ";"
           - os: macos-latest
             os_name: darwin
-            artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: x64
           - os: macos-latest
             os_name: darwin
-            artifact_name: hitsz-connect-verge.app
             data_separator: ":"
             arch: arm64
           - os: ubuntu-22.04
             os_name: linux
-            artifact_name: hitsz-connect-verge
             data_separator: ":"
             arch: x64
           - os: ubuntu-22.04
             os_name: linux
-            artifact_name: hitsz-connect-verge
             data_separator: ":"
             arch: arm64
             
@@ -83,7 +77,7 @@ jobs:
           --add-data "assets${{ matrix.data_separator }}assets" `
           --add-data "core\zju-connect.exe${{ matrix.data_separator }}core" `
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
-          -n hitsz-connect-verge main.py
+          -n hitsz-connect-verge-${{ matrix.arch }} main.py
 
     - name: Build Executable (Linux only)
       if: runner.os == 'Linux'
@@ -106,7 +100,7 @@ jobs:
       with:
         name: hitsz-connect-verge-${{ matrix.os }}-${{ matrix.arch }}
         path: |
-          ${{ runner.os == 'Windows' && 'dist/hitsz-connect-verge.exe' || 'dist/*.zip' }}
+          ${{ runner.os == 'Windows' && 'dist/hitsz-connect-verge-${{ matrix.arch }}.exe' || 'dist/*.zip' }}
           
 
   release:
