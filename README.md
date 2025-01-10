@@ -12,11 +12,10 @@ HITSZ Connect Verge is an application that helps you connect to the campus netwo
 
 ## Features
 
-- Fast and green compared to **Easy Connect** developed by Sangfor.
+- Fast and green compared to **EasyConnect**.
 - Simplified user interface and good-looking icons.
-- Built with PySide6 and Python, make it beginner-friendly to contribute and maintain.
-- [x] Supports macOS.
-- [ ] Supports Linux.
+- Built with PySide6 and Python, making it beginner-friendly to contribute and maintain.
+- Multi-platform support, providing out-of-box experience without executing additional scripts.
 
 ## Installation
 
