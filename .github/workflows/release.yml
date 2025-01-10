@@ -67,7 +67,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         cd dist
-        echo "Run `sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app` to grand access before you run!" > README.txt
+        echo 'Run command `sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app` in your terminal to grant access before you run!' > README.txt
         zip -r hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.zip hitsz-connect-verge.app README.txt
 
     - name: Build Executable (Windows)
