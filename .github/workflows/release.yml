@@ -78,7 +78,7 @@ jobs:
           --add-data "assets${{ matrix.data_separator }}assets" `
           --add-data "core\zju-connect.exe${{ matrix.data_separator }}core" `
           --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
-          -n hitsz-connect-verge-${{ matrix.arch }} main.py
+          -n hitsz-connect-verge-${{ matrix.arch }} main_fluent.py
 
     - name: Build Executable (Linux)
       if: runner.os == 'Linux'
