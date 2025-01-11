@@ -137,11 +137,11 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         
         # Account and Password
-        layout.addWidget(QLabel("账号："))
+        layout.addWidget(QLabel("用户名"))
         self.username_input = QLineEdit()
         layout.addWidget(self.username_input)
 
-        layout.addWidget(QLabel("密码："))
+        layout.addWidget(QLabel("密码"))
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_input)
@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(QLabel("运行信息"))
         layout.addLayout(status_layout)
         status_layout.addStretch()
-        self.status_label = QLabel("状态: 已停止")
+        self.status_label = QLabel("状态: 未连接")
         status_layout.addWidget(self.status_label)
 
         self.output_text = QTextEdit()
@@ -310,14 +310,14 @@ class MainWindow(QMainWindow):
             self.worker.wait()
             self.worker = None
 
-        self.status_label.setText("状态: 已停止")
+        self.status_label.setText("状态: 未连接")
 
     def append_output(self, text):
         self.output_text.append(text)
 
     def on_connection_finished(self):
         self.worker = None
-        self.status_label.setText("状态: 已停止")
+        self.status_label.setText("状态: 未连接")
 
     @staticmethod
     def get_resource_path(relative_path):
