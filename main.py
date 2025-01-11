@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("HITSZ Connect Verge")
-        self.setFixedSize(300, 500)
+        self.setFixedSize(300, 450)
         self.service_name = "hitsz-connect-verge"
         self.username_key = "username"    
         self.password_key = "password"    
@@ -154,44 +154,53 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.remember_cb)
         
         # Server and DNS
-        layout.addWidget(QLabel("SSL VPN 服务端地址："))
+        # layout.addWidget(QLabel("SSL VPN 服务端地址："))
         self.server_input = QLineEdit("vpn.hitsz.edu.cn")
-        layout.addWidget(self.server_input)
+        self.server_input.hide()
+        # layout.addWidget(self.server_input)
 
-        layout.addWidget(QLabel("DNS 服务器地址："))
+        # layout.addWidget(QLabel("DNS 服务器地址："))
         self.dns_input = QLineEdit("10.248.98.30")
-        layout.addWidget(self.dns_input)
+        self.dns_input.hide()
+        # layout.addWidget(self.dns_input)
         
         # Proxy Control
         self.proxy_cb = QCheckBox("自动配置代理")
         self.proxy_cb.setChecked(True)
-        layout.addWidget(self.proxy_cb)
-
-        # Buttons
-        button_layout = QHBoxLayout()
-        self.connect_button = QPushButton("连接")
-        self.connect_button.clicked.connect(self.start_connection)
-        self.connect_button.clicked.connect(self.save_credentials)
-        button_layout.addWidget(self.connect_button)
-
-        self.disconnect_button = QPushButton("断开")
-        self.disconnect_button.clicked.connect(self.stop_connection)
-        button_layout.addWidget(self.disconnect_button)
-
-        self.exit_button = QPushButton("退出")
-        self.exit_button.clicked.connect(self.stop_connection) 
-        self.exit_button.clicked.connect(self.close)
-        button_layout.addWidget(self.exit_button)
-        layout.addLayout(button_layout)
+        # layout.addWidget(self.proxy_cb)
 
         # Status and Output
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel("运行信息"))
+        layout.addLayout(status_layout)
+        status_layout.addStretch()
         self.status_label = QLabel("状态: 已停止")
-        layout.addWidget(self.status_label)
+        status_layout.addWidget(self.status_label)
 
-        layout.addWidget(QLabel("运行信息："))
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
         layout.addWidget(self.output_text)
+
+         # Buttons
+        button_layout = QHBoxLayout()
+        self.connect_button = QPushButton("连接")
+        self.connect_button.clicked.connect(self.start_connection)
+        # self.connect_button.toggled.connect(lambda: self.start_connection() if self.connect_button.isChecked() else self.stop_connection())
+        # self.connect_button.toggled.connect(lambda: self.connect_button.setText("连接") if self.connect_button.isChecked() else self.connect_button.setText("断开"))
+        self.connect_button.clicked.connect(self.save_credentials)
+        button_layout.addWidget(self.connect_button)
+
+        # self.disconnect_button = QPushButton("断开")
+        # self.disconnect_button.clicked.connect(self.stop_connection)
+        # button_layout.addWidget(self.disconnect_button)
+
+        button_layout.addStretch()
+
+        self.exit_button = QPushButton("退出")
+        self.exit_button.clicked.connect(self.stop_connection) 
+        self.exit_button.clicked.connect(self.quit_app)
+        button_layout.addWidget(self.exit_button)
+        layout.addLayout(button_layout)
 
         # Set main widget
         container = QWidget()
