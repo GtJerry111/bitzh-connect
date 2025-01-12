@@ -1,3 +1,5 @@
+<div align="center">
+
 # HITSZ Connect Verge
 
 [中文](README.zh-CN.md) | [English](README.md)
@@ -8,7 +10,9 @@
 ![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
 ![License](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
 
-## 介绍
+</div>
+
+## 简介
 
 HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。它可以帮助你远程连接到哈尔滨工业大学（深圳）的校园网络。
 

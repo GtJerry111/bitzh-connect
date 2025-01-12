@@ -1,3 +1,5 @@
+<div align="center">
+
 # HITSZ Connect Verge
 
 [English](README.md) | [中文](README.zh-CN.md)
@@ -7,6 +9,8 @@
 ![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
 ![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
 ![License](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+
+</div>
 
 ## Introduction
 
