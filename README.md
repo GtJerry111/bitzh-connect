@@ -30,7 +30,7 @@ You can install HITSZ Connect Verge in two ways: downloading pre-built binaries 
 
 > [!NOTE]
 > 
-> 1. Username and password are the same as the ones you use to log in to the [Unified identity authentic platform](https://ids.hit.edu.cn)
+> 1. Username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn)
 > 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
 
 ### Method 1: Downloading pre-built binaries
