@@ -22,6 +22,9 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 
 You can install HITSZ Connect Verge in two ways: downloading pre-built binaries or building from source.
 
+> [!NOTE]
+> Username and password are the same as the ones you use to log in to the [Unified identity authentic platform](https://ids.hit.edu.cn)
+
 ### Method 1: Downloading pre-built binaries
 
 HITSZ Connect Verge provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
@@ -90,11 +93,11 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
 ## Screenshots
 
-|   Windows   |   Mac   |
-| ---- | ---- |
-|  <img width="295" alt="light" src="https://github.com/user-attachments/assets/ebb28817-0adb-45fc-84ae-d849ba2193a6" />   | <img width="412" alt="dark" src="https://github.com/user-attachments/assets/fbe56221-dbb3-4516-828d-81fa95f3e33d" />  |
+|   Windows   |   Mac   |  Linux   |
+| ---- | ---- | ---- |
+|  <img width="412" alt="windows" src="https://github.com/user-attachments/assets/ebb28817-0adb-45fc-84ae-d849ba2193a6" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
 
-We also have a GUI for Linux, but currently it only supports building from source.
+As of now, Linux version only supports building from source.
 
 ## Contributing
 
