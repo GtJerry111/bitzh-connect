@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         
         # Account and Password
-        layout.addWidget(BodyLabel("账号"))
+        layout.addWidget(BodyLabel("用户名"))
         self.username_input = LineEdit(self)  # Add self as parent
         layout.addWidget(self.username_input)
 
