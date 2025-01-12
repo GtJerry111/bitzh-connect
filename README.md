@@ -1,5 +1,7 @@
 # HITSZ Connect Verge
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 ![Action](https://github.com/kowyo/hitsz-connect-verge/actions/workflows/release.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
 ![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
@@ -23,7 +25,9 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 You can install HITSZ Connect Verge in two ways: downloading pre-built binaries or building from source.
 
 > [!NOTE]
-> Username and password are the same as the ones you use to log in to the [Unified identity authentic platform](https://ids.hit.edu.cn)
+> 
+> 1. Username and password are the same as the ones you use to log in to the [Unified identity authentic platform](https://ids.hit.edu.cn)
+> 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
 
 ### Method 1: Downloading pre-built binaries
 
@@ -36,7 +40,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 > sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
 > ```
 >
-> If some case, you need to go to macOS `Settings` -> `System Preferences` -> 
+> In some case, you need to go to macOS `Settings` -> `System Preferences` -> 
 > `Security & Privacy` -> `Open Anyway`.
 
 ### Method 2: Building from source
