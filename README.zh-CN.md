@@ -102,7 +102,7 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
 
 |   Windows   |   Mac   |  Linux   |
 | ---- | ---- | ---- |
-|  <img width="412" alt="windows" src="https://github.com/user-attachments/assets/ebb28817-0adb-45fc-84ae-d849ba2193a6" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
+|  <img width="412" alt="windows" src="assets/windows.png" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
 
 目前，Linux 版本仅支持从源代码构建。
 

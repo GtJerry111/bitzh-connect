@@ -103,7 +103,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
 |   Windows   |   Mac   |  Linux   |
 | ---- | ---- | ---- |
-|  <img width="412" alt="windows" src="https://github.com/user-attachments/assets/ebb28817-0adb-45fc-84ae-d849ba2193a6" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
+|  <img width="412" alt="assets/windows" src="windows.png" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
 
 As of now, Linux version only supports building from source.
 
