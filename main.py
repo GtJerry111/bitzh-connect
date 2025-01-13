@@ -74,6 +74,18 @@ class MainWindow(QMainWindow):
         self.proxy_cb.setChecked(True)
         # layout.addWidget(self.proxy_cb)
 
+        # Status and Output
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel("运行信息"))
+        layout.addLayout(status_layout)
+        status_layout.addStretch()
+        self.status_label = QLabel("状态: 未连接")
+        status_layout.addWidget(self.status_label)
+
+        self.output_text = QTextEdit()
+        self.output_text.setReadOnly(True)
+        layout.addWidget(self.output_text)
+
         # Buttons
         button_layout = QHBoxLayout()
         self.connect_button = QPushButton("连接")
@@ -90,18 +102,6 @@ class MainWindow(QMainWindow):
         self.exit_button.clicked.connect(self.quit_app)
         button_layout.addWidget(self.exit_button)
         layout.addLayout(button_layout)
-
-        # Status and Output
-        status_layout = QHBoxLayout()
-        status_layout.addWidget(QLabel("运行信息"))
-        layout.addLayout(status_layout)
-        status_layout.addStretch()
-        self.status_label = QLabel("状态: 未连接")
-        status_layout.addWidget(self.status_label)
-
-        self.output_text = QTextEdit()
-        self.output_text.setReadOnly(True)
-        layout.addWidget(self.output_text)
 
         # Set main widget
         container = QWidget()

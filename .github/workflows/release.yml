@@ -53,7 +53,7 @@ jobs:
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --clean --onefile --noconsole --windowed \
           --add-data "assets$:assets" \
-          --add-data "utils$:utils" \
+          --add-data "utils:utils" \
           --add-data "core/zju-connect:core" \
           --icon assets/icon.icns \
           -n hitsz-connect-verge main.py
@@ -82,7 +82,7 @@ jobs:
         mv core/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }} core/zju-connect
         pyinstaller --onefile --noconsole --windowed --clean \
           --add-data "assets$:assets" \
-          --add-data "utils$:utils" \
+          --add-data "utils:utils" \
           --add-data "core/zju-connect:core" \
           --icon assets/icon.png \
           -n hitsz-connect-verge main.py

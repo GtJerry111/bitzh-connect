@@ -19,7 +19,7 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 ## Features
 
 - Fast and green compared to **EasyConnect**.
-- Simplified UI and Fluent design (Windows only).
+- Simplified UI and Fluent UI (Windows only).
 - Built with PySide6 and Python, making it beginner-friendly to contribute and maintain.
 - Multi-platform support, providing out-of-box experience without executing additional scripts.
 - Advanced settings (coming soon).
