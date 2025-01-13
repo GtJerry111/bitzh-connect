@@ -82,7 +82,7 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
 
     ```bash
     pyinstaller --clean --onefile --noconsole `
-    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
+    --icon assets/icon.ico `
     --add-data "assets;assets" `
     --add-data "core/zju-connect;core" `
     -n hitsz-connect-verge main.py
@@ -92,7 +92,7 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
 
     ```bash
     pyinstaller --clean --onefile --noconsole --windowed \
-    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
+    --icon assets/icon.icns \
     --add-data "assets:assets" \
     --add-data "core/zju-connect:core" \
     -n hitsz-connect-verge main.py

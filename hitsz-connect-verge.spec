@@ -35,11 +35,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns'],
+    icon=['assets/icon.icns'],
 )
 app = BUNDLE(
     exe,
     name='hitsz-connect-verge.app',
-    icon='assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns',
+    icon='assets/icon.icns',
     bundle_identifier=None,
 )

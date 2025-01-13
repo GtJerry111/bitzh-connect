@@ -83,7 +83,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
     ```bash
     pyinstaller --clean --onefile --noconsole `
-    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.ico `
+    --icon assets/icon.ico `
     --add-data "assets;assets" `
     --add-data "core/zju-connect;core" `
     -n hitsz-connect-verge main.py
@@ -93,7 +93,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
     ```bash
     pyinstaller --clean --onefile --noconsole --windowed \
-    --icon assets/Graphicloads-Colorful-Long-Shadow-Cloud.icns \
+    --icon assets/icon.icns \
     --add-data "assets:assets" \
     --add-data "core/zju-connect:core" \
     -n hitsz-connect-verge main.py
