@@ -1,10 +1,9 @@
 import keyring
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QLabel, QLineEdit, QCheckBox, QPushButton, QTextEdit, QVBoxLayout, QHBoxLayout, QWidget, QSystemTrayIcon, QMenu
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QSystemTrayIcon, QMenu
 )
 from qfluentwidgets import (PushButton, CheckBox, LineEdit, TextEdit, PasswordLineEdit, BodyLabel, TogglePushButton, PrimaryPushButton, DotInfoBadge, IconInfoBadge, FluentIcon)
 from PySide6.QtGui import QIcon
-from PySide6.QtCore import QThread, Signal
 import subprocess
 import platform
 import shlex
@@ -59,8 +58,8 @@ class MainWindow(QMainWindow):
 
         # Server and DNS
         # layout.addWidget(BodyLabel("SSL VPN 服务端地址"))
-        self.server_input = LineEdit(self)  # Add self as parent
-        self.server_input.setText("vpn.hitsz.edu.cn")  # Use setText after creation
+        self.server_input = LineEdit(self)
+        self.server_input.setText("vpn.hitsz.edu.cn")
         self.server_input.hide()
         # layout.addWidget(self.server_input)
 
@@ -77,7 +76,7 @@ class MainWindow(QMainWindow):
         # Status and Output
         status_layout = QHBoxLayout()
         status_layout.addWidget(BodyLabel("运行信息"))
-        status_layout.addStretch()  # Add stretch to push status label to the right
+        status_layout.addStretch()
         self.status_icon = IconInfoBadge(FluentIcon.CANCEL_MEDIUM)
         status_layout.addWidget(self.status_icon)
         self.status_label = BodyLabel("状态: 未连接")
@@ -98,7 +97,7 @@ class MainWindow(QMainWindow):
         button_layout.addStretch()
         self.exit_button = PushButton("退出")
         self.exit_button.clicked.connect(self.stop_connection) 
-        self.exit_button.clicked.connect(self.close)
+        self.exit_button.clicked.connect(self.quit_app)
         button_layout.addWidget(self.exit_button)
         layout.addLayout(button_layout)
 
@@ -135,12 +134,6 @@ class MainWindow(QMainWindow):
         self.stop_connection()
         self.tray_icon.hide()
         QApplication.quit()
-
-    def toggle_password_visibility(self):
-        if self.show_password_cb.isChecked():
-            self.password_input.setEchoMode(QLineEdit.Normal)  # Still use QLineEdit enum
-        else:
-            self.password_input.setEchoMode(QLineEdit.Password)  # Still use QLineEdit enum
 
     def load_credentials(self):
         """Load stored credentials from keyring."""
