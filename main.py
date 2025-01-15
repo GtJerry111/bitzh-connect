@@ -1,6 +1,8 @@
 import keyring
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QLabel, QLineEdit, QCheckBox, QPushButton, QTextEdit, QVBoxLayout, QHBoxLayout, QWidget, QSystemTrayIcon, QMenu
+    QApplication, QMainWindow, QLabel, QLineEdit, QCheckBox, QPushButton, 
+    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget, QSystemTrayIcon, QMenu,
+    QMenuBar, QMessageBox
 )
 from PySide6.QtGui import QIcon
 import subprocess
@@ -9,6 +11,8 @@ import shlex
 from utils.set_proxy import CommandWorker
 if platform.system() == "Windows":
     from subprocess import CREATE_NO_WINDOW
+
+VERSION = "1.0.0"  # Add version constant at top level
 
 # Main Window
 class MainWindow(QMainWindow):
@@ -34,8 +38,40 @@ class MainWindow(QMainWindow):
         self.tray_icon.show()
         
         self.worker = None
+        self.setup_menubar()  # Add this line before setup_ui()
         self.setup_ui()
         self.load_credentials()
+
+    def setup_menubar(self):
+        menubar = self.menuBar()
+        
+        # Settings Menu
+        settings_menu = menubar.addMenu("设置")
+        
+        # Advanced Settings Action
+        self.advanced_action = settings_menu.addAction("高级设置")
+        self.advanced_action.triggered.connect(self.toggle_advanced_settings)
+        
+        # Help Menu
+        about_menu = menubar.addMenu("帮助")
+        about_menu.addAction("日志").triggered.connect(self.show_log)
+        about_menu.addAction("检查更新").triggered.connect(self.check_for_updates)
+        about_menu.addAction("关于").triggered.connect(self.show_about)
+
+    def toggle_advanced_settings(self, checked):
+        QMainWindow.resize(self, 300, 450 if checked else 300)
+        self.server_label.setVisible(checked)
+
+    def check_for_updates(self):
+        QMessageBox.information(self, "检查更新", "当前已是最新版本。")
+
+    def show_about(self):
+        about_text = f'''<p>HITSZ Connect Verge {VERSION}</p>
+                 <p>项目地址：<a href="https://github.com/kowyo/hitsz-connect-verge">github.com/kowyo/hitsz-connect-verge</a></p>'''
+        QMessageBox.about(self, "关于 HITSZ Connect Verge", about_text)
+
+    def show_log(self):
+        pass
 
     def setup_ui(self):
         # Layouts
@@ -58,16 +94,22 @@ class MainWindow(QMainWindow):
         self.remember_cb = QCheckBox("记住密码")
         layout.addWidget(self.remember_cb)
         
-        # Server and DNS
-        # layout.addWidget(QLabel("SSL VPN 服务端地址："))
+        # Server and DNS (store labels as class members)
+        self.server_label = QLabel("SSL VPN 服务端地址：")
+        layout.addWidget(self.server_label)
+        self.server_label.hide()
+        
         self.server_input = QLineEdit("vpn.hitsz.edu.cn")
+        layout.addWidget(self.server_input)
         self.server_input.hide()
-        # layout.addWidget(self.server_input)
 
-        # layout.addWidget(QLabel("DNS 服务器地址："))
+        self.dns_label = QLabel("DNS 服务器地址：")
+        layout.addWidget(self.dns_label)
+        self.dns_label.hide()
+        
         self.dns_input = QLineEdit("10.248.98.30")
+        layout.addWidget(self.dns_input)
         self.dns_input.hide()
-        # layout.addWidget(self.dns_input)
         
         # Proxy Control
         self.proxy_cb = QCheckBox("自动配置代理")
