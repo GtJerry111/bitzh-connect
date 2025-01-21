@@ -126,6 +126,11 @@ proxies:
     - 'IP-CIDR,10.0.0.0/8,校园网,no-resolve'
 ```
 
+> [!NOTE]
+>
+> 1. 建议启用 `TUN 模式`
+> 2. 需要关闭内网绕过代理
+
 更多信息请参考 <https://oldkingOK.cc> 上的[这篇文章](https://oldkingok.cc/share/8bFQXBjOkXt8)。
 
 ### 远程桌面连接

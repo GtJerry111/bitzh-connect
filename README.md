@@ -127,6 +127,11 @@ proxies:
     - 'IP-CIDR,10.0.0.0/8,校园网,no-resolve'
 ```
 
+> [!NOTE]
+>
+> 1. It is recommended to enable `TUN Mode`
+> 2. You need to turn off the `Always use Default Bypass` option in the `System Proxy` settings
+
 For further information, please refer to [this article](https://oldkingok.cc/share/8bFQXBjOkXt8) on <https://oldkingOK.cc>.
 
 ### Remote Desktop
