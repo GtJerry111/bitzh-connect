@@ -19,34 +19,34 @@ HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect
 ## 功能特点
 
 - 与 **EasyConnect** 相比，无需安装便可使用，移除后也不会将任何纪录（[注册表](https://zh.wikipedia.org/wiki/注册表)消息等）留在本机电脑上。
-- 简化的用户界面和 Fluent UI（仅限 Windows）。
-- 使用 PySide6 和 Python 构建，易于初学者贡献和维护。
-- 支持多平台，提供开箱即用的体验，无需执行额外的脚本。
-- 高级设置（即将推出）。
+- 简洁界面与 Fluent UI 设计（仅Windows平台）
+- 基于 PySide6 与 Python 构建，方便贡献者参与维护
+- 跨平台支持，开箱即用，无需执行额外脚本
+- 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
 
-## 安装
+## 安装指南
 
-你可以通过两种方式安装 HITSZ Connect Verge：下载预构建的二进制文件或从源代码构建。
+您可通过两种方式安装HITSZ Connect Verge：下载预编译版本或从源码构建。
 
 > [!NOTE]
 >
-> 1. 用户名和密码与你在[统一身份认证平台](https://ids.hit.edu.cn)上登录时使用的相同。
-> 2. 如果下载速度较慢，你可以尝试使用 [GitHub 文件加速代理](https://gh-proxy.com) 下载。
+> 1. 用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
+> 2. 若下载速度较慢，可尝试使用[gh-proxy](https://gh-proxy.com)进行加速
 
-### 方法一：下载预构建的二进制文件
+### 方式一：下载预编译版本
 
-HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](https://github.com/kowyo/hitsz-connect-verge/releases/latest)下载最新版本。
+HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://github.com/kowyo/hitsz-connect-verge/releases/latest)获取最新版本。
 
 > [!IMPORTANT]
-> 对于 macOS 版本，你需要通过运行以下命令授予应用程序访问权限：
+> macOS 版本需通过以下命令授予应用权限：
 >
 > ```bash
 > sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
 > ```
 >
-> 在某些情况下，你需要前往 macOS 的 `设置` -> `系统偏好设置` -> `安全性与隐私` -> `仍要打开`。
+> 部分情况下需前往 macOS `设置`->`隐私与安全`->`通用`->`仍要打开`
 
-### 方法二：从源代码构建
+### 方式二：从源码构建
 
 1. 克隆仓库：
 
@@ -57,20 +57,20 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
 
 2. 安装依赖：
 
-    强烈建议使用虚拟环境。你可以通过以下命令创建虚拟环境：
+    强烈建议使用虚拟环境。可通过以下命令创建：
 
     ```bash
     python -m venv venv
     source venv/bin/activate # 激活虚拟环境
     ```
 
-    然后，安装依赖：
+    安装依赖项：
 
     ```bash
     pip install -r requirements.txt
     ```
 
-3. 运行应用程序：
+3. 运行应用：
 
     ```bash
     python main.py
@@ -78,7 +78,7 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
 
 4. （可选）构建二进制文件：
 
-    你可以通过以下命令为 Windows 构建二进制文件：
+    Windows 平台构建命令：
 
     ```bash
     pyinstaller --clean --onefile --noconsole `
@@ -88,7 +88,7 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
     -n hitsz-connect-verge main.py
     ```
 
-    对于 macOS/Linux，你可以运行以下命令：
+    macOS/Linux 平台构建命令：
 
     ```bash
     pyinstaller --clean --onefile --noconsole --windowed \
@@ -98,21 +98,57 @@ HITSZ Connect Verge 提供开箱即用的体验。你可以从[发布页面](htt
     -n hitsz-connect-verge main.py
     ```
 
+## 与其他应用协同工作
+
+### 基础信息
+
+- **服务器地址**: vpn.hitsz.edu.cn
+- **SOCKS5代理端口**: 1080
+- **HTTP代理端口**: 1081
+- **DNS服务器**: 10.248.98.30
+
+如需了解更详细的网络配置信息，请访问[Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)。
+
+### Clash 配置
+
+<!-- 若需同时使用Clash，可在配置文件中添加如下规则：
+
+```yaml
+rules:
+    - 'DOMAIN-SUFFIX,vpn.hitsz.edu.cn,DIRECT'
+``` -->
+
+当前 Clash 协同方案仍在探索中，欢迎提交 ull Request 提供解决方案。
+
+### 远程桌面连接
+
+如需接入校园网内的远程桌面，可使用 [Parallels Client](https://www.parallels.com/hk/products/ras/capabilities/parallels-client/)，并将本地 1080 端口配置为代理。
+
+### SSH连接
+
+通过以下命令建立SSH连接：
+
+```bash
+ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地址>
+```
+
+更多信息请参考[此文](https://kuokuo.io/2019/07/01/ssh-over-http-or-socks/)。
+
 ## 截图
 
-|   Windows   |   Mac   |  Linux   |
+|   Windows   |   macOS    |   Linux    |
 | ---- | ---- | ---- |
 |  <img width="412" alt="windows" src="assets/windows.png" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
 
-目前，Linux 版本仅支持从源代码构建。
+当前Linux版本仅支持从源码构建。
 
 ## 贡献
 
-欢迎贡献！你可以随时提交问题或拉取请求。对于重大更改，请先提交问题以讨论你想要更改的内容。
+欢迎贡献代码！您可以通过提交 Issue 或 Pull Request 参与项目。重大修改建议先创建 Issue 讨论。
 
-此外，欢迎修复任何拼写错误。
+同时，欢迎修正任何拼写错误。
 
 ## 相关项目
 
-- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows): HITsz 版的 ZJU-Connect-for-Windows。支持高级设置和多平台。
-- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows): 开箱即用的 zju-connect 简单 GUI，适用于 HITSZ。
+- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows)：支持高级设置与多平台的HITsz版ZJU-Connect
+- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows)：适用于HITSZ的开箱即用版zju-connect简易GUI

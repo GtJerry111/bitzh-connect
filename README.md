@@ -22,14 +22,14 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 - Simplified UI and Fluent UI (Windows only).
 - Built with PySide6 and Python, making it beginner-friendly to contribute and maintain.
 - Multi-platform support, providing out-of-box experience without executing additional scripts.
-- Advanced settings (coming soon).
+- Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
 
 ## Installation
 
 You can install HITSZ Connect Verge in two ways: downloading pre-built binaries or building from source.
 
 > [!NOTE]
-> 
+>
 > 1. Username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn)
 > 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
 
@@ -98,6 +98,42 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
     --add-data "core/zju-connect:core" \
     -n hitsz-connect-verge main.py
     ```
+
+## Working with other applications
+
+### Basic information
+
+- **Server**: vpn.hitsz.edu.cn
+- **SOCKS5 Proxy**:  1080
+- **HTTP Proxy**: 1081
+- **DNS Server**: 10.248.98.30
+
+If you want to learn more about the network configuration, you can visit [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect).
+
+### Clash
+
+<!-- If you want to use Clash at the same time , you can add the following configuration to your clash configuration file.
+
+```yaml
+rules:
+    - 'DOMAIN-SUFFIX,vpn.hitsz.edu.cn,DIRECT'
+``` -->
+
+I haven't figured out how to use it with Clash yet. If you have any ideas, please create a pull request.
+
+### Remote Desktop
+
+If you want to connect to the remote desktop in the campus network, you can use [Parallels Client](https://www.parallels.com/hk/products/ras/capabilities/parallels-client/), and configure the local 1080 port as a proxy.
+
+### SSH
+
+If you want to use SSH, you can use the following command to establish a connection.
+
+```bash
+ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <your_root>@<your_server>
+```
+
+See [this article](https://kuokuo.io/2019/07/01/ssh-over-http-or-socks/) for more information.
 
 ## Screenshots
 
