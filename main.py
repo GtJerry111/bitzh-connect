@@ -32,13 +32,6 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.load_credentials()
 
-    def toggle_advanced_settings(self, checked):
-        QMainWindow.resize(self, 300, 450 if checked else 300)
-        self.server_label.setVisible(checked)
-        self.server_input.setVisible(checked)
-        self.dns_label.setVisible(checked)
-        self.dns_input.setVisible(checked)
-
     def setup_ui(self):
         # Layouts
         layout = QVBoxLayout()
@@ -81,7 +74,7 @@ class MainWindow(QMainWindow):
         
         # Proxy Control
         self.proxy_cb = QCheckBox("自动配置代理")
-        self.proxy_cb.setChecked(True)
+        self.proxy_cb = True
         # layout.addWidget(self.proxy_cb)
 
         # Status and Output

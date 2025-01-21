@@ -55,6 +55,7 @@ jobs:
           --add-data "assets:assets" \
           --add-data "utils:utils" \
           --add-data "core/zju-connect:core" \
+          --add-data ".app-version:.app-version" \
           --icon assets/icon.icns \
           -n hitsz-connect-verge main.py
 
@@ -73,6 +74,7 @@ jobs:
           --add-data "assets;assets" `
           --add-data "utils;utils" `
           --add-data "core\zju-connect.exe;core" `
+          --add-data ".app-version;.app-version" `
           --icon assets/icon.ico `
           -n hitsz-connect-verge-${{ matrix.arch }} main_fluent.py
 
@@ -84,6 +86,7 @@ jobs:
           --add-data "assets:assets" \
           --add-data "utils:utils" \
           --add-data "core/zju-connect:core" \
+          --add-data ".app-version:.app-version" \
           --icon assets/icon.png \
           -n hitsz-connect-verge main.py
 
