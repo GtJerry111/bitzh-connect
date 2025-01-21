@@ -1,17 +1,21 @@
 import keyring
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QSystemTrayIcon, QMenu
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget
 )
-from qfluentwidgets import (PushButton, CheckBox, LineEdit, TextEdit, PasswordLineEdit, BodyLabel, TogglePushButton, PrimaryPushButton, DotInfoBadge, IconInfoBadge, FluentIcon)
+from qfluentwidgets import (PushButton, CheckBox, LineEdit, TextEdit, PasswordLineEdit, 
+                          BodyLabel, TogglePushButton, IconInfoBadge, FluentIcon)
 from PySide6.QtGui import QIcon
-import subprocess
 import platform
-import shlex
-if platform.system() == "Windows":
-    from subprocess import CREATE_NO_WINDOW
 from utils.set_proxy import CommandWorker
+from utils.check_for_update import check_for_updates
+from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
+from utils.credential_utils import load_credentials, save_credentials
+from utils.connection_utils import start_connection, stop_connection
+from utils.common import get_resource_path
+from utils.menu_utils import setup_menubar
 
-# Main Window
+VERSION = "0.2.3"
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -22,18 +26,10 @@ class MainWindow(QMainWindow):
         self.password_key = "password"    
         
         # Initialize system tray icon
-        self.tray_icon = QSystemTrayIcon(self)
-        if platform.system() == "Windows":
-            icon_path = self.get_resource_path("assets/icon.ico")
-        elif platform.system() == "Darwin":
-            icon_path = self.get_resource_path("assets/icon.icns")
-        elif platform.system() == "Linux":
-            icon_path = self.get_resource_path("assets/icon.png")
-        self.tray_icon.setIcon(QIcon(icon_path))
-        self.create_tray_menu()
-        self.tray_icon.show()
+        self.tray_icon = init_tray_icon(self)
         
         self.worker = None
+        setup_menubar(self, VERSION)
         self.setup_ui()
         self.load_credentials()
 
@@ -106,125 +102,28 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-    def create_tray_menu(self):
-        menu = QMenu()
-        show_action = menu.addAction("打开面板")
-        show_action.triggered.connect(self.show)
-        hide_action = menu.addAction("隐藏面板")
-        hide_action.triggered.connect(self.hide)
-        quit_action = menu.addAction("退出")
-        quit_action.triggered.connect(self.quit_app)
-        
-        self.tray_icon.setContextMenu(menu)
-        self.tray_icon.activated.connect(self.tray_icon_activated)
-
-    def tray_icon_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
-            self.show()
-            self.activateWindow()
-
     def closeEvent(self, event):
-        if self.tray_icon.isVisible():
-            self.hide()
-            event.ignore()
-        else:
-            self.quit_app()
+        handle_close_event(self, event, self.tray_icon)
 
     def quit_app(self):
-        self.stop_connection()
-        self.tray_icon.hide()
-        QApplication.quit()
+        quit_app(self, self.tray_icon)
 
     def load_credentials(self):
-        """Load stored credentials from keyring."""
-        saved_username = keyring.get_password(self.service_name, self.username_key)
-        saved_password = keyring.get_password(self.service_name, self.password_key)
-        if saved_username:
-            self.username_input.setText(saved_username)
-        if saved_password:
-            self.password_input.setText(saved_password)
-            self.remember_cb.setChecked(True)
+        load_credentials(self, self.service_name, self.username_key, self.password_key)
 
     def save_credentials(self):
-        """Save credentials to keyring if 'Remember Password' is checked."""
-        username = self.username_input.text()
-        password = self.password_input.text()
-
-        if self.remember_cb.isChecked():
-            keyring.set_password(self.service_name, self.username_key, username)
-            keyring.set_password(self.service_name, self.password_key, password)
-        else:
-            # Remove credentials if the user unchecks the remember box
-            keyring.delete_password(self.service_name, self.username_key)
-            keyring.delete_password(self.service_name, self.password_key)
+        save_credentials(self, self.service_name, self.username_key, self.password_key)
 
     def start_connection(self):
-        if self.worker and self.worker.isRunning():
-            self.status_label.setText("状态: 已连接")
-            self.status_icon.setIcon(FluentIcon.ACCEPT_MEDIUM)
-            return
-
-        username = self.username_input.text()
-        password = self.password_input.text()
-        server_address = self.server_input.text()
-        dns_server_address = self.dns_input.text()
-
-        import os, sys
-        if getattr(sys, 'frozen', False):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            
-        if platform.system() == "Windows":
-            command = os.path.join(base_path, "core", "zju-connect.exe")
-        else:
-            command = os.path.join(base_path, "core", "zju-connect")
-            # Ensure executable permissions on Unix-like systems
-            if os.path.exists(command):
-                os.chmod(command, 0o755)
-
-        command_args = [
-            command, "-server", shlex.quote(server_address),
-            "-zju-dns-server", shlex.quote(dns_server_address),
-            "-username", shlex.quote(username), "-password", shlex.quote(password)
-        ]
-        
-        self.worker = CommandWorker(command_args, self.proxy_cb.isChecked())
-        self.worker.output.connect(self.append_output)
-        self.worker.finished.connect(self.on_connection_finished)
-        self.worker.start()
-
-        self.status_label.setText("状态: 已连接")
-        self.status_icon.setIcon(FluentIcon.ACCEPT_MEDIUM)
+        start_connection(self)
 
     def stop_connection(self):
-        if self.worker:
-            self.worker.stop()
-            self.worker.wait()
-            self.worker = None
+        stop_connection(self)
 
-        self.status_label.setText("状态: 未连接")
-        self.status_icon.setIcon(FluentIcon.CANCEL_MEDIUM)
-
-    def append_output(self, text):
-        self.output_text.append(text)
-
-    def on_connection_finished(self):
-        self.worker = None
-        self.status_label.setText("状态: 未连接")
-        self.status_icon.setIcon(FluentIcon.CANCEL_MEDIUM)
-
-    @staticmethod
-    def get_resource_path(relative_path):
-        """Get absolute path to resource, works for dev and for PyInstaller"""
-        import os, sys
-        if getattr(sys, 'frozen', False):
-            # Running as bundled exe
-            base_path = sys._MEIPASS
-        else:
-            # Running as script
-            base_path = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_path, relative_path)
+    def toggle_advanced_settings(self, checked):
+        QMainWindow.resize(self, 300, 450 if checked else 300)
+        self.server_input.setVisible(checked)
+        self.dns_input.setVisible(checked)
 
 # Run the application
 if __name__ == "__main__":
@@ -232,12 +131,11 @@ if __name__ == "__main__":
     app.setQuitOnLastWindowClosed(False)
     
     if platform.system() == "Windows":
-        icon_path = MainWindow.get_resource_path("assets/icon.ico")
+        icon_path = get_resource_path("assets/icon.ico")
     elif platform.system() == "Darwin":
-        icon_path = MainWindow.get_resource_path("assets/icon.icns")
+        icon_path = get_resource_path("assets/icon.icns")
     elif platform.system() == "Linux":
-        icon_path = MainWindow.get_resource_path("assets/icon.png")
-
+        icon_path = get_resource_path("assets/icon.png")
     app_icon = QIcon(icon_path)
     app.setWindowIcon(app_icon)
     
