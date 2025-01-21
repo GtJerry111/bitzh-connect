@@ -112,14 +112,22 @@ If you want to learn more about the network configuration, you can visit [Mythol
 
 ### Clash
 
-<!-- If you want to use Clash at the same time , you can add the following configuration to your clash configuration file.
+If you want to use Clash at the same time (e.g. watching Youtube and visiting <http://jw.hitsz.edu.cn> at the same time), you can add the following configuration to your clash configuration file.
+
+For example, if you are using [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev), you can go to 'Profiles' -> Right click on the profile you are using -> 'Edit File' -> Add the following configuration:
 
 ```yaml
-rules:
-    - 'DOMAIN-SUFFIX,vpn.hitsz.edu.cn,DIRECT'
-``` -->
+proxies:
+    - { name: 'HITSZ Connect Verge', type: socks5, server: 127.0.0.1, port: 1080, udp: true }
+proxy-groups:
+    - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ Connect Verge']}
+proxies:
+    - 'DOMAIN,vpn.hitsz.edu.cn,DIRECT'
+    - 'DOMAIN-SUFFIX,hitsz.edu.cn,校园网'
+    - 'IP-CIDR,10.0.0.0/8,校园网,no-resolve'
+```
 
-I haven't figured out how to use it with Clash yet. If you have any ideas, please create a pull request.
+For further information, please refer to [this article](https://oldkingok.cc/share/8bFQXBjOkXt8) on <https://oldkingOK.cc>.
 
 ### Remote Desktop
 

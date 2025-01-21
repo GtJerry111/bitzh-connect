@@ -111,14 +111,22 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 
 ### Clash 配置
 
-<!-- 若需同时使用Clash，可在配置文件中添加如下规则：
+如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.hitsz.edu.cn>），您可以将以下配置添加到您的 Clash 配置文件中。
+
+例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往“配置文件” -> 右键单击您正在使用的配置文件 -> “编辑文件” -> 添加以下配置：
 
 ```yaml
-rules:
-    - 'DOMAIN-SUFFIX,vpn.hitsz.edu.cn,DIRECT'
-``` -->
+proxies:
+    - { name: 'HITSZ Connect Verge', type: socks5, server: 127.0.0.1, port: 1080, udp: true }
+proxy-groups:
+    - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ Connect Verge']}
+proxies:
+    - 'DOMAIN,vpn.hitsz.edu.cn,DIRECT'
+    - 'DOMAIN-SUFFIX,hitsz.edu.cn,校园网'
+    - 'IP-CIDR,10.0.0.0/8,校园网,no-resolve'
+```
 
-当前 Clash 协同方案仍在探索中，欢迎提交 ull Request 提供解决方案。
+更多信息请参考 <https://oldkingOK.cc> 上的[这篇文章](https://oldkingok.cc/share/8bFQXBjOkXt8)。
 
 ### 远程桌面连接
 
