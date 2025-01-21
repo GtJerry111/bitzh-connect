@@ -1,4 +1,3 @@
-import keyring
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget
 )
@@ -6,15 +5,14 @@ from qfluentwidgets import (PushButton, CheckBox, LineEdit, TextEdit, PasswordLi
                           BodyLabel, TogglePushButton, IconInfoBadge, FluentIcon)
 from PySide6.QtGui import QIcon
 import platform
-from utils.set_proxy import CommandWorker
-from utils.check_for_update import check_for_updates
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import load_credentials, save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path
 from utils.menu_utils import setup_menubar
 
-VERSION = "0.2.3"
+with open('.app-version', 'r') as f:
+    VERSION = f.read().strip()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -25,7 +23,6 @@ class MainWindow(QMainWindow):
         self.username_key = "username"    
         self.password_key = "password"    
         
-        # Initialize system tray icon
         self.tray_icon = init_tray_icon(self)
         
         self.worker = None

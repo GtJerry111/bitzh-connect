@@ -1,13 +1,10 @@
-import keyring
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QLineEdit, QCheckBox, QPushButton, 
-    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget,
-    QMessageBox, QDialog
+    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 import platform
-from utils.check_for_update import check_for_updates
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import load_credentials, save_credentials
 from utils.connection_utils import start_connection, stop_connection, handle_connection_finished
@@ -15,7 +12,8 @@ from utils.common import get_resource_path
 from utils.password_utils import toggle_password_visibility
 from utils.menu_utils import setup_menubar
 
-VERSION = "0.2.2"
+with open('.app-version', 'r') as f:
+    VERSION = f.read().strip()
 
 class MainWindow(QMainWindow):
     def __init__(self):
