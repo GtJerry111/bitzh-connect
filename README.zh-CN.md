@@ -120,11 +120,11 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 # 注：请勿将此直接附加到文件末尾，而是分别将其附加到每个配置块的末尾
 proxies:
     # 您现有的代理...
-    - { name: 'HITSZ 连接边缘', type: socks5, server: 127.0.0.1, port: 1080, udp: true }
+    - { name: 'HITSZ Connect Verge', type: socks5, server: 127.0.0.1, port: 1080, udp: true }
 
 proxy-groups:
     # 您现有的代理组...
-    - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ 连接边缘'] }
+    - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ Connect Verge'] }
 
 proxies:
     # 您现有的规则...
