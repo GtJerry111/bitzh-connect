@@ -8,7 +8,7 @@
 ![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
 ![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
 ![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
-![License](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+![Stars](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
 
 </div>
 
@@ -32,7 +32,7 @@ HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect
 >
 > 1. 用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
 > 2. 若下载速度较慢，可尝试使用[gh-proxy](https://gh-proxy.com)进行加速
-> 3. Linux版本目前仅支持从源码构建
+> 3. 运行在 ARM64 架构的 Linux 仅支持从源码构建
 
 ### 方式一：下载预编译版本
 
@@ -45,7 +45,7 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 > sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
 > ```
 >
-> 部分情况下需前往 macOS `设置`->`隐私与安全`->`通用`->`仍要打开`
+> 或者，前往 macOS `设置`->`隐私与安全性`->`安全性`->`打开`——`仍要打开` 来打开应用。
 
 ### 方式二：从源码构建
 
@@ -160,7 +160,7 @@ ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地�
 
 |   Windows   |   macOS    |   Linux    |
 | ---- | ---- | ---- |
-|  <img width="412" alt="windows" src="assets/windows.png" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
+|  <img width="412" alt="windows" src="resource/windows.png" />   | <img width="412" alt="mac" src="resource/mac.png" />  | <img width="412" alt="linux" src="resource/linux.png" />  |
 
 ## 贡献
 

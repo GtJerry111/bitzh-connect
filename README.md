@@ -8,7 +8,7 @@
 ![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
 ![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
 ![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
-![License](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+![Stars](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
 
 </div>
 
@@ -32,7 +32,7 @@ You can install HITSZ Connect Verge in two ways: downloading pre-built binaries 
 >
 > 1. Username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn)
 > 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
-> 3. Linux version only supports building from source as of now.
+> 3. Linux running on arm64 architecture only supports building from source.
 
 ### Method 1: Downloading pre-built binaries
 
@@ -45,8 +45,8 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 > sudo xattr -rd com.apple.quarantine hitsz-connect-verge.app
 > ```
 >
-> In some case, you need to go to macOS `Settings` -> `System Preferences` -> 
-> `Security & Privacy` -> `Open Anyway`.
+> Or, you can go to macOS `Settings` -> `System Preferences` ->
+> `Security & Privacy` -> `Open Anyway` to open the application.
 
 ### Method 2: Building from source
 
@@ -105,7 +105,7 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 ### Basic information
 
 - **Server**: vpn.hitsz.edu.cn
-- **SOCKS5 Proxy**:  1080
+- **SOCKS5 Proxy**: 1080
 - **HTTP Proxy**: 1081
 - **DNS Server**: 10.248.98.30
 
@@ -160,9 +160,7 @@ See [this article](https://kuokuo.io/2019/07/01/ssh-over-http-or-socks/) for mor
 
 |   Windows   |   Mac   |  Linux   |
 | ---- | ---- | ---- |
-|  <img width="412" alt="windows" src="assets/windows.png" />   | <img width="412" alt="mac" src="assets/mac.png" />  | <img width="412" alt="linux" src="assets/linux.png" />  |
-
-As of now, Linux version only supports building from source.
+|  <img width="412" alt="windows" src="resource/windows.png" />   | <img width="412" alt="mac" src="resource/mac.png" />  | <img width="412" alt="linux" src="resource/linux.png" />  |
 
 ## Contributing
 
