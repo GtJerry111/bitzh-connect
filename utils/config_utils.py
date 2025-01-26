@@ -20,7 +20,8 @@ def load_config():
         'proxy': True,
         'launch_at_login': get_launch_at_login(),
         'connect_startup': False,
-        'silent_mode': False
+        'silent_mode': False,
+        'check_update': True
     }
     
     try:

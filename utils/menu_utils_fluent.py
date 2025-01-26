@@ -42,7 +42,7 @@ def copy_log(window):
     QGuiApplication.clipboard().setText(window.output_text.toPlainText())
     MessageBox("复制日志", "日志已复制到剪贴板", parent=window).exec()
 
-def check_for_updates(parent, current_version):
+def check_for_updates(parent, current_version, startup=False):
     """
     Check for updates and show appropriate dialog.
     
@@ -61,14 +61,19 @@ def check_for_updates(parent, current_version):
         if version.parse(latest_version) > version.parse(current_version):
             title = "检查更新"
             message = f"发现新版本 {latest_version}，是否前往下载？"
-            dialog = MessageBox(title, message, parent=parent)
+            if parent:
+                dialog = MessageBox(title, message, parent=parent)
+            else:
+                dialog = MessageBox(title, message, parent=parent)
             if dialog.exec():
                 webbrowser.open("https://github.com/kowyo/hitsz-connect-verge/releases/latest/")
             else:
                 return
         else:
-            MessageBox("检查更新", "当前已是最新版本。", parent=parent).exec()
-            return
+            if not startup:
+                MessageBox("检查更新", "当前已是最新版本。", parent=parent).exec()
+            else:
+                print("当前已是最新版本。")
             
     except requests.RequestException:
         MessageBox("检查更新", "检查更新失败，请检查网络连接。", parent=parent).exec()
@@ -81,7 +86,8 @@ def show_advanced_settings(window):
         window.dns_server,
         window.proxy,
         window.connect_startup,
-        window.silent_mode
+        window.silent_mode,
+        window.check_update
     )
     
     if dialog.exec():
@@ -91,3 +97,4 @@ def show_advanced_settings(window):
         window.proxy = settings['proxy']
         window.connect_startup = settings['connect_startup']
         window.silent_mode = settings['silent_mode']
+        window.check_update = settings['check_update']

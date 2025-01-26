@@ -87,7 +87,10 @@ def check_for_updates(parent, current_version):
             dialog.finished.connect(dialog.deleteLater)
             dialog.exec()
         else:
-            QMessageBox.information(parent, "检查更新", "当前已是最新版本！")
+            if parent is not None:
+                QMessageBox.information(parent, "检查更新", "当前已是最新版本！")
+            else:
+                print("当前已是最新版本！")
 
     except requests.RequestException:
         QMessageBox.warning(parent, "检查更新", "检查更新失败，请检查网络连接。")
@@ -100,7 +103,8 @@ def show_advanced_settings(window):
         window.dns_server,
         window.proxy,
         window.connect_startup,
-        window.silent_mode
+        window.silent_mode,
+        window.check_update
     )
     
     if dialog.exec():
@@ -110,3 +114,4 @@ def show_advanced_settings(window):
         window.proxy = settings['proxy']
         window.connect_startup = settings['connect_startup']
         window.silent_mode = settings['silent_mode']
+        window.check_update = settings['check_update']

@@ -13,6 +13,7 @@ from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
 from utils.menu_utils_fluent import setup_menubar
 from utils.config_utils import load_config
+from utils.menu_utils_fluent import check_for_updates
 
 VERSION = get_version()
 
@@ -44,10 +45,13 @@ class MainWindow(QMainWindow):
         self.tray_icon = init_tray_icon(self)
         
         if self.connect_startup:
-            self.connect_button.setChecked(True)
+            QTimer.singleShot(1000, lambda: self.connect_button.setChecked(True))
         
         if self.silent_mode:
             QTimer.singleShot(1000, lambda: self.hide())
+
+        if self.check_update:
+            QTimer.singleShot(1000, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
 
         setTheme(Theme.AUTO)
         self.themeListener.start()
@@ -131,6 +135,7 @@ class MainWindow(QMainWindow):
         self.proxy = config['proxy']
         self.connect_startup = config.get('connect_startup', False)
         self.silent_mode = config.get('silent_mode', False)
+        self.check_update = config.get('check_update', True)
 
 # Run the application
 if __name__ == "__main__":

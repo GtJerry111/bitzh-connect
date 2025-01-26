@@ -29,41 +29,45 @@ class AdvancedSettingsDialog(QDialog):
         self.dns_input.setPlaceholderText('10.248.98.30')
         layout.addWidget(self.dns_input)
         
-        # Proxy Control and Login option
-        h_layout2 = QHBoxLayout()
-        
-        proxy_layout = QVBoxLayout()
+        # Proxy Control and Login option        
+        proxy_layout = QHBoxLayout()
         proxy_layout.addWidget(BodyLabel('自动配置代理'))
+        proxy_layout.addStretch()
         self.proxy_switch = SwitchButton(self)
         proxy_layout.addWidget(self.proxy_switch)
-        h_layout2.addLayout(proxy_layout)
+        layout.addLayout(proxy_layout)
         
-        startup_layout2 = QVBoxLayout()
-        startup_layout2.addWidget(BodyLabel('开机启动'))
+        launch_layout = QHBoxLayout()
+        launch_layout.addWidget(BodyLabel('开机启动'))
+        launch_layout.addStretch()
         self.startup_switch = SwitchButton(self)
         self.startup_switch.setChecked(get_launch_at_login())
-        startup_layout2.addWidget(self.startup_switch)
-        h_layout2.addLayout(startup_layout2)
-        
-        layout.addLayout(h_layout2)
+        launch_layout.addWidget(self.startup_switch)
+        layout.addLayout(launch_layout)
 
         # Connect on startup and Silent mode
-        h_layout = QHBoxLayout()
-        
-        startup_layout = QVBoxLayout()
+        startup_layout = QHBoxLayout()
         startup_layout.addWidget(BodyLabel('启动时自动连接'))
+        startup_layout.addStretch()
         self.connect_startup_switch = SwitchButton(self)
         startup_layout.addWidget(self.connect_startup_switch)
-        h_layout.addLayout(startup_layout)
+        layout.addLayout(startup_layout)
         
-        silent_layout = QVBoxLayout()
-        silent_layout.addWidget(BodyLabel('静默启动')) 
+        silent_layout = QHBoxLayout()
+        silent_layout.addWidget(BodyLabel('静默启动'))
+        silent_layout.addStretch() 
         self.silent_mode_switch = SwitchButton(self)
         silent_layout.addWidget(self.silent_mode_switch)
-        h_layout.addLayout(silent_layout)
-        
-        layout.addLayout(h_layout)
-        
+        layout.addLayout(silent_layout)
+
+        # Check for update on startup
+        check_update_layout = QHBoxLayout()
+        check_update_layout.addWidget(BodyLabel('启动时检查更新'))
+        check_update_layout.addStretch()
+        self.check_update_switch = SwitchButton(self)
+        check_update_layout.addWidget(self.check_update_switch)
+        layout.addLayout(check_update_layout)
+
         # Add stretch to push buttons to bottom
         layout.addStretch()
         
@@ -91,16 +95,19 @@ class AdvancedSettingsDialog(QDialog):
             'dns': self.dns_input.text() or self.dns_input.placeholderText(),
             'proxy': self.proxy_switch.isChecked(),
             'connect_startup': self.connect_startup_switch.isChecked(),
-            'silent_mode': self.silent_mode_switch.isChecked()
+            'silent_mode': self.silent_mode_switch.isChecked(),
+            'check_update': self.check_update_switch.isChecked
         }
 
-    def set_settings(self, server, dns, proxy, connect_startup, silent_mode):
+    def set_settings(self, server, dns, proxy, connect_startup, silent_mode, 
+                     check_update):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
         self.dns_input.setText(dns)
         self.proxy_switch.setChecked(proxy)
         self.connect_startup_switch.setChecked(connect_startup)
         self.silent_mode_switch.setChecked(silent_mode)
+        self.check_update_switch.setChecked(check_update)
 
     def accept(self):
         """Save settings before closing"""

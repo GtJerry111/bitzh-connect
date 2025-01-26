@@ -12,6 +12,7 @@ from utils.common import get_resource_path, get_version
 from utils.password_utils import toggle_password_visibility
 from utils.menu_utils import setup_menubar
 from utils.config_utils import load_config
+from utils.menu_utils import check_for_updates
 
 VERSION = get_version()
 
@@ -31,11 +32,14 @@ class MainWindow(QMainWindow):
         self.load_advanced_settings()
         self.tray_icon = init_tray_icon(self)
         
+        if self.check_update:
+            QTimer.singleShot(1000, lambda: check_for_updates(parent=None, current_version=VERSION))
+
         if self.connect_startup:
-            self.connect_button.setChecked(True)
+            QTimer.singleShot(1000, lambda: self.connect_button.setChecked(True))
         
         if self.silent_mode:
-            QTimer.singleShot(1000, lambda: self.hide())
+            QTimer.singleShot(0, lambda: self.hide())
 
     def setup_ui(self):
         # Layouts
@@ -120,6 +124,7 @@ class MainWindow(QMainWindow):
         self.proxy = config['proxy']
         self.connect_startup = config['connect_startup']
         self.silent_mode = config['silent_mode']
+        self.check_update = config['check_update']
 
 # Run the application
 if __name__ == "__main__":
