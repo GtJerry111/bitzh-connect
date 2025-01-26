@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(1000, lambda: self.hide())
 
         if self.check_update:
-            QTimer.singleShot(1000, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
+            QTimer.singleShot(0, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
 
         setTheme(Theme.AUTO)
         self.themeListener.start()
