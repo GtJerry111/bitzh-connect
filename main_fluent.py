@@ -36,11 +36,6 @@ class MainWindow(QMainWindow):
         self.load_settings()
         self.setup_ui()
         self.tray_icon = init_tray_icon(self)
-        
-        # Initialize default values
-        self.connect_startup = getattr(self, 'connect_startup', False)
-        self.silent_mode = getattr(self, 'silent_mode', False)
-        self.check_update = getattr(self, 'check_update', True)
 
         if self.connect_startup:
             QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
@@ -143,5 +138,6 @@ if __name__ == "__main__":
     app.setWindowIcon(app_icon)
     
     window = MainWindow()
-    window.show()
+    if not window.silent_mode:
+        window.show()
     app.exec()

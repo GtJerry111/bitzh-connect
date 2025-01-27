@@ -29,9 +29,6 @@ class MainWindow(QMainWindow):
         
         if self.connect_startup:
             QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
-        
-        if self.silent_mode:
-            QTimer.singleShot(0, lambda: self.hide())
 
         if self.check_update:
             QTimer.singleShot(1000, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
@@ -129,5 +126,6 @@ if __name__ == "__main__":
     app.setWindowIcon(app_icon)
     
     window = MainWindow()
-    window.show()
+    if not window.silent_mode:
+        window.show()
     app.exec()

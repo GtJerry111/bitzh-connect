@@ -87,6 +87,5 @@ class AdvancedSettingsDialog(QDialog):
         settings['remember'] = current_config.get('remember', False)
         
         save_config(settings)
-        set_launch_at_login(enable_startup=self.startup_switch.isChecked(), 
-                           enable_silent_mode=self.silent_mode_switch.isChecked())
+        set_launch_at_login(enable=self.startup_switch.isChecked())
         super().accept()
