@@ -55,7 +55,7 @@ jobs:
       run: |
         mkdir -p core
         curl -L "https://github.com/Mythologyli/zju-connect/releases/latest/download/zju-connect-darwin-${{ matrix.arch }}.zip" -o core/zju-connect.zip
-        unzip core/zju-connect.zip -d core
+        unzip -o core/zju-connect.zip -d core
         rm core/zju-connect.zip
         pyinstaller --clean --windowed \
           --target-arch ${{ matrix.target_arch }} \
@@ -107,7 +107,7 @@ jobs:
       run: |        
         mkdir -p core
         curl -L "https://github.com/Mythologyli/zju-connect/releases/latest/download/zju-connect-linux-${{ matrix.arch }}.zip" -o core/zju-connect.zip
-        unzip core/zju-connect.zip -d core
+        unzip -o core/zju-connect.zip -d core
         rm core/zju-connect.zip
         
         pyinstaller --noconsole --clean --onefile \
