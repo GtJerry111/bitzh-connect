@@ -1,9 +1,15 @@
 from .config_utils import load_config, save_config
 
-def save_credentials(window):
-    """Save credentials to config if 'Remember Password' is checked."""
-    config = load_config()
-    config['username'] = window.username_input.text() if window.remember_cb.isChecked() else ''
-    config['password'] = window.password_input.text() if window.remember_cb.isChecked() else ''
-    config['remember'] = window.remember_cb.isChecked()
-    save_config(config)
+def save_credentials(self):
+    config = load_config()  # Load existing config first
+    
+    if self.remember_cb.isChecked():
+        config['username'] = self.username_input.text()
+        config['password'] = self.password_input.text()
+        config['remember'] = True
+    else:
+        config['username'] = ''
+        config['password'] = ''
+        config['remember'] = False
+    
+    save_config(config)  # Save the updated config
