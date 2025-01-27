@@ -8,7 +8,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtCore import QTimer
 from platform import system
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
-from utils.credential_utils import load_credentials, save_credentials
+from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
 from utils.menu_utils_fluent import setup_menubar, check_for_updates
@@ -21,10 +21,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.themeListener = SystemThemeListener(self)
         self.setWindowTitle("HITSZ Connect Verge")
-        self.setMinimumSize(300, 450)
-        self.service_name = "hitsz-connect-verge"
-        self.username_key = "username"    
-        self.password_key = "password"    
+        self.setMinimumSize(300, 450)  
         
         self.worker = None
         
@@ -37,7 +34,6 @@ class MainWindow(QMainWindow):
         self.command_bar = setup_menubar(self, VERSION)
         self.main_layout.addWidget(self.command_bar)
         self.setup_ui()
-        self.load_credentials()
         self.load_settings()
         self.tray_icon = init_tray_icon(self)
         
@@ -77,6 +73,7 @@ class MainWindow(QMainWindow):
         layout.addSpacing(5)
         self.remember_cb = CheckBox("记住密码")
         layout.addWidget(self.remember_cb)
+        self.remember_cb.stateChanged.connect(self.save_credentials)
 
         layout.addSpacing(5)
         # Status and Output
@@ -97,7 +94,6 @@ class MainWindow(QMainWindow):
         self.connect_button = TogglePushButton("连接")
         self.connect_button.toggled.connect(lambda: self.start_connection() if self.connect_button.isChecked() else self.stop_connection())
         self.connect_button.toggled.connect(lambda: self.connect_button.setText("断开") if self.connect_button.isChecked() else self.connect_button.setText("连接"))
-        self.connect_button.clicked.connect(self.save_credentials)
         button_layout.addWidget(self.connect_button)
 
         button_layout.addStretch()
@@ -116,9 +112,6 @@ class MainWindow(QMainWindow):
         self.themeListener.terminate()
         self.themeListener.deleteLater()
         quit_app(self, self.tray_icon)
-
-    def load_credentials(self):
-        load_credentials(self)
 
     def save_credentials(self):
         save_credentials(self)

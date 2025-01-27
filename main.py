@@ -6,7 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtCore import QTimer
 from platform import system
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
-from utils.credential_utils import load_credentials, save_credentials
+from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
 from utils.password_utils import toggle_password_visibility
@@ -19,16 +19,12 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("HITSZ Connect Verge")
-        self.setMinimumSize(300, 450)
-        self.service_name = "hitsz-connect-verge"
-        self.username_key = "username"    
-        self.password_key = "password"    
+        self.setMinimumSize(300, 450) 
         
         self.worker = None
         setup_menubar(self, VERSION)
-        self.setup_ui()
-        self.load_credentials()
         self.load_settings()
+        self.setup_ui()
         self.tray_icon = init_tray_icon(self)
         
         if self.connect_startup:
@@ -47,10 +43,12 @@ class MainWindow(QMainWindow):
         # Account and Password
         layout.addWidget(QLabel("用户名"))
         self.username_input = QLineEdit()
+        self.username_input.setText(self.username)
         layout.addWidget(self.username_input)
 
         layout.addWidget(QLabel("密码"))
         self.password_input = QLineEdit()
+        self.password_input.setText(self.password)
         self.password_input.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_input)
 
@@ -61,6 +59,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.show_password_cb)
 
         self.remember_cb = QCheckBox("记住密码")
+        self.remember_cb.setChecked(self.remember)
+        self.remember_cb.stateChanged.connect(self.save_credentials)
         layout.addWidget(self.remember_cb)
         
         # Status and Output
@@ -81,7 +81,6 @@ class MainWindow(QMainWindow):
         self.connect_button.setCheckable(True)
         self.connect_button.toggled.connect(lambda: self.start_connection() if self.connect_button.isChecked() else self.stop_connection())
         self.connect_button.toggled.connect(lambda: self.connect_button.setText("断开") if self.connect_button.isChecked() else self.connect_button.setText("连接"))
-        self.connect_button.clicked.connect(self.save_credentials)
         button_layout.addWidget(self.connect_button)
 
         button_layout.addStretch()
@@ -102,9 +101,6 @@ class MainWindow(QMainWindow):
 
     def quit_app(self):
         quit_app(self, self.tray_icon)
-
-    def load_credentials(self):
-        load_credentials(self)
 
     def save_credentials(self):
         save_credentials(self)
