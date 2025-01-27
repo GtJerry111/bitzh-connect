@@ -33,8 +33,8 @@ class MainWindow(QMainWindow):
         # Setup interface
         self.command_bar = setup_menubar(self, VERSION)
         self.main_layout.addWidget(self.command_bar)
-        self.setup_ui()
         self.load_settings()
+        self.setup_ui()
         self.tray_icon = init_tray_icon(self)
         
         # Initialize default values
@@ -62,16 +62,19 @@ class MainWindow(QMainWindow):
         
         # Account and Password
         layout.addWidget(BodyLabel("用户名"))
-        self.username_input = LineEdit(self)  # Add self as parent
+        self.username_input = LineEdit(self)
+        self.username_input.setText(self.username)
         layout.addWidget(self.username_input)
 
         # layout.PasswordLineEdit()
         layout.addWidget(BodyLabel("密码"))
-        self.password_input = PasswordLineEdit(self)  # Add self as parent
+        self.password_input = PasswordLineEdit(self)
+        self.password_input.setText(self.password)
         layout.addWidget(self.password_input)
 
         layout.addSpacing(5)
         self.remember_cb = CheckBox("记住密码")
+        self.remember_cb.setChecked(self.remember)
         layout.addWidget(self.remember_cb)
         self.remember_cb.stateChanged.connect(self.save_credentials)
 
