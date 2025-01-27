@@ -10,9 +10,8 @@ from utils.credential_utils import load_credentials, save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
 from utils.password_utils import toggle_password_visibility
-from utils.menu_utils import setup_menubar
-from utils.config_utils import load_config
-from utils.menu_utils import check_for_updates
+from utils.menu_utils import setup_menubar, check_for_updates
+from utils.config_utils import load_settings
 
 VERSION = get_version()
 
@@ -29,17 +28,17 @@ class MainWindow(QMainWindow):
         setup_menubar(self, VERSION)
         self.setup_ui()
         self.load_credentials()
-        self.load_advanced_settings()
+        self.load_settings()
         self.tray_icon = init_tray_icon(self)
         
-        if self.check_update:
-            QTimer.singleShot(1000, lambda: check_for_updates(parent=None, current_version=VERSION))
-
         if self.connect_startup:
-            QTimer.singleShot(1000, lambda: self.connect_button.setChecked(True))
+            QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
         
         if self.silent_mode:
             QTimer.singleShot(0, lambda: self.hide())
+
+        if self.check_update:
+            QTimer.singleShot(1000, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
 
     def setup_ui(self):
         # Layouts
@@ -105,10 +104,10 @@ class MainWindow(QMainWindow):
         quit_app(self, self.tray_icon)
 
     def load_credentials(self):
-        load_credentials(self, self.service_name, self.username_key, self.password_key)
+        load_credentials(self)
 
     def save_credentials(self):
-        save_credentials(self, self.service_name, self.username_key, self.password_key)
+        save_credentials(self)
 
     def start_connection(self):
         start_connection(self)
@@ -116,15 +115,8 @@ class MainWindow(QMainWindow):
     def stop_connection(self):
         stop_connection(self)
 
-    def load_advanced_settings(self):
-        """Load advanced settings from config file"""
-        config = load_config()
-        self.server_address = config['server']
-        self.dns_server = config['dns']
-        self.proxy = config['proxy']
-        self.connect_startup = config['connect_startup']
-        self.silent_mode = config['silent_mode']
-        self.check_update = config['check_update']
+    def load_settings(self):
+        load_settings(self)
 
 # Run the application
 if __name__ == "__main__":

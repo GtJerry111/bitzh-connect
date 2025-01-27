@@ -11,9 +11,8 @@ from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import load_credentials, save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
-from utils.menu_utils_fluent import setup_menubar
-from utils.config_utils import load_config
-from utils.menu_utils_fluent import check_for_updates
+from utils.menu_utils_fluent import setup_menubar, check_for_updates
+from utils.config_utils import load_settings
 
 VERSION = get_version()
 
@@ -34,24 +33,27 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
         
-        # Setup command bar and add it to layout
+        # Setup interface
         self.command_bar = setup_menubar(self, VERSION)
         self.main_layout.addWidget(self.command_bar)
-
-        # Setup rest of UI
         self.setup_ui()
         self.load_credentials()
-        self.load_advanced_settings()
+        self.load_settings()
         self.tray_icon = init_tray_icon(self)
         
+        # Initialize default values
+        self.connect_startup = getattr(self, 'connect_startup', False)
+        self.silent_mode = getattr(self, 'silent_mode', False)
+        self.check_update = getattr(self, 'check_update', True)
+
         if self.connect_startup:
-            QTimer.singleShot(1000, lambda: self.connect_button.setChecked(True))
+            QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
         
         if self.silent_mode:
-            QTimer.singleShot(1000, lambda: self.hide())
+            QTimer.singleShot(0, lambda: self.hide())
 
         if self.check_update:
-            QTimer.singleShot(0, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
+            QTimer.singleShot(1000, lambda: check_for_updates(parent=self, current_version=VERSION, startup=True))
 
         setTheme(Theme.AUTO)
         self.themeListener.start()
@@ -116,10 +118,10 @@ class MainWindow(QMainWindow):
         quit_app(self, self.tray_icon)
 
     def load_credentials(self):
-        load_credentials(self, self.service_name, self.username_key, self.password_key)
+        load_credentials(self)
 
     def save_credentials(self):
-        save_credentials(self, self.service_name, self.username_key, self.password_key)
+        save_credentials(self)
 
     def start_connection(self):
         start_connection(self)
@@ -127,15 +129,8 @@ class MainWindow(QMainWindow):
     def stop_connection(self):
         stop_connection(self)
 
-    def load_advanced_settings(self):
-        """Load advanced settings from config file"""
-        config = load_config()
-        self.server_address = config['server']
-        self.dns_server = config['dns']
-        self.proxy = config['proxy']
-        self.connect_startup = config.get('connect_startup', False)
-        self.silent_mode = config.get('silent_mode', False)
-        self.check_update = config.get('check_update', True)
+    def load_settings(self):
+        load_settings(self)
 
 # Run the application
 if __name__ == "__main__":
