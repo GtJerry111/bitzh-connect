@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton, QHBoxLayout
-from .config_utils import save_config
+from .config_utils import save_config, load_config
 from .startup_utils import set_launch_at_login, get_launch_at_login
 
 class AdvancedSettingsDialog(QDialog):
@@ -78,7 +78,15 @@ class AdvancedSettingsDialog(QDialog):
 
     def accept(self):
         """Save settings before closing"""
+        current_config = load_config()  # Load existing config
         settings = self.get_settings()
+        
+        # Preserve credentials and remember state
+        settings['username'] = current_config.get('username', '')
+        settings['password'] = current_config.get('password', '')
+        settings['remember'] = current_config.get('remember', False)
+        
         save_config(settings)
-        set_launch_at_login(enable_startup=self.startup_switch.isChecked(), enable_silent_mode=self.silent_mode_switch.isChecked())
+        set_launch_at_login(enable_startup=self.startup_switch.isChecked(), 
+                           enable_silent_mode=self.silent_mode_switch.isChecked())
         super().accept()
