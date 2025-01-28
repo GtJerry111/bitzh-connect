@@ -109,7 +109,7 @@ proxy-groups:
     # your existing proxy-groups...
     - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ Connect Verge']}
 
-proxies:
+rules:
     # your existing rules...
     - 'DOMAIN,vpn.hitsz.edu.cn,DIRECT'
     - 'DOMAIN-SUFFIX,hitsz.edu.cn,校园网'

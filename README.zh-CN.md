@@ -108,7 +108,7 @@ proxy-groups:
     # 您现有的代理组...
     - { name: 校园网, type: select, proxies: ['DIRECT', 'HITSZ Connect Verge'] }
 
-proxies:
+rules:
     # 您现有的规则...
     - 'DOMAIN,vpn.hitsz.edu.cn,DIRECT'
     - 'DOMAIN-SUFFIX,hitsz.edu.cn,校园网'
