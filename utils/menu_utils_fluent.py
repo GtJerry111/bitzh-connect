@@ -61,10 +61,7 @@ def check_for_updates(parent, current_version, startup=False):
         if version.parse(latest_version) > version.parse(current_version):
             title = "检查更新"
             message = f"发现新版本 {latest_version}，是否前往下载？"
-            if parent:
-                dialog = MessageBox(title, message, parent=parent)
-            else:
-                dialog = MessageBox(title, message, parent=parent)
+            dialog = MessageBox(title, message, parent=parent)
             if dialog.exec():
                 webbrowser.open("https://github.com/kowyo/hitsz-connect-verge/releases/latest/")
             else:
@@ -76,7 +73,10 @@ def check_for_updates(parent, current_version, startup=False):
                 parent.output_text.append("App is up to date.")
             
     except requests.RequestException:
-        MessageBox("检查更新", "检查更新失败，请检查网络连接。", parent=parent).exec()
+        if not startup:
+            MessageBox("检查更新", "检查更新失败，请检查网络连接。", parent=parent).exec()
+        else:
+            parent.output_text.append("Failed to check for updates. Please check your network connection.")
 
 def show_advanced_settings(window):
     """Show advanced settings dialog with proper cleanup"""
