@@ -73,15 +73,13 @@ class AdvancedSettingsDialog(QDialog):
         self.proxy_switch.setChecked(proxy)
         self.connect_startup_switch.setChecked(connect_startup)
         self.silent_mode_switch.setChecked(silent_mode)
-        print(f"Set silent_mode_switch to {silent_mode}")
         self.check_update_switch.setChecked(check_update)
 
     def accept(self):
         """Save settings before closing"""
-        current_config = load_config()  # Load existing config
+        current_config = load_config()
         settings = self.get_settings()
-        
-        # Preserve credentials and remember state
+
         settings['username'] = current_config.get('username', '')
         settings['password'] = current_config.get('password', '')
         settings['remember'] = current_config.get('remember', False)
