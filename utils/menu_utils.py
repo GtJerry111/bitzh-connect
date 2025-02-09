@@ -1,18 +1,27 @@
-from PySide6.QtWidgets import QMessageBox, QDialog, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox, QMainWindow
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QMessageBox, QDialog, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox, QMainWindow, QMenuBar
+from PySide6.QtGui import QGuiApplication, QKeySequence
 import requests
 from packaging import version
 import webbrowser
 from PySide6.QtCore import Qt
 from .advanced_panel import AdvancedSettingsDialog
+from platform import system
+from .macos_utils import hide_dock_icon
 
 def setup_menubar(window: QMainWindow, version):
     """Set up the main window menu bar"""
-    menubar = window.menuBar()
+    if system() == "Darwin":
+        menubar = QMenuBar(window)
+        menubar.setNativeMenuBar(not window.hide_dock_icon)
+        window.setMenuBar(menubar)
+    else:
+        menubar = window.menuBar()
     
     # Settings Menu
     settings_menu = menubar.addMenu("设置")
-    window.advanced_action = settings_menu.addAction("高级设置")
+    window.advanced_action = settings_menu.addAction("高级设置" + (" " * 5 if system() == "Darwin" else ""))
+    if system() == "Darwin":
+        window.advanced_action.setShortcut(QKeySequence(Qt.CTRL | Qt.Key_Comma))  # Command + ,
     window.advanced_action.triggered.connect(lambda: show_advanced_settings(window))
     
     # Help Menu
@@ -107,7 +116,8 @@ def show_advanced_settings(window):
         window.proxy,
         window.connect_startup,
         window.silent_mode,
-        window.check_update
+        window.check_update,
+        window.hide_dock_icon
     )
     
     if dialog.exec():
@@ -118,3 +128,6 @@ def show_advanced_settings(window):
         window.connect_startup = settings['connect_startup']
         window.silent_mode = settings['silent_mode']
         window.check_update = settings['check_update']
+        window.hide_dock_icon = settings.get('hide_dock_icon', False)
+        if system() == "Darwin":
+            hide_dock_icon(window.hide_dock_icon)
