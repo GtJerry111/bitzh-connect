@@ -161,6 +161,6 @@ Also, any typo is welcome to be fixed.
 
 - [Keldos](https://github.com/Keldos-Li) for designing the macOS version's icon.
 
-- [EasierConnect](https://github.com/lyc8503/EasierConnect) for the predecessor of [ZJU Connect](https://github.com/Mythologyli/zju-connect).
+- [EasierConnect](https://github.com/lyc8503/EasierConnect).
 
 - All the contributors to this project.
