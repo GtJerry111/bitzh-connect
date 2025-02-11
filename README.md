@@ -19,7 +19,7 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 ## Features
 
 - Fast and green compared to **EasyConnect**.
-- Simplified UI and Fluent UI (Windows only).
+- Simplified UI and *Fluent UI (Windows only).*
 - Built with PySide6 and Python, making it beginner-friendly to contribute and maintain.
 - Multi-platform support, providing out-of-box experience without executing additional scripts.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
@@ -154,3 +154,13 @@ Also, any typo is welcome to be fixed.
 
 - [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows): HITsz Edition of ZJU-Connect-for-Windows. Support advanced settings and multi-platform.
 - [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows): Out-of-the-box zju-connect simple GUI for Windows, suitable for HITSZ.
+
+## Credits
+
+- [Mythologyli](https://github.com/Mythologyli) for the project [ZJU Connect](https://github.com/Mythologyli/zju-connect).
+
+- [Keldos](https://github.com/Keldos-Li) for designing the macOS version's icon.
+
+- [EasierConnect](https://github.com/lyc8503/EasierConnect) for the predecessor of [ZJU Connect](https://github.com/Mythologyli/zju-connect).
+
+- All the contributors to this project.

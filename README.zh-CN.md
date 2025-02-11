@@ -19,7 +19,7 @@ HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect
 ## 功能特点
 
 - 与 **EasyConnect** 相比，无需安装便可使用，移除后也不会将任何纪录（[注册表](https://zh.wikipedia.org/wiki/注册表)消息等）留在本机电脑上。
-- 简洁界面与 Fluent UI 设计（仅Windows平台）
+- 简洁界面与 *Fluent UI 设计（仅限 Windows）*
 - 基于 PySide6 与 Python 构建，方便贡献者参与维护
 - 跨平台支持，开箱即用，无需执行额外脚本
 - 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
@@ -31,7 +31,7 @@ HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect
 > [!NOTE]
 >
 > 1. 用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
-> 2. 若下载速度较慢，可尝试使用[gh-proxy](https://gh-proxy.com)进行加速
+> 2. 若下载速度较慢，可尝试使用 [gh-proxy](https://gh-proxy.com) 进行加速
 > 3. 运行在 ARM64 架构的 Linux 仅支持从源码构建
 
 ### 方式一：下载预编译版本
@@ -79,7 +79,7 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 
 4. （可选）构建二进制文件：
 
-    请参考我们的[GitHub Actions工作流](.github/workflows/release.yml)。
+    请参考我们的 [GitHub Actions 工作流](.github/workflows/release.yml)。
 
 ## 与其他应用协同工作
 
@@ -90,11 +90,11 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 - **HTTP代理端口**: 1081
 - **DNS服务器**: 10.248.98.30
 
-如需了解更详细的网络配置信息，请访问[Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)。
+如需了解更详细的网络配置信息，请访问 [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)。
 
 ### Clash 配置
 
-如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.hitsz.edu.cn>），您可以将以下配置添加到您的 Clash 配置文件中。
+如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.hitsz.edu.cn> ），您可以将以下配置添加到您的 Clash 配置文件中。
 
 例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往“配置文件” -> 右键单击您正在使用的配置文件 -> “编辑文件” -> 添加以下配置：
 
@@ -152,5 +152,15 @@ ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地�
 
 ## 相关项目
 
-- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows)：支持高级设置与多平台的HITsz版ZJU-Connect
-- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows)：适用于HITSZ的开箱即用版zju-connect简易GUI
+- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows)：支持高级设置与多平台的 HITsz 版 ZJU-Connect
+- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows)：适用于 HITSZ 的开箱即用版 zju-connect 简易 GUI
+
+## 鸣谢
+
+- [Mythologyli](https://github.com/Mythologyli) 开发的项目 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
+
+- [Keldos](https://github.com/Keldos-Li) 为本项目重新设计了 macOS 版本的图标
+
+- [EasierConnect](https://github.com/lyc8503/EasierConnect)
+
+- 本项目的所有贡献者
