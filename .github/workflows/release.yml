@@ -136,15 +136,14 @@ jobs:
 
     steps:
     - name: Download All Artifacts
-      uses: actions/download-artifact@v4
+      uses: dawidd6/action-download-artifact@v8
       with:
         path: artifacts
-        pattern: hitsz-connect-verge-*
-        merge-multiple: true
 
     - name: Publish Release
       uses: ncipollo/release-action@v1
       with:
+        generateReleaseNotes: true
         artifacts: "artifacts/*"
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref_name }}
