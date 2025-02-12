@@ -92,6 +92,7 @@ class MainWindow(QMainWindow):
         self.connect_button = TogglePushButton("连接")
         self.connect_button.toggled.connect(lambda: self.start_connection() if self.connect_button.isChecked() else self.stop_connection())
         self.connect_button.toggled.connect(lambda: self.connect_button.setText("断开") if self.connect_button.isChecked() else self.connect_button.setText("连接"))
+        self.connect_button.toggled.connect(self.save_credentials)
         button_layout.addWidget(self.connect_button)
 
         button_layout.addStretch()
