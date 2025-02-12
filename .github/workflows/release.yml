@@ -140,10 +140,19 @@ jobs:
       with:
         path: artifacts
 
+    - name: Archive Artifact Directories
+      run: |
+        for d in artifacts/*; do
+          if [ -d "$d" ]; then
+            echo "Zipping $d"
+            zip -r "$d.zip" "$d"
+          fi
+        done
+
     - name: Publish Release
       uses: ncipollo/release-action@v1
       with:
         generateReleaseNotes: true
-        artifacts: "artifacts/*"
+        artifacts: "artifacts/*.zip"
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref_name }}
