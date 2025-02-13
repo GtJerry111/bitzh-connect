@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QCheckBox, QPushButton, QHBoxLayout, QApplication
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QLineEdit, QCheckBox, 
+                              QPushButton, QHBoxLayout, QApplication, QTabWidget, QWidget)
 from PySide6.QtGui import QIcon
 from .config_utils import save_config, load_config
 from .startup_utils import set_launch_at_login, get_launch_at_login
@@ -18,41 +19,76 @@ class AdvancedSettingsDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout()
         
-        # Server settings
-        layout.addWidget(QLabel("VPN 服务端地址"))
+        tab_widget = QTabWidget()
+        
+        # Network tab
+        network_tab = QWidget()
+        network_layout = QVBoxLayout()
+        
+        # Server & Port
+        server_layout = QHBoxLayout()
+        server_layout.addWidget(QLabel("VPN 服务端地址"))
         self.server_input = QLineEdit("vpn.hitsz.edu.cn")
-        layout.addWidget(self.server_input)
+        server_layout.addWidget(self.server_input)
+        server_layout.addWidget(QLabel("端口"))
+        self.port_input = QLineEdit("443")
+        self.port_input.setMaximumWidth(60)
+        server_layout.addWidget(self.port_input)
+        network_layout.addLayout(server_layout)
 
         # DNS settings
-        layout.addWidget(QLabel("DNS 服务器地址"))
+        dns_layout = QHBoxLayout()
+        dns_layout.addWidget(QLabel("DNS 服务器地址"))
         self.dns_input = QLineEdit("10.248.98.30")
-        layout.addWidget(self.dns_input)
+        dns_layout.addWidget(self.dns_input)
+        network_layout.addLayout(dns_layout)
         
         # Proxy Control
         self.proxy_switch = QCheckBox("自动配置代理")
-        layout.addWidget(self.proxy_switch)
+        network_layout.addWidget(self.proxy_switch)
+
+        # Disable keep-alive
+        self.keep_alive_switch = QCheckBox("定时保活")
+        network_layout.addWidget(self.keep_alive_switch)
+
+        # Debug-dump
+        self.debug_dump_switch = QCheckBox("调试模式")
+        network_layout.addWidget(self.debug_dump_switch)
+
+        network_tab.setLayout(network_layout)
+        
+        # General tab
+        general_tab = QWidget()
+        general_layout = QVBoxLayout()
 
         # Startup Control
         self.startup_switch = QCheckBox("开机启动")
         self.startup_switch.setChecked(get_launch_at_login())
-        layout.addWidget(self.startup_switch)
+        general_layout.addWidget(self.startup_switch)
 
         # Silent mode
         self.silent_mode_switch = QCheckBox("静默启动")
-        layout.addWidget(self.silent_mode_switch)
+        general_layout.addWidget(self.silent_mode_switch)
 
         # Connect on startup
         self.connect_startup_switch = QCheckBox("启动时自动连接")
-        layout.addWidget(self.connect_startup_switch)
+        general_layout.addWidget(self.connect_startup_switch)
 
         # Check for update on startup
         self.check_update_switch = QCheckBox("启动时检查更新")
-        layout.addWidget(self.check_update_switch)
+        general_layout.addWidget(self.check_update_switch)
 
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
-            layout.addWidget(self.hide_dock_icon_switch)
+            general_layout.addWidget(self.hide_dock_icon_switch)
+
+        general_tab.setLayout(general_layout)
+
+        # Add tabs to widget
+        tab_widget.addTab(network_tab, "网络")
+        tab_widget.addTab(general_tab, "常规")
+        layout.addWidget(tab_widget)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -70,11 +106,14 @@ class AdvancedSettingsDialog(QDialog):
     def get_settings(self):
         settings = {
             'server': self.server_input.text(),
+            'port': self.port_input.text(),
             'dns': self.dns_input.text(),
             'proxy': self.proxy_switch.isChecked(),
             'connect_startup': self.connect_startup_switch.isChecked(),
             'silent_mode': self.silent_mode_switch.isChecked(),
-            'check_update': self.check_update_switch.isChecked()
+            'check_update': self.check_update_switch.isChecked(),
+            'keep_alive': self.keep_alive_switch.isChecked(),
+            'debug_dump': self.debug_dump_switch.isChecked(),
         }
         
         if system() == "Darwin":
@@ -82,9 +121,10 @@ class AdvancedSettingsDialog(QDialog):
             
         return settings
     
-    def set_settings(self, server, dns, proxy, connect_startup, silent_mode, check_update, hide_dock_icon=False):
+    def set_settings(self, server, port, dns, proxy, connect_startup, silent_mode, check_update, hide_dock_icon=False, keep_alive=False, debug_dump=False):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
+        self.port_input.setText(port)
         self.dns_input.setText(dns)
         self.proxy_switch.setChecked(proxy)
         self.connect_startup_switch.setChecked(connect_startup)
@@ -92,6 +132,8 @@ class AdvancedSettingsDialog(QDialog):
         self.check_update_switch.setChecked(check_update)
         if system() == "Darwin":
             self.hide_dock_icon_switch.setChecked(hide_dock_icon)
+        self.keep_alive_switch.setChecked(keep_alive)
+        self.debug_dump_switch.setChecked(debug_dump)
 
     def accept(self):
         """Save settings before closing"""

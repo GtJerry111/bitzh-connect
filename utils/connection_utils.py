@@ -37,6 +37,7 @@ def start_connection(window):
     username = window.username_input.text()
     password = window.password_input.text()
     server_address = window.server_address
+    port = window.port
     dns_server_address = window.dns_server
 
     if getattr(sys, 'frozen', False):
@@ -56,11 +57,20 @@ def start_connection(window):
             os.chmod(command, 0o755)
 
     command_args = [
-        command, "-server", shlex.quote(server_address),
+        command,
+        "-server", shlex.quote(server_address),
+        "-port", shlex.quote(str(port)),
         "-zju-dns-server", shlex.quote(dns_server_address),
-        "-username", shlex.quote(username), "-password", shlex.quote(password)
+        "-username", shlex.quote(username),
+        "-password", shlex.quote(password)
     ]
     
+    if not window.keep_alive:
+        command_args.append("-disable-keep-alive")
+    
+    if window.debug_dump:
+        command_args.append("-debug-dump")
+
     window.worker = CommandWorker(command_args=command_args, proxy_enabled=window.proxy)
     window.worker.output.connect(lambda text: handle_output(window, text))
     window.worker.finished.connect(lambda: handle_connection_finished(window))

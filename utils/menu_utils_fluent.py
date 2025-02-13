@@ -70,31 +70,37 @@ def check_for_updates(parent, current_version, startup=False):
             if not startup:
                 MessageBox("检查更新", "当前已是最新版本。", parent=parent).exec()
             else:
-                parent.output_text.append("App is up to date.")
+                parent.output_text.append("App is up to date.\n")
             
     except requests.RequestException:
         if not startup:
             MessageBox("检查更新", "检查更新失败，请检查网络连接。", parent=parent).exec()
         else:
-            parent.output_text.append("Failed to check for updates. Please check your network connection.")
+            parent.output_text.append("Failed to check for updates. Please check your network connection.\n")
 
 def show_advanced_settings(window):
     """Show advanced settings dialog with proper cleanup"""
     dialog = AdvancedSettingsDialog(window)
     dialog.set_settings(
         window.server_address,
+        window.port,
         window.dns_server,
         window.proxy,
         window.connect_startup,
         window.silent_mode,
-        window.check_update
+        window.check_update,
+        window.keep_alive,
+        window.debug_dump
     )
     
     if dialog.exec():
         settings = dialog.get_settings()
         window.server_address = settings['server']
+        window.port = settings['port']
         window.dns_server = settings['dns']
         window.proxy = settings['proxy']
         window.connect_startup = settings['connect_startup']
         window.silent_mode = settings['silent_mode']
         window.check_update = settings['check_update']
+        window.keep_alive = settings['keep_alive']
+        window.debug_dump = settings['debug_dump']

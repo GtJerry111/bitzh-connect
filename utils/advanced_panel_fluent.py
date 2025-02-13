@@ -1,35 +1,42 @@
-from qfluentwidgets import (LineEdit, BodyLabel, CheckBox, SwitchButton,
-                          PushButton, FluentIcon)
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout
+from qfluentwidgets import (LineEdit, BodyLabel, SwitchButton, PushButton, 
+                          FluentIcon, Pivot)
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QWidget,
+                              QStackedWidget)
+from PySide6.QtCore import Qt
 from .config_utils import save_config, load_config
 from .startup_utils import set_launch_at_login, get_launch_at_login
 
-class AdvancedSettingsDialog(QDialog):
+class NetworkSettingsWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('高级设置')
-        self.setMinimumWidth(300)
         self.setup_ui()
         
     def setup_ui(self):
-        # Create main layout
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
         layout.setSpacing(15)
-        layout.setContentsMargins(24, 24, 24, 24)
         
-        # Server settings
-        layout.addWidget(BodyLabel('VPN 服务端地址'))
+        # Server & Port
+        server_layout = QHBoxLayout()
+        server_layout.addWidget(BodyLabel('VPN 服务端地址'))
         self.server_input = LineEdit(self)
         self.server_input.setPlaceholderText('vpn.hitsz.edu.cn')
-        layout.addWidget(self.server_input)
-
+        server_layout.addWidget(self.server_input)
+        server_layout.addWidget(BodyLabel('端口'))
+        self.port_input = LineEdit(self)
+        self.port_input.setMaximumWidth(60)
+        self.port_input.setPlaceholderText('443')
+        server_layout.addWidget(self.port_input)
+        layout.addLayout(server_layout)
+        
         # DNS settings
-        layout.addWidget(BodyLabel('DNS 服务器地址'))
+        dns_layout = QHBoxLayout()
+        dns_layout.addWidget(BodyLabel('DNS 服务器地址'))
         self.dns_input = LineEdit(self)
         self.dns_input.setPlaceholderText('10.248.98.30')
-        layout.addWidget(self.dns_input)
+        dns_layout.addWidget(self.dns_input)
+        layout.addLayout(dns_layout)
         
-        # Proxy Control and Login option        
+        # Proxy Control
         proxy_layout = QHBoxLayout()
         proxy_layout.addWidget(BodyLabel('自动配置代理'))
         proxy_layout.addStretch()
@@ -37,6 +44,34 @@ class AdvancedSettingsDialog(QDialog):
         proxy_layout.addWidget(self.proxy_switch)
         layout.addLayout(proxy_layout)
         
+        # Disable keep-alive
+        keep_alive_layout = QHBoxLayout()
+        keep_alive_layout.addWidget(BodyLabel('定时保活'))
+        keep_alive_layout.addStretch()
+        self.keep_alive_switch = SwitchButton(self)
+        keep_alive_layout.addWidget(self.keep_alive_switch)
+        layout.addLayout(keep_alive_layout)
+        
+        # Debug dump
+        debug_dump_layout = QHBoxLayout()
+        debug_dump_layout.addWidget(BodyLabel('调试模式'))
+        debug_dump_layout.addStretch()
+        self.debug_dump_switch = SwitchButton(self)
+        debug_dump_layout.addWidget(self.debug_dump_switch)
+        layout.addLayout(debug_dump_layout)
+        
+        layout.addStretch()
+
+class GeneralSettingsWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        
+        # Startup Control
         launch_layout = QHBoxLayout()
         launch_layout.addWidget(BodyLabel('开机启动'))
         launch_layout.addStretch()
@@ -61,16 +96,45 @@ class AdvancedSettingsDialog(QDialog):
         startup_layout.addWidget(self.connect_startup_switch)
         layout.addLayout(startup_layout)
 
-        # Check for update on startup
+        # Check for update
         check_update_layout = QHBoxLayout()
         check_update_layout.addWidget(BodyLabel('启动时检查更新'))
         check_update_layout.addStretch()
         self.check_update_switch = SwitchButton(self)
         check_update_layout.addWidget(self.check_update_switch)
         layout.addLayout(check_update_layout)
-
-        # Add stretch to push buttons to bottom
+        
         layout.addStretch()
+
+class AdvancedSettingsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('高级设置')
+        self.setMinimumWidth(400)
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Create pivot and stacked widget
+        self.pivot = Pivot(self)
+        self.stackedWidget = QStackedWidget(self)
+        
+        # Create sub interfaces
+        self.network_settings = NetworkSettingsWidget(self)
+        self.general_settings = GeneralSettingsWidget(self)
+        
+        # Add sub interfaces
+        self.addSubInterface(self.network_settings, 'networkSettings', '网络')
+        self.addSubInterface(self.general_settings, 'generalSettings', '常规')
+        
+        # Initialize current tab
+        self.stackedWidget.setCurrentWidget(self.network_settings)
+        self.pivot.setCurrentItem(self.network_settings.objectName())
+        
+        layout.addWidget(self.pivot, 0, Qt.AlignHCenter)
+        layout.addWidget(self.stackedWidget)
         
         # Button layout
         button_layout = QHBoxLayout()
@@ -87,27 +151,40 @@ class AdvancedSettingsDialog(QDialog):
         button_layout.addWidget(save_button)
         button_layout.addWidget(cancel_button)
         layout.addLayout(button_layout)
-        
-        self.setLayout(layout)
+
+    def addSubInterface(self, widget: QWidget, objectName: str, text: str):
+        widget.setObjectName(objectName)
+        self.stackedWidget.addWidget(widget)
+        self.pivot.addItem(
+            routeKey=objectName,
+            text=text,
+            onClick=lambda: self.stackedWidget.setCurrentWidget(widget)
+        )
 
     def get_settings(self):
         return {
-            'server': self.server_input.text(),
-            'dns': self.dns_input.text(),
-            'proxy': self.proxy_switch.isChecked(),
-            'connect_startup': self.connect_startup_switch.isChecked(),
-            'silent_mode': self.silent_mode_switch.isChecked(),
-            'check_update': self.check_update_switch.isChecked()
+            'server': self.network_settings.server_input.text(),
+            'port': self.network_settings.port_input.text(),
+            'dns': self.network_settings.dns_input.text(),
+            'proxy': self.network_settings.proxy_switch.isChecked(),
+            'connect_startup': self.general_settings.connect_startup_switch.isChecked(),
+            'silent_mode': self.general_settings.silent_mode_switch.isChecked(),
+            'check_update': self.general_settings.check_update_switch.isChecked(),
+            'keep_alive': self.network_settings.keep_alive_switch.isChecked(),
+            'debug_dump': self.network_settings.debug_dump_switch.isChecked(),
         }
     
-    def set_settings(self, server, dns, proxy, connect_startup, silent_mode, check_update):
+    def set_settings(self, server, port, dns, proxy, connect_startup, silent_mode, check_update, keep_alive=False, debug_dump=False):
         """Set dialog values from main window values"""
-        self.server_input.setText(server)
-        self.dns_input.setText(dns)
-        self.proxy_switch.setChecked(proxy)
-        self.connect_startup_switch.setChecked(connect_startup)
-        self.silent_mode_switch.setChecked(silent_mode)
-        self.check_update_switch.setChecked(check_update)
+        self.network_settings.server_input.setText(server)
+        self.network_settings.port_input.setText(port)
+        self.network_settings.dns_input.setText(dns)
+        self.network_settings.proxy_switch.setChecked(proxy)
+        self.general_settings.connect_startup_switch.setChecked(connect_startup)
+        self.general_settings.silent_mode_switch.setChecked(silent_mode)
+        self.general_settings.check_update_switch.setChecked(check_update)
+        self.network_settings.keep_alive_switch.setChecked(keep_alive)
+        self.network_settings.debug_dump_switch.setChecked(debug_dump)
 
     def accept(self):
         """Save settings before closing"""
@@ -119,5 +196,5 @@ class AdvancedSettingsDialog(QDialog):
         settings['remember'] = current_config.get('remember', False)
 
         save_config(settings)
-        set_launch_at_login(enable=self.startup_switch.isChecked())
+        set_launch_at_login(enable=self.general_settings.startup_switch.isChecked())
         super().accept()
