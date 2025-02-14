@@ -164,11 +164,12 @@ jobs:
 
     - name: Archive Artifact Directories
       run: |
-        for d in artifacts/*; do
-          if [ -d "$d" ]; then
-            echo "Zipping $d"
-            zip -r "$d.zip" "$d"
-          fi
+        cd artifacts
+        for dir in *; do
+        if [ -d "$dir" ]; then
+          echo "Zipping $dir"
+          zip -r "$dir.zip" "$dir"
+          rm -rf "$dir"
         done
 
     - name: Publish Release
