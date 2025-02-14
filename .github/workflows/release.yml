@@ -166,10 +166,11 @@ jobs:
       run: |
         cd artifacts
         for dir in *; do
-        if [ -d "$dir" ]; then
-          echo "Zipping $dir"
-          zip -r "$dir.zip" "$dir"
-          rm -rf "$dir"
+          if [ -d "$dir" ]; then
+            echo "Zipping $dir"
+            zip -r "$dir.zip" "$dir"
+            rm -rf "$dir"
+          fi
         done
 
     - name: Publish Release
