@@ -44,13 +44,9 @@ def start_connection(window):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        
+    
     if system() == "Windows":
-        stable_path = os.path.join(os.path.expanduser("~"), "hitsz-connect-verge", "zju-connect.exe")
-        if not os.path.exists(stable_path):
-            os.makedirs(os.path.dirname(stable_path), exist_ok=True)
-            shutil.copy(os.path.join(base_path, "core", "zju-connect.exe"), stable_path)
-        command = stable_path
+        command = os.path.join(base_path, "core", "zju-connect.exe")
     else:
         command = os.path.join(base_path, "core", "zju-connect")
         if os.path.exists(command):
@@ -65,11 +61,23 @@ def start_connection(window):
         "-password", shlex.quote(password)
     ]
     
+    if window.http_bind:
+        command_args.extend(["-http-bind", shlex.quote("127.0.0.1:" + window.http_bind)])
+    if window.socks_bind:
+        command_args.extend(["-socks-bind", shlex.quote("127.0.0.1:" + window.socks_bind)])
+
     if not window.keep_alive:
         command_args.append("-disable-keep-alive")
     
     if window.debug_dump:
         command_args.append("-debug-dump")
+
+    debug_command = command_args.copy()
+    username_index = debug_command.index("-username") + 1
+    debug_command[username_index] = "********"
+    pwd_index = debug_command.index("-password") + 1
+    debug_command[pwd_index] = "********"
+    window.output_text.append(f"Running command: {' '.join(debug_command)}\n")
 
     window.worker = CommandWorker(command_args=command_args, proxy_enabled=window.proxy)
     window.worker.output.connect(lambda text: handle_output(window, text))
