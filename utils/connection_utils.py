@@ -3,7 +3,6 @@ import sys
 from platform import system
 import shlex
 import gc
-import shutil
 from .set_proxy import CommandWorker
 from qfluentwidgets import FluentIcon
 
@@ -79,7 +78,7 @@ def start_connection(window):
     debug_command[pwd_index] = "********"
     window.output_text.append(f"Running command: {' '.join(debug_command)}\n")
 
-    window.worker = CommandWorker(command_args=command_args, proxy_enabled=window.proxy)
+    window.worker = CommandWorker(command_args=command_args, proxy_enabled=window.proxy, window=window)
     window.worker.output.connect(lambda text: handle_output(window, text))
     window.worker.finished.connect(lambda: handle_connection_finished(window))
     window.worker.start()
