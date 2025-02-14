@@ -6,7 +6,8 @@ import webbrowser
 from PySide6.QtCore import Qt
 from .advanced_panel import AdvancedSettingsDialog
 from platform import system
-from .macos_utils import hide_dock_icon
+if system() == "Darwin":
+    from utils.macos_utils import hide_dock_icon
 
 def setup_menubar(window: QMainWindow, version):
     """Set up the main window menu bar"""

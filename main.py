@@ -11,7 +11,8 @@ from utils.connection_utils import start_connection, stop_connection
 from utils.common import get_resource_path, get_version
 from utils.password_utils import toggle_password_visibility
 from utils.menu_utils import setup_menubar, check_for_updates
-from utils.macos_utils import hide_dock_icon
+if system() == "Darwin":
+    from utils.macos_utils import hide_dock_icon
 from utils.config_utils import load_settings
 
 VERSION = get_version()
