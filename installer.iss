@@ -4,7 +4,7 @@
 #define MyAppExeName "HITSZ Connect Verge.exe"
 
 [Setup]
-AppId={{4BA3EC9B-F383-4A7F-8354-32951FC2A417}}
+AppId={{0A82300E-622C-4436-B80D-65027407B2B7}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -12,18 +12,22 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
+UninstallDisplayIcon={app}\{#MyAppExeName}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 DisableProgramGroupPage=yes
+CloseApplications=yes
+RestartApplications=yes
+
 LicenseFile=LICENSE
 OutputDir=dist
-OutputBaseFilename=hitsz-connect-verge-windows-{#Architecture}-setup
-Compression=lzma
+OutputBaseFilename=hitsz-connect-verge-windows-{#Architecture}
+
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+SetupIconFile=assets\icon.ico
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed={#ArchitecturesAllowed}
-ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
-CloseApplications=force
-UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=assets\icon.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -42,24 +46,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Remove the entire application directory after uninstalling.
 Type: filesandordirs; Name: "{app}"
 
-[Code]
-procedure CurUninstallStepsChange(CurUninstallStep: TUninstallStep);
-var
-  ResultCode: Integer;
-begin
-  if CurUninstallStep = usUninstall then
-  begin
-    // Force-kill the main executable and any child processes
-    if Exec('taskkill.exe', '/f /t /im "HITSZ Connect Verge.exe"', '', SW_HIDE,
-      ewWaitUntilTerminated, ResultCode) then
-    begin
-      if ResultCode <> 0 then
-        Log('Warning: taskkill returned error code ' + IntToStr(ResultCode));
-    end
-    else
-      Log('Error: failed to execute taskkill.exe');
-  end;
-end;
+[Registry]
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; Flags: uninsdeletekey dontcreatekey

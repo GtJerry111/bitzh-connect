@@ -99,23 +99,10 @@ jobs:
         # Install Inno Setup
         choco install innosetup -y
         
-        # Get version from .app-version
-        $version = Get-Content .app-version -Raw
-        
-        # Set architecture-specific variables
-        if ("${{ matrix.arch }}" -eq "amd64") {
-          $arch_allowed = "x64"
-          $arch_install64 = "x64"
-        } else {
-          $arch_allowed = "arm64"
-          $arch_install64 = "arm64"
-        }
-        
         # Compile installer
+        $version = Get-Content .app-version -Raw
         iscc /DMyAppVersion="$version" `
              /DArchitecture="${{ matrix.arch }}" `
-             /DArchitecturesAllowed="$arch_allowed" `
-             /DArchitecturesInstallIn64BitMode="$arch_install64" `
              installer.iss
 
     - name: Install Linux Dependencies
