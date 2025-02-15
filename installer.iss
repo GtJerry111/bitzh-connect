@@ -21,7 +21,7 @@ RestartApplications=yes
 
 LicenseFile=LICENSE
 OutputDir=dist
-OutputBaseFilename=hitsz-connect-verge-windows-{#Architecture}
+OutputBaseFilename=hitsz-connect-verge-windows-{#Architecture}-setup
 
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
