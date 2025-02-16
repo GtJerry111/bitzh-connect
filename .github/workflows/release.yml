@@ -57,6 +57,26 @@ jobs:
     - name: Install Dependencies
       run: uv sync
 
+    - name: Cache apt packages
+      if: runner.os == 'Linux'
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: libglib2.0-0 libgl1 dpkg-dev debhelper 
+          libxcb-xinerama0 
+          libxkbcommon-x11-0 
+          libxcb-icccm4 
+          libxcb-image0 
+          libxcb-keysyms1 
+          libxcb-randr0 
+          libxcb-render-util0 
+          libxcb-xfixes0 
+          libxcb-shape0 
+          libxcb-cursor0 
+          libxcb-sync1 
+          libxcb-xkb1 
+          libxcb1
+        version: 1.0
+
     - name: Build Executable (macOS)
       if: runner.os == 'macOS'
       run: |
@@ -89,6 +109,14 @@ jobs:
           "dist/hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.dmg" \
           "dist/HITSZ Connect Verge.app"
 
+    - name: Setup UPX (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        mkdir -p upx
+        Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-win64.zip" -OutFile "upx.zip"
+        Expand-Archive -Path "upx.zip" -DestinationPath "upx"
+        Remove-Item -Path "upx.zip"
+
     - name: Build Executable (Windows)
       if: runner.os == 'Windows'
       run: |
@@ -103,6 +131,7 @@ jobs:
           --add-data "core\zju-connect.exe;core" `
           --add-data ".app-version;." `
           --icon assets/icon.ico `
+          --upx-dir "upx/upx-4.2.4-win64" `
           -n "HITSZ Connect Verge" main_fluent.py
         
         # Install Inno Setup
@@ -114,11 +143,18 @@ jobs:
              /DArchitecture="${{ matrix.arch }}" `
              installer.iss
 
-    - name: Install Linux Dependencies
+    - name: Setup UPX (Linux)
       if: runner.os == 'Linux'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libglib2.0-0 libgl1 dpkg-dev debhelper
+        if [ "${{ matrix.arch }}" = "amd64" ]; then
+          wget https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz
+          tar -xf upx-4.2.4-amd64_linux.tar.xz
+          rm upx-4.2.4-amd64_linux.tar.xz
+        else
+          wget https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-arm64_linux.tar.xz
+          tar -xf upx-4.2.4-arm64_linux.tar.xz
+          rm upx-4.2.4-arm64_linux.tar.xz
+        fi
 
     - name: Build Executable (Linux)
       if: runner.os == 'Linux'
@@ -129,12 +165,13 @@ jobs:
         unzip -o core/zju-connect.zip -d core
         rm core/zju-connect.zip
         
-        pyinstaller --noconsole --clean --onefile \
+        pyinstaller --noconsole --clean \
           --add-data "assets:assets" \
           --add-data "utils:utils" \
           --add-data "core/zju-connect:core" \
           --add-data ".app-version:." \
           --icon assets/icon.png \
+          --upx-dir "upx-4.2.4-${{ matrix.arch }}_linux" \
           -n hitsz-connect-verge main.py
 
     - name: Archive Executable
