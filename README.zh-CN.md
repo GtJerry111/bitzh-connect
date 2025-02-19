@@ -1,5 +1,10 @@
 <div align="center">
 
+<img src="https://github.com/user-attachments/assets/f72235d8-9a80-476a-b2e8-5de1608d5632" 
+         width="128" 
+         height="128" 
+         alt="Icon">
+
 # HITSZ Connect Verge
 
 [中文](README.zh-CN.md) | [English](README.md)
