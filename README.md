@@ -14,15 +14,16 @@
 
 ## Introduction
 
-HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect). It helps you connect to the campus network of HITSZ remotely.
+HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect). It is built for users of ZJU Connect/EasyConnect.
+
 
 ## Features
 
 - Fast and green compared to **EasyConnect**.
-- Simplified UI and *Fluent UI (Windows only).*
-- Built with PySide6 and Python, making it beginner-friendly to contribute and maintain.
-- Multi-platform support, providing out-of-box experience without executing additional scripts.
+- Built with PySide6, easy to build and maintain.
+- Multi-platform support, with native optimization for the **macOS** version.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
+- Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
 
 ## Installation
 
@@ -30,7 +31,7 @@ You can install HITSZ Connect Verge in two ways: downloading pre-built binaries 
 
 > [!NOTE]
 >
-> 1. Username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn)
+> 1. If you are a student of HITSZ, username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn).
 > 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
 
 ### Method 1: Downloading pre-built binaries

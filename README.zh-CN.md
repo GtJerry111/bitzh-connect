@@ -14,23 +14,23 @@
 
 ## 简介
 
-HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。它可以帮助你远程连接到哈尔滨工业大学（深圳）的校园网络。
+HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。适用于 ZJU Connect/EasyConnect 的用户。
 
 ## 功能特点
 
-- 与 **EasyConnect** 相比，无需安装便可使用，移除后也不会将任何纪录（[注册表](https://zh.wikipedia.org/wiki/注册表)消息等）留在本机电脑上。
-- 简洁界面与 *Fluent UI 设计（仅限 Windows）*
-- 基于 PySide6 与 Python 构建，方便贡献者参与维护
-- 跨平台支持，开箱即用，无需执行额外脚本
+- 与 **EasyConnect** 相比更快速、更轻量
+- 基于 PySide6，易于构建，方便初学者参与维护
+- 跨平台支持，对 **macOS** 版本进行了原生适配和优化
 - 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
+- 支持自定义服务器地址/DNS/HTTP/SOCKS5 代理端口、定时保活等 ZJU Connect 常用的参数（如果有需要额外添加的参数，请提交 issue/PR）
 
 ## 安装指南
 
-您可通过两种方式安装HITSZ Connect Verge：下载预编译版本或从源码构建。
+您可通过两种方式安装 HITSZ Connect Verge：下载预编译版本或从源码构建。
 
 > [!NOTE]
 >
-> 1. 用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
+> 1. 如果你是 HITSZ 校内学生，用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
 > 2. 若下载速度较慢，可尝试使用 [gh-proxy](https://gh-proxy.com) 进行加速
 
 ### 方式一：下载预编译版本
