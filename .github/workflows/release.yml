@@ -41,6 +41,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        ref: main
 
     - name: Update version from tag and commit
       if: startsWith(github.ref, 'refs/tags/v')
@@ -55,7 +57,7 @@ jobs:
         
         git add .app-version
         git commit -m "chore: bump version to $VERSION"
-        git push
+        git push origin HEAD:main
 
     - name: Set up Python
       uses: actions/setup-python@v5
