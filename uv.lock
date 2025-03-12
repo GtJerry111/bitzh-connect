@@ -68,32 +68,29 @@ wheels = [
 ]
 
 [[package]]
-name = "darkdetect"
-version = "0.8.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/45/77/7575be73bf12dee231d0c6e60ce7fb7a7be4fcd58823374fc59a6e48262e/darkdetect-0.8.0.tar.gz", hash = "sha256:b5428e1170263eb5dea44c25dc3895edd75e6f52300986353cd63533fe7df8b1", size = 7681 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/f2/728f041460f1b9739b85ee23b45fa5a505962ea11fd85bdbe2a02b021373/darkdetect-0.8.0-py3-none-any.whl", hash = "sha256:a7509ccf517eaad92b31c214f593dbcf138ea8a43b2935406bbd565e15527a85", size = 8955 },
-]
-
-[[package]]
 name = "hitsz-connect-verge"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "pyinstaller" },
+    { name = "pyobjc", marker = "sys_platform == 'darwin'" },
     { name = "pyside6" },
-    { name = "pyside6-fluent-widgets" },
     { name = "requests" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyinstaller" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "pyinstaller", specifier = ">=6.11.1" },
+    { name = "pyobjc", marker = "sys_platform == 'darwin'", specifier = ">=11.0" },
     { name = "pyside6", specifier = ">=6.8.1.1" },
-    { name = "pyside6-fluent-widgets", specifier = ">=1.7.4" },
     { name = "requests", specifier = ">=2.32.3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pyinstaller", specifier = ">=6.11.1" }]
 
 [[package]]
 name = "idna"
@@ -132,15 +129,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/78/c5/3b3c62223f72e2360737fd2a57c30e5b2adecd85e70276879609a7403334/pefile-2023.2.7.tar.gz", hash = "sha256:82e6114004b3d6911c77c3953e3838654b04511b8b66e8583db70c65998017dc", size = 74854 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/26/d0ad8b448476d0a1e8d3ea5622dc77b916db84c6aa3cb1e1c0965af948fc/pefile-2023.2.7-py3-none-any.whl", hash = "sha256:da185cd2af68c08a6cd4481f7325ed600a88f6a813bad9dea07ab3ef73d8d8d6", size = 71791 },
-]
-
-[[package]]
-name = "pycocoa"
-version = "25.1.25"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/45/b6/9395c6c61b1cf3f61755908b80e5344aedc26f53b41ba361762dc4aedd1b/pycocoa-25.1.25.tar.gz", hash = "sha256:f01ed44819d854ceb98bdc5b9d5132c812c1b9e6e35c15e375204ead42ed9883", size = 514764 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/4b/df0c9a86ce8359b5e1a2406006cdb7e6e371cc55518ab11965b26c361468/pycocoa-25.1.25-py2.py3-none-any.whl", hash = "sha256:5767588321bda1b4740a62f77ed79f828543c67fa43efedb625c43feda56126f", size = 203528 },
 ]
 
 [[package]]
@@ -2809,50 +2797,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d9/cd/2877d399e1304589fada703a45b6d496247257a9cc318b52976056fed9a0/PySide6_Essentials-6.8.1.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:62b64842a91114c224c41eeb6a8c8f255ba60268bc5ac19724f944d60e2277c6", size = 95271258 },
     { url = "https://files.pythonhosted.org/packages/87/b6/2ddd22bf3ec6591551b31223cafe89a22afa0efc5df07304fd95ea3c04af/PySide6_Essentials-6.8.1.1-cp39-abi3-manylinux_2_39_aarch64.whl", hash = "sha256:e0c1cc3cfb2ea5eea70748da7d22032a59ea641e24988f543d5b274c0adab065", size = 93125840 },
     { url = "https://files.pythonhosted.org/packages/e7/86/91c84d4c7738bfdd993de9ee859ffeb9a479d3324afc4e73c08a0c828cf7/PySide6_Essentials-6.8.1.1-cp39-abi3-win_amd64.whl", hash = "sha256:085f12e16db31eb0e802b21c64eabf582f54db6c44463a1f5e1814d897b1f2c0", size = 72570438 },
-]
-
-[[package]]
-name = "pyside6-fluent-widgets"
-version = "1.7.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "darkdetect" },
-    { name = "pyside6" },
-    { name = "pysidesix-frameless-window" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/79/7f/1694f7fec1ce94fc97886085bd6ea6e59bb3ccf1cf1b85aa4e2cfd6c4daa/pyside6_fluent_widgets-1.7.4.tar.gz", hash = "sha256:b92d710808b9361d626a3764ae9dc9fef5cce97bf1135f0b7cd009106c4e95a1", size = 1432157 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/cb/b1a084690f622bde37408f21883ab9ef77858c5403155b80b8262714b06e/PySide6_Fluent_Widgets-1.7.4-py3-none-any.whl", hash = "sha256:7afba1919f9015e41d906a9710da2e04df11923af575106c353df27f9bccecdc", size = 1523911 },
-]
-
-[[package]]
-name = "pysidesix-frameless-window"
-version = "0.4.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pycocoa", marker = "sys_platform == 'darwin'" },
-    { name = "pyobjc", marker = "sys_platform == 'darwin'" },
-    { name = "pywin32", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/50/86/b303c5d3b2160e51c9b27fb42a6909b709450647ca6c8186488200562f8b/pysidesix_frameless_window-0.4.5.tar.gz", hash = "sha256:aee7a67c0bc1cfc1ec95fa9aaabf74a7c51c21c5e0af6be1ee2917271b4b03c5", size = 21343 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/2c/9095be4fb75af2237acdfdbf16f1db06502da841defbe334199476655472/PySideSix_Frameless_Window-0.4.5-py3-none-any.whl", hash = "sha256:510399fcc61a7e7f0862532a5f1d39a6255044263f388f87fce61b4650ae6715", size = 28358 },
-]
-
-[[package]]
-name = "pywin32"
-version = "308"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/e2/02652007469263fe1466e98439831d65d4ca80ea1a2df29abecedf7e47b7/pywin32-308-cp311-cp311-win32.whl", hash = "sha256:5d8c8015b24a7d6855b1550d8e660d8daa09983c80e5daf89a273e5c6fb5095a", size = 5928156 },
-    { url = "https://files.pythonhosted.org/packages/48/ef/f4fb45e2196bc7ffe09cad0542d9aff66b0e33f6c0954b43e49c33cad7bd/pywin32-308-cp311-cp311-win_amd64.whl", hash = "sha256:575621b90f0dc2695fec346b2d6302faebd4f0f45c05ea29404cefe35d89442b", size = 6559559 },
-    { url = "https://files.pythonhosted.org/packages/79/ef/68bb6aa865c5c9b11a35771329e95917b5559845bd75b65549407f9fc6b4/pywin32-308-cp311-cp311-win_arm64.whl", hash = "sha256:100a5442b7332070983c4cd03f2e906a5648a5104b8a7f50175f7906efd16bb6", size = 7972495 },
-    { url = "https://files.pythonhosted.org/packages/00/7c/d00d6bdd96de4344e06c4afbf218bc86b54436a94c01c71a8701f613aa56/pywin32-308-cp312-cp312-win32.whl", hash = "sha256:587f3e19696f4bf96fde9d8a57cec74a57021ad5f204c9e627e15c33ff568897", size = 5939729 },
-    { url = "https://files.pythonhosted.org/packages/21/27/0c8811fbc3ca188f93b5354e7c286eb91f80a53afa4e11007ef661afa746/pywin32-308-cp312-cp312-win_amd64.whl", hash = "sha256:00b3e11ef09ede56c6a43c71f2d31857cf7c54b0ab6e78ac659497abd2834f47", size = 6543015 },
-    { url = "https://files.pythonhosted.org/packages/9d/0f/d40f8373608caed2255781a3ad9a51d03a594a1248cd632d6a298daca693/pywin32-308-cp312-cp312-win_arm64.whl", hash = "sha256:9b4de86c8d909aed15b7011182c8cab38c8850de36e6afb1f0db22b8959e3091", size = 7976033 },
-    { url = "https://files.pythonhosted.org/packages/a9/a4/aa562d8935e3df5e49c161b427a3a2efad2ed4e9cf81c3de636f1fdddfd0/pywin32-308-cp313-cp313-win32.whl", hash = "sha256:1c44539a37a5b7b21d02ab34e6a4d314e0788f1690d65b48e9b0b89f31abbbed", size = 5938579 },
-    { url = "https://files.pythonhosted.org/packages/c7/50/b0efb8bb66210da67a53ab95fd7a98826a97ee21f1d22949863e6d588b22/pywin32-308-cp313-cp313-win_amd64.whl", hash = "sha256:fd380990e792eaf6827fcb7e187b2b4b1cede0585e3d0c9e84201ec27b9905e4", size = 6542056 },
-    { url = "https://files.pythonhosted.org/packages/26/df/2b63e3e4f2df0224f8aaf6d131f54fe4e8c96400eb9df563e2aae2e1a1f9/pywin32-308-cp313-cp313-win_arm64.whl", hash = "sha256:ef313c46d4c18dfb82a2431e3051ac8f112ccee1a34f29c263c583c568db63cd", size = 7974986 },
 ]
 
 [[package]]
