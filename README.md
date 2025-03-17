@@ -143,9 +143,9 @@ For macOS/Linux users:
 ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <root>@<server> -p <port>
 ```
 
-For Windows users, you can use [PuTTY](https://www.putty.org/) to establish a connection.
+For Windows users, you can use ncat to setup SOCKS 5 proxy.
 
-[Learn more](https://www.simplified.guide/putty/connect-via-proxy)
+[Learn more](https://hoa.moe/blog/using-hitsz-connect-verge-to-ssh-school-server/#windows)
 
 ## Screenshots
 

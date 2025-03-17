@@ -140,9 +140,9 @@ rules:
 ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地址> -p <端口>
 ```
 
-如果你是 Windows 用户，可以使用 [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html) 并在 `Connection` -> `Proxy` 中配置 `SOCKS5` 代理。
+如果你是 Windows 用户，可以使用 ncat 建立 SOCKS 5 代理。
 
-[了解更多](https://www.simplified.guide/putty/connect-via-proxy)
+[了解更多](https://hoa.moe/blog/using-hitsz-connect-verge-to-ssh-school-server/#通过-ssh-连接服务器)
 
 ## 截图
 
