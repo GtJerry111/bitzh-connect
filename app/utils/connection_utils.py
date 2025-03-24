@@ -34,10 +34,12 @@ def start_connection(window):
     port = window.port
     dns_server_address = window.dns_server
 
-    if getattr(sys, 'frozen', False):
+    frozen = getattr(sys, 'frozen', False)
+    
+    if frozen:
         base_path = sys._MEIPASS
     else:
-        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     if system() == "Windows":
         command = os.path.join(base_path, "app", "core", "zju-connect.exe")
