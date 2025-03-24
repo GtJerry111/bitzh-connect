@@ -95,11 +95,23 @@ jobs:
     - name: Install Dependencies
       run: uv sync
 
+    # Cache Nuitka compilation results
+    - name: Cache Nuitka compilation
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/Nuitka
+          ~/AppData/Local/Nuitka
+          ~/Library/Caches/Nuitka
+        key: nuitka-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          nuitka-${{ runner.os }}-${{ matrix.arch }}-
+
     # Download ZJU-connect core package
     - name: Download ZJU-connect Core
       run: |
         mkdir -p app/core
-        curl -L "https://github.com/Mythologyli/zju-connect/releases/latest/download/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
+        curl -L "https://github.com/Mythologyli/zju-connect/releases/download/v0.9.0/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
         if [ "${{ matrix.os_name }}" = "windows" ]; then
           powershell -command "Expand-Archive -Path app/core/zju-connect.zip -DestinationPath app/core"
         else
@@ -107,19 +119,30 @@ jobs:
         fi
         rm app/core/zju-connect.zip
       shell: bash
-
+    
     # macOS specific build
     - name: Build Executable (macOS)
       if: runner.os == 'macOS'
       run: |
         source .venv/bin/activate
         pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
-        pyinstaller --clean --windowed \
-          --target-arch ${{ matrix.target_arch }} \
-          --add-data "app:app" \
-          --add-data ".app-version:." \
-          --icon app/resources/icons/icon.icns \
-          -n "HITSZ Connect Verge" app/main.py
+
+        python -m nuitka \
+          --standalone \
+          --assume-yes-for-downloads \
+          --enable-plugin=pyside6 \
+          --include-data-dir=app=app \
+          --include-data-files=.app-version=.app-version \
+          --macos-target-arch=${{ matrix.target_arch }} \
+          --macos-create-app-bundle \
+          --macos-app-icon=app/resources/icons/icon.icns \
+          --macos-app-name="HITSZ Connect Verge" \
+          --macos-app-version=$(cat .app-version) \
+          --output-dir=dist \
+          --remove-output \
+          app/main.py
+
+        mv dist/main.app dist/HITSZ\ Connect\ Verge.app
 
     - name: Create DMG (macOS)
       if: runner.os == 'macOS'
@@ -136,28 +159,33 @@ jobs:
           "dist/hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.dmg" \
           "dist/HITSZ Connect Verge.app"
 
-    # Windows specific build
-    - name: Download UPX (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        mkdir -p upx
-        Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-win64.zip" -OutFile "upx.zip"
-        Expand-Archive -Path "upx.zip" -DestinationPath "upx"
-        Remove-Item -Path "upx.zip"
-        
+    # Windows specific build        
     - name: Build Executable (Windows)
       if: runner.os == 'Windows'
       run: |
         .\.venv\Scripts\Activate.ps1
         pyside6-rcc .\app\resources\resources.qrc -o .\app\common\resources.py
         
-        pyinstaller --clean --noconsole `
-          --add-data "app;app" `
-          --add-data ".app-version;." `
-          --icon "app\resources\icons\icon.ico" `
-          --upx-dir "upx/upx-5.0.0-win64" `
-          -n "HITSZ Connect Verge" app\main.py
+        python -m nuitka `
+          --standalone `
+          --assume-yes-for-downloads `
+          --enable-plugin=pyside6 `
+          --include-data-dir=app=app `
+          --include-data-files=app\core\zju-connect.exe=app\core\zju-connect.exe `
+          --include-data-files=.app-version=.app-version `
+          --product-name="HITSZ Connect Verge" `
+          --product-version=$(Get-Content .app-version) `
+          --windows-icon-from-ico=app\resources\icons\icon.ico `
+          --windows-console-mode=disable `
+          --output-dir=dist `
+          --remove-output `
+          app/main.py
+
+          Rename-Item -Path dist\main.dist\main.exe -NewName "hitsz-connect-verge.exe"
         
+    - name: Compile Installer (Windows)
+      if: runner.os == 'Windows'
+      run: |
         # Install Inno Setup
         choco install innosetup -y
         
@@ -187,29 +215,31 @@ jobs:
           libxcb-sync1 
           libxcb-xkb1 
           libxcb1
+          patchelf
+          build-essential
         version: 1.0
-
-    - name: Download UPX (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        wget https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-${{ matrix.arch }}_linux.tar.xz
-        tar -xf upx-5.0.0-${{ matrix.arch }}_linux.tar.xz
-        rm upx-5.0.0-${{ matrix.arch }}_linux.tar.xz
-
+    
     - name: Build Executable (Linux)
       if: runner.os == 'Linux'
       run: |
         source .venv/bin/activate
         pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
-        pyinstaller --noconsole --clean \
-          --add-data "app:app" \
-          --add-data ".app-version:." \
-          --icon "app\resources\icons\icon.png" \
-          --hidden-import shlex \
-          --hidden-import requests \
-          --hidden-import packaging \
-          --upx-dir "upx-5.0.0-${{ matrix.arch }}_linux" \
-          -n hitsz-connect-verge app/main.py
+        
+        python -m nuitka \
+          --standalone \
+          --assume-yes-for-downloads \
+          --enable-plugin=pyside6 \
+          --include-data-dir=app=app \
+          --include-data-files=.app-version=.app-version \
+          --product-name="HITSZ Connect Verge" \
+          --product-version=$(cat .app-version) \
+          --linux-icon=app/resources/icons/icon.png \
+          --output-dir=dist \
+          --remove-output \
+          app/main.py
+
+          mv dist/main.dist dist/hitsz-connect-verge
+          mv dist/hitsz-connect-verge/main.bin dist/hitsz-connect-verge/hitsz-connect-verge
 
     - name: Create DEB Package (Linux)
       if: runner.os == 'Linux'
