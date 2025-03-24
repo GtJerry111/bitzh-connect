@@ -34,10 +34,10 @@ def start_connection(window):
     port = window.port
     dns_server_address = window.dns_server
 
-    frozen = getattr(sys, 'frozen', False)
+    is_nuitka = '__compiled__' in globals()
     
-    if frozen:
-        base_path = sys._MEIPASS
+    if is_nuitka:
+        base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
     else:
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
