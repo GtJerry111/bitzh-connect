@@ -70,14 +70,15 @@ def start_connection(window):
         command_args.append("-debug-dump")
 
     command_args.append("-disable-zju-config")
-    command_args.append("-disable-zju-dns")
     command_args.append("-skip-domain-resource")
+    command_args.extend(["-zju-dns-server", "auto"])
     
     debug_command = command_args.copy()
     username_index = debug_command.index("-username") + 1
     debug_command[username_index] = "********"
     pwd_index = debug_command.index("-password") + 1
     debug_command[pwd_index] = "********"
+
     window.output_text.append(f"Running command: {' '.join(debug_command)}\n")
 
     window.worker = CommandWorker(command_args=command_args, proxy_enabled=window.proxy, window=window)
