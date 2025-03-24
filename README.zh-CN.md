@@ -60,24 +60,27 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 
 2. 安装依赖：
 
-    强烈建议使用虚拟环境。可通过以下命令创建：
+   - 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-    ```bash
-    python -m venv venv
-    source venv/bin/activate # 激活虚拟环境
-    ```
+   - 同步环境：
 
-    安装依赖项：
-
-    ```bash
-    pip install -r requirements.txt
-    ```
+     ```bash
+     uv sync
+     ```
 
 3. 运行应用：
 
-    ```bash
-    python main.py
-    ```
+   macOS/Linux
+   ```bash
+   source .venv/bin/activate
+   uv run app/main.py
+   ```
+
+   Windows (Powershell)
+   ```powershell
+   .\.venv\Scripts\activate.ps1
+   uv run .\app\main.py
+   ```
 
 4. （可选）构建二进制文件：
 

@@ -61,23 +61,26 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
 2. Install dependencies:
 
-    It is strongly recommended to use a virtual environment. You can create a virtual environment by running:
+    - Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-    ```bash
-    python -m venv venv
-    source venv/bin/activate # activate the virtual environment
-    ```
+    - Sync the environment:
 
-    Then, install the dependencies:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
+        ```bash
+        uv sync
+        ```
 
 3. Run the application:
-
+    
+    macOS/Linux
     ```bash
-    python main.py
+    source .venv/bin/activate
+    uv run app/main.py
+    ```
+
+    Windows (Powershell)
+    ```powershell
+    .\.venv\Scripts\activate.ps1
+    uv run .\app\main.py
     ```
 
 4. (Optional) Build the binaries:
