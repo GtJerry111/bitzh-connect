@@ -1,7 +1,7 @@
 #define MyAppName "HITSZ Connect Verge"
 #define MyAppPublisher "Kowyo"
 #define MyAppURL "https://github.com/kowyo/hitsz-connect-verge"
-#define MyAppExeName "hitsz-connect-verge.exe"
+#define MyAppExeName "main.exe"
 
 [Setup]
 AppId={{0A82300E-622C-4436-B80D-65027407B2B7}
