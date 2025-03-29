@@ -126,7 +126,6 @@ jobs:
           --macos-app-icon=app/resources/icons/icon.icns \
           --macos-app-name="HITSZ Connect Verge" \
           --macos-app-version=$(cat .app-version) \
-          --file-description="HITSZ Connect Verge"
           --output-dir=dist \
           --remove-output \
           app/main.py
