@@ -18,9 +18,9 @@
 </div>
 
 > [!IMPORTANT]
-> EasyConnect has been deprecated in HITSZ since May 6th, 2025 (or earlier), and related API accessed from ZJU Connect and HITSZ Connect Verge is disabled. If your faculty can still use easyconnect, this project will still work for you, enjoy it.
+> EasyConnect has been deprecated in HITSZ since May 6th, 2025 (or earlier), and related API accessed from ZJU Connect and HITSZ Connect Verge is disabled. If your faculty can still use EasyConnect, this project will still work for you, enjoy it.
 >
-> If you are cannot use easyconnect/or this project, the official replacement is [aTrust](https://www.sangfor.com.cn/sangfor-security/atrust), which is still disgusting for me. If you are from HITSZ, you can access aTrust from <https://trust.hitsz.edu.cn>
+> If you are cannot use EasyConnect/this project, the official replacement is [aTrust](https://www.sangfor.com.cn/sangfor-security/atrust), which is still disgusting for me. If you are from HITSZ, you can access aTrust from <https://trust.hitsz.edu.cn>
 >
 > I will recommend you to have a look at [docker-easyconnect](https://github.com/docker-easyconnect/docker-easyconnect), which mentions its compatibility with aTrust. Although I haven't tested it.
 
