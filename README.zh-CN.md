@@ -17,6 +17,13 @@
 
 </div>
 
+> [!IMPORTANT]
+> 自2025年5月6日（或更早的时间）起，HITSZ 已停止使用 EasyConnect 服务，造成了 ZJU Connect 及 HITSZ Connect Verge 的相关API接口失效。若您所在的机构仍支持使用 EasyConnect，本项目可继续正常运行，请放心使用。
+>
+> 若您无法使用 EasyConnect 或本项目，官方替代方案为 [aTrust](https://www.sangfor.com.cn/sangfor-security/atrust)，但该方案仍然存在一些 EasyConnect 上面讨厌的行为。HITSZ 用户可通过 <https://trust.hitsz.edu.cn> 访问aTrust 服务。
+>
+> 如果您感兴趣，可以移步 [docker-easyconnect](https://github.com/docker-easyconfct/docker-easyconnect)，该项目提及了对aTrust的兼容性支持（未经实测）。
+
 ## 简介
 
 HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。适用于 ZJU Connect/EasyConnect 的用户。
