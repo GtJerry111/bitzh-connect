@@ -22,7 +22,7 @@
 >
 > 若您无法使用 EasyConnect 或本项目，官方替代方案为 [aTrust](https://www.sangfor.com.cn/sangfor-security/atrust)，但该方案仍然存在一些 EasyConnect 上面讨厌的行为。HITSZ 用户可通过 <https://trust.hitsz.edu.cn> 访问aTrust 服务。
 >
-> 如果您感兴趣，可以移步 [docker-easyconnect](https://github.com/docker-easyconfct/docker-easyconnect)，该项目提及了对aTrust的兼容性支持（未经实测）。
+> 如果您感兴趣，可以移步 [docker-easyconnect](https://github.com/docker-easyconnect/docker-easyconnect)，该项目提及了对aTrust的兼容性支持（未经实测）。
 
 ## 简介
 
