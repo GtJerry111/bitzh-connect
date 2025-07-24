@@ -14,20 +14,26 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     show_action.triggered.connect(window.raise_)
     connect_action = QAction("系统代理", menu)
     connect_action.setCheckable(True)
-    connect_action.triggered.connect(lambda checked: window.connect_button.setChecked(checked))
-    window.connect_button.toggled.connect(connect_action.setChecked) # Sync connect_action item with connect_button state
+    connect_action.triggered.connect(
+        lambda checked: window.connect_button.setChecked(checked)
+    )
+    window.connect_button.toggled.connect(
+        connect_action.setChecked
+    )  # Sync connect_action item with connect_button state
     menu.addAction(connect_action)
     quit_action = menu.addAction("退出")
     quit_action.triggered.connect(window.quit_app)
-    
+
     tray_icon.setContextMenu(menu)
     tray_icon.activated.connect(lambda reason: tray_icon_activated(reason, window))
+
 
 def tray_icon_activated(reason, window):
     """Handle tray icon activation"""
     if reason == QSystemTrayIcon.DoubleClick:
         window.show()
         window.activateWindow()
+
 
 def handle_close_event(window, event, tray_icon):
     """Handle window close event"""
@@ -37,6 +43,7 @@ def handle_close_event(window, event, tray_icon):
     else:
         window.quit_app()
 
+
 def quit_app(window, tray_icon):
     """Quit the application"""
     window.stop_connection()
@@ -45,10 +52,11 @@ def quit_app(window, tray_icon):
     gc.collect()
     QApplication.quit()
 
+
 def init_tray_icon(window):
     """Initialize system tray icon and menu"""
     tray_icon = QSystemTrayIcon(window)
-    
+
     # Set icon based on platform
     if system() == "Windows":
         icon_path = ":/icons/icon.ico"
@@ -62,7 +70,7 @@ def init_tray_icon(window):
         return tray_icon
     elif system() == "Linux":
         icon_path = ":/icons/icon.png"
-    
+
     tray_icon.setIcon(QIcon(icon_path))
     create_tray_menu(window, tray_icon)
     tray_icon.show()

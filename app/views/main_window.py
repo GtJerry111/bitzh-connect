@@ -1,6 +1,13 @@
 from PySide6.QtWidgets import (
-    QMainWindow, QLabel, QLineEdit, QCheckBox, QPushButton, 
-    QTextEdit, QVBoxLayout, QHBoxLayout, QWidget
+    QMainWindow,
+    QLabel,
+    QLineEdit,
+    QCheckBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QHBoxLayout,
+    QWidget,
 )
 from PySide6.QtCore import QTimer
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
@@ -13,29 +20,30 @@ from common.version import get_version
 
 VERSION = get_version()
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("HITSZ Connect Verge")
-        self.setMinimumSize(300, 450) 
-        
+        self.setMinimumSize(300, 450)
+
         self.worker = None
         self.version = VERSION
         self.load_settings()
         setup_menubar(self, self.version)
         self.setup_ui()
         self.tray_icon = init_tray_icon(self)
-        
+
         if self.connect_startup:
             QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
-        
+
         if self.check_update:
             self.check_updates_startup()
 
     def setup_ui(self):
         # Layouts
         layout = QVBoxLayout()
-        
+
         # Account and Password
         layout.addWidget(QLabel("用户名"))
         self.username_input = QLineEdit()
@@ -58,7 +66,7 @@ class MainWindow(QMainWindow):
         self.remember_cb.setChecked(self.remember)
         self.remember_cb.stateChanged.connect(self.save_credentials)
         layout.addWidget(self.remember_cb)
-        
+
         # Status and Output
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("运行信息"))
@@ -75,15 +83,23 @@ class MainWindow(QMainWindow):
         button_layout = QHBoxLayout()
         self.connect_button = QPushButton("连接")
         self.connect_button.setCheckable(True)
-        self.connect_button.toggled.connect(lambda: self.start_connection() if self.connect_button.isChecked() else self.stop_connection())
-        self.connect_button.toggled.connect(lambda: self.connect_button.setText("断开") if self.connect_button.isChecked() else self.connect_button.setText("连接"))
+        self.connect_button.toggled.connect(
+            lambda: self.start_connection()
+            if self.connect_button.isChecked()
+            else self.stop_connection()
+        )
+        self.connect_button.toggled.connect(
+            lambda: self.connect_button.setText("断开")
+            if self.connect_button.isChecked()
+            else self.connect_button.setText("连接")
+        )
         self.connect_button.toggled.connect(self.save_credentials)
         button_layout.addWidget(self.connect_button)
 
         button_layout.addStretch()
 
         self.exit_button = QPushButton("退出")
-        self.exit_button.clicked.connect(self.stop_connection) 
+        self.exit_button.clicked.connect(self.stop_connection)
         self.exit_button.clicked.connect(self.quit_app)
         button_layout.addWidget(self.exit_button)
         layout.addLayout(button_layout)

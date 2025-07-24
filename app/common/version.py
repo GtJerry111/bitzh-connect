@@ -2,6 +2,7 @@ import sys
 from . import resources
 from PySide6.QtCore import QFile, QIODevice
 
+
 def get_version():
     """Get version from QRC resource with fallback"""
     try:
@@ -12,6 +13,6 @@ def get_version():
             return version
         else:
             raise Exception("Could not read version from resource")
-        
+
     except Exception as e:
         print(f"Error reading version from resource: {e}", file=sys.stderr)
