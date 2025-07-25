@@ -1,14 +1,14 @@
 # Resource object code (Python 3)
 # Created by: object code
-# Created by: The Resource Compiler for Qt version 6.8.1
+# Created by: The Resource Compiler for Qt version 6.9.1
 # WARNING! All changes made in this file will be lost!
 
 from PySide6 import QtCore
 
 qt_resource_data = b"\
-\x00\x00\x00\x05\
+\x00\x00\x00\x06\
 1\
-.1.2\
+.2.2\x0a\
 \x00\x00H\xfa\
 \x00\
 \x02\x92\xc1x\xda\xed\x1d\x09\x5cM\xcd\xf7\xb6\x90l!\
@@ -13781,69 +13781,69 @@ p\xdd+\xe5,\xf6\xe92\xc1q<\xcf\x0d\xc3G+\
 \xa2\x1c\x86\xae\xe79N\xa0\xf9\x17\xfa?y\xf8 \xd8\
 l\xefn\x95\x00\x00\x00\x00IEND\xaeB`\x82\
 \
-\x00\x00\x03\xc9\
+\x00\x00\x03\xc4\
 <\
 ?xml version=\x221.\
 0\x22 encoding=\x22UTF\
--8\x22?>\x0d\x0a<!-- Gene\
-rated by Pixelma\
-tor Pro 3.6.14 -\
-->\x0d\x0a<svg width=\x22\
-128\x22 height=\x22128\
-\x22 viewBox=\x220 0 1\
-28 128\x22 xmlns=\x22h\
-ttp://www.w3.org\
-/2000/svg\x22>\x0d\x0a   \
- <path id=\x22path1\
-\x22 fill=\x22#000000\x22\
- fill-rule=\x22even\
-odd\x22 stroke=\x22non\
-e\x22 d=\x22M 64 5 C 9\
-6.584801 5 123 3\
-1.415199 123 64 \
-C 123 96.584801 \
-96.584801 123 64\
- 123 C 31.415199\
- 123 5 96.584801\
- 5 64 C 5 31.415\
-199 31.415199 5 \
-64 5 Z M 37.6223\
-07 58.001968 C 3\
-2.370365 60.2283\
-71 28.690266 65.\
-396515 28.690266\
- 71.416672 C 28.\
-690266 78.471954\
- 33.324383 84.64\
-8796 40.039822 8\
-6 L 87.960175 86\
- C 94.675613 84.\
-648796 99.309738\
- 78.471954 99.30\
-9738 71.416672 C\
- 99.309738 65.15\
-152 95.323997 59\
-.80912 89.728813\
- 57.744911 C 90.\
-219368 56.066925\
- 90.4823 54.2930\
-68 90.4823 52.45\
-8336 C 90.4823 4\
-1.987938 81.9192\
-5 33.5 71.356194\
- 33.5 C 63.37331\
-8 33.5 56.532719\
- 38.347771 53.66\
-7191 45.235352 C\
- 53.194351 45.18\
-9919 52.714958 4\
-5.166664 52.2300\
-87 45.166664 C 4\
-4.70145 45.16666\
-4 38.493591 50.7\
-71965 37.622307 \
-58.001968 Z\x22/>\x0d\x0a\
-</svg>\x0d\x0a\
+-8\x22?>\x0a<!-- Gener\
+ated by Pixelmat\
+or Pro 3.6.14 --\
+>\x0a<svg width=\x2212\
+8\x22 height=\x22128\x22 \
+viewBox=\x220 0 128\
+ 128\x22 xmlns=\x22htt\
+p://www.w3.org/2\
+000/svg\x22>\x0a    <p\
+ath id=\x22path1\x22 f\
+ill=\x22#000000\x22 fi\
+ll-rule=\x22evenodd\
+\x22 stroke=\x22none\x22 \
+d=\x22M 64 5 C 96.5\
+84801 5 123 31.4\
+15199 123 64 C 1\
+23 96.584801 96.\
+584801 123 64 12\
+3 C 31.415199 12\
+3 5 96.584801 5 \
+64 C 5 31.415199\
+ 31.415199 5 64 \
+5 Z M 37.622307 \
+58.001968 C 32.3\
+70365 60.228371 \
+28.690266 65.396\
+515 28.690266 71\
+.416672 C 28.690\
+266 78.471954 33\
+.324383 84.64879\
+6 40.039822 86 L\
+ 87.960175 86 C \
+94.675613 84.648\
+796 99.309738 78\
+.471954 99.30973\
+8 71.416672 C 99\
+.309738 65.15152\
+ 95.323997 59.80\
+912 89.728813 57\
+.744911 C 90.219\
+368 56.066925 90\
+.4823 54.293068 \
+90.4823 52.45833\
+6 C 90.4823 41.9\
+87938 81.91925 3\
+3.5 71.356194 33\
+.5 C 63.373318 3\
+3.5 56.532719 38\
+.347771 53.66719\
+1 45.235352 C 53\
+.194351 45.18991\
+9 52.714958 45.1\
+66664 52.230087 \
+45.166664 C 44.7\
+0145 45.166664 3\
+8.493591 50.7719\
+65 37.622307 58.\
+001968 Z\x22/>\x0a</sv\
+g>\x0a\
 "
 
 qt_resource_name = b"\
@@ -13885,28 +13885,21 @@ qt_resource_struct = b"\
 \x00\x00\x00\x10\x00\x02\x00\x00\x00\x01\x00\x00\x00\x03\
 \x00\x00\x00\x00\x00\x00\x00\x00\
 \x00\x00\x00 \x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\
-\x00\x00\x01\x95\xc7\xc5\xfaQ\
-\x00\x00\x00\x82\x00\x00\x00\x00\x00\x01\x00\x03\x5cZ\
-\x00\x00\x01\x95\xc6\x9c\x1a,\
-\x00\x00\x00T\x00\x00\x00\x00\x00\x01\x00\x00I\x07\
-\x00\x00\x01\x95\xc6\x9c\x1a+\
-\x00\x00\x00>\x00\x01\x00\x00\x00\x01\x00\x00\x00\x09\
-\x00\x00\x01\x95\xc6\x9c\x1a,\
-\x00\x00\x00l\x00\x00\x00\x00\x00\x01\x00\x03Q\x15\
-\x00\x00\x01\x95\xc6\x9c\x1a,\
+\x00\x00\x01\x98:\xd0#\x7f\
+\x00\x00\x00\x82\x00\x00\x00\x00\x00\x01\x00\x03\x5c[\
+\x00\x00\x01\x97\xfd\x16BG\
+\x00\x00\x00T\x00\x00\x00\x00\x00\x01\x00\x00I\x08\
+\x00\x00\x01\x97\xfd\x16BG\
+\x00\x00\x00>\x00\x01\x00\x00\x00\x01\x00\x00\x00\x0a\
+\x00\x00\x01\x97\xfd\x16BG\
+\x00\x00\x00l\x00\x00\x00\x00\x00\x01\x00\x03Q\x16\
+\x00\x00\x01\x97\xfd\x16BG\
 "
 
-
 def qInitResources():
-    QtCore.qRegisterResourceData(
-        0x03, qt_resource_struct, qt_resource_name, qt_resource_data
-    )
-
+    QtCore.qRegisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
 
 def qCleanupResources():
-    QtCore.qUnregisterResourceData(
-        0x03, qt_resource_struct, qt_resource_name, qt_resource_data
-    )
-
+    QtCore.qUnregisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
 
 qInitResources()
