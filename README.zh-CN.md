@@ -17,6 +17,9 @@
 
 </div>
 
+> [!NOTE]
+> 由于本人已经失去校园网账户，本项目已停止维护。如果你仍然需要使用本项目，请创建你自己的 Fork。感谢关注。
+
 ## 简介
 
 HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。适用于 ZJU Connect/EasyConnect 的用户。
@@ -102,7 +105,7 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 
 如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.hitsz.edu.cn> ），您可以将以下配置添加到您的 Clash 配置文件中。
 
-例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往“配置文件” -> 右键单击您正在使用的配置文件 -> “编辑文件” -> 添加以下配置：
+例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往"配置文件" -> 右键单击您正在使用的配置文件 -> "编辑文件" -> 添加以下配置：
 
 ```yaml
 # 注：请勿将此直接附加到文件末尾，而是分别将其附加到每个配置块的末尾
