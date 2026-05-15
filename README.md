@@ -17,6 +17,9 @@
 
 </div>
 
+> [!NOTE]
+> This project is no longer maintained as I have lost access to my VPN account. If you still need this project, please create your own fork. Thank you.
+
 ## Introduction
 
 HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect). It is built for users of ZJU Connect/EasyConnect.
