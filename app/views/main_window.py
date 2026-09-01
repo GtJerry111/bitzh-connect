@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QTimer
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
-from utils.credential_utils import save_credentials
+from utils.credential_utils import save_credentials, load_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import setup_menubar, check_for_updates
@@ -63,15 +63,18 @@ class MainWindow(QMainWindow):
         # Layouts
         layout = QVBoxLayout()
 
+        # 凭据回填以钥匙串为准（含一次性明文迁移）
+        saved_username, saved_password = load_credentials()
+
         # Account and Password
         layout.addWidget(QLabel("用户名"))
         self.username_input = QLineEdit()
-        self.username_input.setText(self.username)
+        self.username_input.setText(saved_username)
         layout.addWidget(self.username_input)
 
         layout.addWidget(QLabel("密码"))
         self.password_input = QLineEdit()
-        self.password_input.setText(self.password)
+        self.password_input.setText(saved_password)
         self.password_input.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.password_input)
 
