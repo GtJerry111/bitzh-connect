@@ -18,11 +18,11 @@
 </div>
 
 > [!NOTE]
-> 本项目为北京理工大学珠海学院（BITZH）校园网 VPN 的**非官方**客户端，仅供**个人小范围使用**，与校方无任何隶属或授权关系。
+> 本项目为北京理工大学珠海校区（BITZH）校园网 VPN 的**非官方**客户端，仅供**个人小范围使用**，与校方无任何隶属或授权关系。
 
 ## 简介
 
-BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI），基于上游项目 [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) 二次开发，适配北京理工大学珠海学院（BITZH）校园网。适用于 ZJU Connect/EasyConnect 兼容（深信服）的 VPN 服务器。
+BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI），基于上游项目 [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) 二次开发，适配北京理工大学珠海校区（BITZH）校园网。适用于 ZJU Connect/EasyConnect 兼容（深信服）的 VPN 服务器。
 
 ## 功能特点
 
