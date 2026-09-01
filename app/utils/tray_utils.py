@@ -15,9 +15,11 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     connect_action.triggered.connect(
         lambda checked: window.connect_button.setChecked(checked)
     )
+    # 同步托盘勾选与按钮实时状态（读 isChecked 而非 toggled 参数）：
+    # start_connection 凭据校验早退已在前面槽位复位按钮/托盘，用参数会重新勾选
     window.connect_button.toggled.connect(
-        connect_action.setChecked
-    )  # Sync connect_action item with connect_button state
+        lambda checked: connect_action.setChecked(window.connect_button.isChecked())
+    )
     # 挂到 window 上：断连收尾（按钮 toggled 被 QSignalBlocker 屏蔽）时手动同步勾选态
     window.tray_connect_action = connect_action
     menu.addAction(connect_action)

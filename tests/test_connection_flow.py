@@ -63,9 +63,13 @@ def test_empty_credentials_rolls_back_fake_connected_state(qtbot):
     win = _make_window(qtbot)
     win.username_input.clear()
     win.password_input.clear()
+    # 真实路径：点托盘"VPN 连接"时 Qt 会先勾选 action 自身，再 triggered → 按钮
+    win.tray_connect_action.setChecked(True)
     win.connect_button.setChecked(True)  # 模拟托盘触发
     assert win.connect_button.isChecked() is False
     assert win.connect_button.text() == "连接"
     assert win.username_input.isEnabled()
     assert win.password_input.isEnabled()
     assert "请输入用户名和密码" in win.status_panel.status_text.text()
+    # 早退复位在 QSignalBlocker 下进行，托盘勾选无法靠 toggled 联动，须显式复位
+    assert win.tray_connect_action.isChecked() is False

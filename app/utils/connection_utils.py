@@ -127,6 +127,9 @@ def start_connection(window):
             window.username_input.setEnabled(True)
             window.password_input.setEnabled(True)
             del blocker
+            # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
+            if hasattr(window, "tray_connect_action"):
+                window.tray_connect_action.setChecked(False)
         window.status_panel.set_disconnected("请输入用户名和密码")
         return
 
