@@ -73,3 +73,14 @@ def test_proxy_mode_rates_placeholder(panel):
     panel.set_connected("10.0.43.17")
     assert panel.up_rate_value.text() == "—"
     assert panel.down_rate_value.text() == "—"
+
+
+def test_card_title_color_refreshes_with_theme(panel):
+    """深浅色切换（refresh_theme）须刷新卡片标题色，不能只刷卡片底色。"""
+    from common import theme
+
+    for label in panel._card_title_labels:
+        label.setStyleSheet("")
+    panel.refresh_theme()
+    for label in panel._card_title_labels:
+        assert theme.semantic_color("secondary_text").lower() in label.styleSheet().lower()

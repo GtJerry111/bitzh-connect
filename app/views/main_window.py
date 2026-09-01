@@ -6,11 +6,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTextEdit,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEvent, QTimer, Qt
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
@@ -115,7 +116,9 @@ class MainWindow(QMainWindow):
         self.connect_button.setCheckable(True)
         self.connect_button.setMinimumHeight(38)
         self.connect_button.setCursor(Qt.PointingHandCursor)
-        self.connect_button.setAttribute(Qt.WA_AlwaysShowToolTips)  # 禁用态也显示 tooltip
+        self.connect_button.setAttribute(Qt.WA_AlwaysShowToolTips)  # 窗口 inactive 时也显示 tooltip
+        # Qt 不向 disabled widget 派发 tooltip 事件，须由 eventFilter 拦截补发
+        self.connect_button.installEventFilter(self)
         # 小号次要退出按钮（grilling 确认保留旧 UI 元素；须在 _apply_button_style 前创建）
         self.exit_button = QPushButton("退出")
         self.exit_button.setCursor(Qt.PointingHandCursor)
@@ -198,6 +201,19 @@ class MainWindow(QMainWindow):
             f"QPushButton {{ color: {theme.semantic_color('secondary_text')};"
             f" border: none; padding: 8px 12px; }}"
         )
+
+    def eventFilter(self, obj, event):
+        # 禁用态下 Qt 不派发 tooltip：拦截后手动弹出（内联校验的提示依赖此路径）
+        if (
+            obj is self.connect_button
+            and event.type() == QEvent.ToolTip
+            and not self.connect_button.isEnabled()
+        ):
+            QToolTip.showText(
+                event.globalPos(), self.connect_button.toolTip(), self.connect_button
+            )
+            return True
+        return super().eventFilter(obj, event)
 
     def _refresh_connect_button(self):
         filled = bool(self.username_input.text() and self.password_input.text())

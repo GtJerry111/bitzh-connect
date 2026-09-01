@@ -40,3 +40,21 @@ def test_accent_button_uses_bit_green(window):
     from common import theme
 
     assert theme.semantic_color("accent").lower() in window.connect_button.styleSheet().lower()
+
+
+def test_disabled_button_tooltip_via_event_filter(window):
+    """Qt 不向 disabled widget 派发 tooltip 事件，eventFilter 须拦截补发。"""
+    from PySide6.QtCore import QEvent, QPoint
+    from PySide6.QtGui import QHelpEvent
+
+    window.username_input.setText("")
+    window.password_input.setText("")
+    assert not window.connect_button.isEnabled()
+    ev = QHelpEvent(QEvent.ToolTip, QPoint(), QPoint())
+    assert window.eventFilter(window.connect_button, ev) is True
+
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    assert window.connect_button.isEnabled()
+    ev2 = QHelpEvent(QEvent.ToolTip, QPoint(), QPoint())
+    assert window.eventFilter(window.connect_button, ev2) is False

@@ -47,6 +47,7 @@ class StatusPanel(QWidget):
         grid = QGridLayout()
         grid.setSpacing(8)
         self._card_frames = []
+        self._card_title_labels = []
         self.duration_value = self._add_card(grid, 0, 0, "连接时长", "00:00:00")
         self.ip_value = self._add_card(grid, 0, 1, "虚拟 IP", "—")
         self.up_rate_value = self._add_card(grid, 1, 0, "↑ 上行速率", "—")
@@ -74,6 +75,7 @@ class StatusPanel(QWidget):
         title_label = QLabel(title)
         title_label.setFont(theme.card_title_font())
         title_label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
+        self._card_title_labels.append(title_label)
         value_label = QLabel(initial)
         value_label.setFont(theme.card_value_font())
         card.addWidget(title_label)
@@ -89,6 +91,8 @@ class StatusPanel(QWidget):
                 f"QFrame#statCard {{ background-color: {theme.card_background()};"
                 f" border-radius: 10px; }}"
             )
+        for label in self._card_title_labels:
+            label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
         self.server_label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
 
     def _set_status(self, text: str, color_name: str):
