@@ -16,6 +16,9 @@ from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import setup_menubar, check_for_updates
 from utils.config_utils import load_settings
+from services.reconnect_manager import ReconnectManager
+from utils.set_proxy import cleanup_residue_proxy
+from views.status_panel import StatusPanel
 from common.constants import APP_NAME
 from common.version import get_version
 
@@ -33,6 +36,21 @@ class MainWindow(QMainWindow):
         self.load_settings()
         setup_menubar(self, self.version)
         self.setup_ui()
+        self.virtual_ip = None
+        self._manual_stop = True
+        self._auth_failed = False
+        self.reconnect_manager = ReconnectManager(
+            reconnect_action=lambda: self.connect_button.setChecked(True),
+        )
+        self.reconnect_manager.set_enabled(self.auto_reconnect)
+        self.reconnect_manager.retry_scheduled.connect(
+            lambda attempt, delay: self.status_panel.set_reconnecting(attempt, delay)
+        )
+        self.reconnect_manager.retries_exhausted.connect(
+            lambda: self.status_panel.set_reconnect_paused()
+        )
+        if cleanup_residue_proxy(self):
+            self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
         self.tray_icon = init_tray_icon(self)
 
         if self.connect_startup:
@@ -73,8 +91,8 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(QLabel("运行信息"))
         layout.addLayout(status_layout)
         status_layout.addStretch()
-        self.status_label = QLabel("状态: 未连接")
-        status_layout.addWidget(self.status_label)
+        self.status_panel = StatusPanel()
+        status_layout.addWidget(self.status_panel)
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)

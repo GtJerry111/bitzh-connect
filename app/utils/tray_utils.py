@@ -1,5 +1,3 @@
-import gc
-
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMainWindow
 from PySide6.QtGui import QIcon, QAction
 from platform import system
@@ -47,10 +45,9 @@ def handle_close_event(window, event, tray_icon):
 def quit_app(window, tray_icon):
     """Quit the application"""
     window.stop_connection()
-    window.deleteLater()
     tray_icon.deleteLater()
-    gc.collect()
-    QApplication.quit()
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(1500, QApplication.quit)
 
 
 def init_tray_icon(window):

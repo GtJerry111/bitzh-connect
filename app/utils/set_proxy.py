@@ -29,7 +29,7 @@ def get_proxy_settings(window):
 
 class CommandWorker(QThread):
     output = Signal(str)
-    finished = Signal()
+    finished = Signal(int)  # 携带进程退出码
 
     def __init__(self, command_args, proxy_enabled, window=None):
         super().__init__()
@@ -44,6 +44,7 @@ class CommandWorker(QThread):
         }
 
     def run(self):
+        exit_code = -1
         try:
             # Set proxy if enabled
             if self.proxy_enabled and self.window:
@@ -65,18 +66,19 @@ class CommandWorker(QThread):
             for line in self.process.stdout:
                 self.output.emit(line)
             self.process.wait()
+            exit_code = self.process.returncode
         finally:
             # Disable proxy on completion
             if self.proxy_enabled:
                 proxy_handler = self._proxy_handlers.get(system())
                 if proxy_handler:
                     proxy_handler(False)
-            self.finished.emit()
+            self.finished.emit(exit_code)
 
     def stop(self):
-        if self.process:
+        """非阻塞终止进程。进程退出与代理由 run() 的收尾逻辑在工作线程完成。"""
+        if self.process and self.process.poll() is None:
             self.process.terminate()
-            self.process.wait()
 
 
 def set_windows_proxy(
@@ -201,3 +203,53 @@ def set_linux_proxy(
             )
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"])
+
+
+def proxy_points_to_us(http_port):
+    """检查当前系统代理是否指向我们的 HTTP 代理端口。"""
+    try:
+        if system() == "Windows":
+            import winreg as reg
+
+            with reg.OpenKey(
+                reg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            ) as s:
+                enabled, _ = reg.QueryValueEx(s, "ProxyEnable")
+                server, _ = reg.QueryValueEx(s, "ProxyServer")
+                return bool(enabled) and str(server).endswith(f":{http_port}")
+        elif system() == "Darwin":
+            out = subprocess.check_output(
+                ["networksetup", "-getwebproxy", "Wi-Fi"], text=True
+            )
+            return "Enabled: Yes" in out and f"Port: {http_port}" in out
+        elif system() == "Linux":
+            mode = subprocess.check_output(
+                ["gsettings", "get", "org.gnome.system.proxy", "mode"], text=True
+            )
+            port = subprocess.check_output(
+                ["gsettings", "get", "org.gnome.system.proxy.http", "port"], text=True
+            )
+            return "manual" in mode and str(http_port) in port
+    except Exception:
+        return False
+    return False
+
+
+def cleanup_residue_proxy(window):
+    """启动时调用：若系统代理仍指向本应用的端口（上次被强杀残留），则关闭它。
+
+    返回 True 表示执行了清理。
+    """
+    http_port = getattr(window, "http_bind", None) or "1081"
+    if not proxy_points_to_us(http_port):
+        return False
+    handler = {
+        "Windows": set_windows_proxy,
+        "Darwin": set_macos_proxy,
+        "Linux": set_linux_proxy,
+    }.get(system())
+    if handler:
+        handler(False)
+        return True
+    return False
