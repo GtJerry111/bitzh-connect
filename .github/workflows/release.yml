@@ -99,7 +99,7 @@ jobs:
       - name: Download ZJU-connect Core
         run: |
           mkdir -p app/core
-          curl -L "https://github.com/Mythologyli/zju-connect/releases/download/v0.9.0/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
+          curl -L "https://github.com/Mythologyli/zju-connect/releases/download/v1.3.1/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
           if [ "${{ matrix.os_name }}" = "windows" ]; then
             powershell -command "Expand-Archive -Path app/core/zju-connect.zip -DestinationPath app/core"
           else
@@ -124,28 +124,28 @@ jobs:
             --macos-target-arch=${{ matrix.target_arch }} \
             --macos-create-app-bundle \
             --macos-app-icon=app/resources/icons/icon.icns \
-            --macos-app-name="HITSZ Connect Verge" \
+            --macos-app-name="BITZH Connect" \
             --macos-app-version=$(cat .app-version) \
             --output-dir=dist \
             --remove-output \
             app/main.py
 
-          mv dist/main.app dist/HITSZ\ Connect\ Verge.app
+          mv dist/main.app dist/BITZH\ Connect.app
 
       - name: Create DMG (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install create-dmg
           create-dmg \
-            --volname "HITSZ Connect Verge" \
+            --volname "BITZH Connect" \
             --background "app/resources/installer/bg.svg" \
             --window-pos 400 200 \
             --window-size 660 400 \
             --icon-size 100 \
-            --icon "HITSZ Connect Verge.app" 160 185 \
+            --icon "BITZH Connect.app" 160 185 \
             --app-drop-link 500 185 \
-            "dist/hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.dmg" \
-            "dist/HITSZ Connect Verge.app"
+            "dist/bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}.dmg" \
+            "dist/BITZH Connect.app"
 
       # Windows specific build
       - name: Build Executable (Windows)
@@ -161,9 +161,9 @@ jobs:
             --include-data-dir=app=app `
             --include-data-files=app\core\zju-connect.exe=app\core\zju-connect.exe `
             --include-data-files=.app-version=.app-version `
-            --product-name="HITSZ Connect Verge" `
+            --product-name="BITZH Connect" `
             --product-version=$(Get-Content .app-version) `
-            --file-description="HITSZ Connect Verge" `
+            --file-description="BITZH Connect" `
             --windows-icon-from-ico=app\resources\icons\icon.ico `
             --windows-console-mode=disable `
             --output-dir=dist `
@@ -218,16 +218,16 @@ jobs:
             --enable-plugin=pyside6 \
             --include-data-dir=app=app \
             --include-data-files=.app-version=.app-version \
-            --product-name="HITSZ Connect Verge" \
+            --product-name="BITZH Connect" \
             --product-version=$(cat .app-version) \
-            --file-description="HITSZ Connect Verge" \
+            --file-description="BITZH Connect" \
             --linux-icon=app/resources/icons/icon.png \
             --output-dir=dist \
             --remove-output \
             app/main.py
 
-            mv dist/main.dist dist/hitsz-connect-verge
-            mv dist/hitsz-connect-verge/main.bin dist/hitsz-connect-verge/hitsz-connect-verge
+            mv dist/main.dist dist/bitzh-connect
+            mv dist/bitzh-connect/main.bin dist/bitzh-connect/bitzh-connect
 
       - name: Create DEB Package (Linux)
         if: runner.os == 'Linux'
@@ -237,55 +237,55 @@ jobs:
           mkdir -p deb/usr/bin
           mkdir -p deb/usr/share/applications
           mkdir -p deb/usr/share/icons/hicolor/256x256/apps
-          mkdir -p deb/usr/lib/hitsz-connect-verge
+          mkdir -p deb/usr/lib/bitzh-connect
 
           # Copy the entire distribution folder instead of just the binary
-          cp -r dist/hitsz-connect-verge/* deb/usr/lib/hitsz-connect-verge/
+          cp -r dist/bitzh-connect/* deb/usr/lib/bitzh-connect/
 
-          cat > deb/usr/bin/hitsz-connect-verge << EOF
+          cat > deb/usr/bin/bitzh-connect << EOF
           #!/bin/bash
-          export PYTHONPATH=/usr/lib/hitsz-connect-verge
-          export LD_LIBRARY_PATH=/usr/lib/hitsz-connect-verge:\$LD_LIBRARY_PATH
-          cd /usr/lib/hitsz-connect-verge
-          exec ./hitsz-connect-verge "\$@"
+          export PYTHONPATH=/usr/lib/bitzh-connect
+          export LD_LIBRARY_PATH=/usr/lib/bitzh-connect:\$LD_LIBRARY_PATH
+          cd /usr/lib/bitzh-connect
+          exec ./bitzh-connect "\$@"
           EOF
 
-          chmod +x deb/usr/bin/hitsz-connect-verge
+          chmod +x deb/usr/bin/bitzh-connect
 
-          cp app/resources/icons/icon.png deb/usr/share/icons/hicolor/256x256/apps/hitsz-connect-verge.png
+          cp app/resources/icons/icon.png deb/usr/share/icons/hicolor/256x256/apps/bitzh-connect.png
 
-          cat > deb/usr/share/applications/hitsz-connect-verge.desktop << EOF
+          cat > deb/usr/share/applications/bitzh-connect.desktop << EOF
           [Desktop Entry]
-          Name=HITSZ Connect Verge
-          Exec=hitsz-connect-verge
-          Icon=hitsz-connect-verge
+          Name=BITZH Connect
+          Exec=bitzh-connect
+          Icon=bitzh-connect
           Type=Application
           Categories=Network;
           EOF
 
           cat > deb/DEBIAN/control << EOF
-          Package: hitsz-connect-verge
+          Package: bitzh-connect
           Version: $VERSION
           Section: net
           Priority: optional
           Architecture: ${{ matrix.arch == 'amd64' && 'amd64' || 'arm64' }}
-          Maintainer: Kowyo
-          Description: HITSZ Connect Verge
+          Maintainer: BITZH Connect
+          Description: BITZH Connect
            A VPN client for ZJU Connect/EasyConnect users.
           Depends: libc6, libglib2.0-0, libgl1
           EOF
 
-          dpkg-deb --build deb dist/hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}.deb
+          dpkg-deb --build deb dist/bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}.deb
 
       # Upload artifacts common step
       - name: Archive Executable
         uses: actions/upload-artifact@v4
         with:
-          name: hitsz-connect-verge-${{ matrix.os_name }}-${{ matrix.arch }}
+          name: bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}
           path: |
-            ${{ runner.os == 'macOS' && 'dist/hitsz-connect-verge-*.dmg' || '' }}
-            ${{ runner.os == 'Windows' && 'dist/hitsz-connect-verge-*-setup.exe' || '' }}
-            ${{ runner.os == 'Linux' && 'dist/hitsz-connect-verge-*.deb' || '' }}
+            ${{ runner.os == 'macOS' && 'dist/bitzh-connect-*.dmg' || '' }}
+            ${{ runner.os == 'Windows' && 'dist/bitzh-connect-*-setup.exe' || '' }}
+            ${{ runner.os == 'Linux' && 'dist/bitzh-connect-*.deb' || '' }}
           if-no-files-found: error
 
   release:

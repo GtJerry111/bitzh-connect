@@ -58,7 +58,7 @@ def init_tray_icon(window):
     if system() == "Windows":
         icon_path = ":/icons/icon.ico"
     elif system() == "Darwin":
-        icon_path = ":/icons/menu-icon.svg"
+        icon_path = ":/icons/menu-icon.png"
         icon = QIcon(icon_path)
         icon.setIsMask(True)
         tray_icon.setIcon(icon)

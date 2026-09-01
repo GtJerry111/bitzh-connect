@@ -1,28 +1,28 @@
 <div align="center">
 
-<img src="https://github.com/user-attachments/assets/f72235d8-9a80-476a-b2e8-5de1608d5632" 
+<img src="app/resources/icons/icon.png" 
          width="128" 
          height="128" 
          alt="Icon">
 
-# HITSZ Connect Verge
+# BITZH Connect
 
 [中文](README.zh-CN.md) | [English](README.md)
 
-![Action](https://github.com/kowyo/hitsz-connect-verge/actions/workflows/release.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
-![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
-![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
-![Stars](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+![Action](https://github.com/GtJerry111/bitzh-connect/actions/workflows/release.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/GtJerry111/bitzh-connect)
+![Downloads](https://img.shields.io/github/downloads/GtJerry111/bitzh-connect/total)
+![License](https://img.shields.io/github/license/GtJerry111/bitzh-connect)
+![Stars](https://img.shields.io/github/stars/GtJerry111/bitzh-connect)
 
 </div>
 
 > [!NOTE]
-> 由于本人已经失去校园网账户，本项目已停止维护。如果你仍然需要使用本项目，请创建你自己的 Fork。感谢关注。
+> 本项目为北京理工大学珠海学院（BITZH）校园网 VPN 的**非官方**客户端，仅供**个人小范围使用**，与校方无任何隶属或授权关系。
 
 ## 简介
 
-HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI）。适用于 ZJU Connect/EasyConnect 的用户。
+BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI），基于上游项目 [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) 二次开发，适配北京理工大学珠海学院（BITZH）校园网。适用于 ZJU Connect/EasyConnect 兼容（深信服）的 VPN 服务器。
 
 ## 功能特点
 
@@ -34,22 +34,22 @@ HITSZ Connect Verge 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect
 
 ## 安装指南
 
-您可通过两种方式安装 HITSZ Connect Verge：下载预编译版本或从源码构建。
+您可通过两种方式安装 BITZH Connect：下载预编译版本或从源码构建。
 
 > [!NOTE]
 >
-> 1. 如果你是 HITSZ 校内学生，用户名与密码与[统一身份认证平台](https://ids.hit.edu.cn)的登录凭证相同
+> 1. 用户名与密码即 BITZH 校园网（统一身份认证）的登录凭证
 > 2. 若下载速度较慢，可尝试使用 [gh-proxy](https://gh-proxy.com) 进行加速
 
 ### 方式一：下载预编译版本
 
-HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://github.com/kowyo/hitsz-connect-verge/releases/latest)获取最新版本。
+BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新版本。
 
 > [!IMPORTANT]
 > macOS 版本需通过以下命令授予应用权限：
 >
 > ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/HITSZ\ Connect\ Verge.app
+> sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app
 > ```
 
 ### 方式二：从源码构建
@@ -57,8 +57,8 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 1. 克隆仓库：
 
    ```bash
-   git clone https://github.com/kowyo/hitsz-connect-verge.git
-   cd hitsz-connect-verge
+   git clone https://github.com/GtJerry111/bitzh-connect.git
+   cd bitzh-connect
    ```
 
 2. 安装依赖：
@@ -94,16 +94,16 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 
 ### 基础信息
 
-- **服务器地址**: vpn.hitsz.edu.cn
+- **服务器地址**: 112.91.150.228
 - **SOCKS5代理端口**: 1080
 - **HTTP代理端口**: 1081
-- **DNS服务器**: 10.248.98.30
+- **DNS服务器**: 自动从服务端获取（auto DNS）
 
 如需了解更详细的网络配置信息，请访问 [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)。
 
 ### Clash 配置
 
-如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.hitsz.edu.cn> ），您可以将以下配置添加到您的 Clash 配置文件中。
+如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.bitzh.edu.cn> ），您可以将以下配置添加到您的 Clash 配置文件中。
 
 例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往"配置文件" -> 右键单击您正在使用的配置文件 -> "编辑文件" -> 添加以下配置：
 
@@ -111,16 +111,16 @@ HITSZ Connect Verge提供开箱即用体验，您可从[发布页面](https://gi
 # 注：请勿将此直接附加到文件末尾，而是分别将其附加到每个配置块的末尾
 proxies:
   # 您现有的代理...
-  - { name: "HITSZ Connect Verge", type: socks5, server: 127.0.0.1, port: 1080, udp: true }
+  - { name: "BITZH Connect", type: socks5, server: 127.0.0.1, port: 1080, udp: true }
 
 proxy-groups:
   # 您现有的代理组...
-  - { name: 校园网, type: select, proxies: ["DIRECT", "HITSZ Connect Verge"] }
+  - { name: 校园网, type: select, proxies: ["DIRECT", "BITZH Connect"] }
 
 rules:
   # 您现有的规则...
-  - "DOMAIN,vpn.hitsz.edu.cn,DIRECT"
-  - "DOMAIN-SUFFIX,hitsz.edu.cn,校园网"
+  - "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve"
+  - "DOMAIN-SUFFIX,bitzh.edu.cn,校园网"
   - "IP-CIDR,10.0.0.0/8,校园网,no-resolve"
   # - 'IP-CIDR,<其他_ip>,校园网,no-resolve'
 ```
@@ -129,7 +129,7 @@ rules:
 >
 > 1. 需要启用 Clash 的 `TUN 模式`，同时开启本软件的 `自动配置代理` 功能
 > 2. 需要关闭内网绕过代理, 并添加 `localhost` 到`代理绕过设置`区域
-> 3. 你可以使用我们提供的[全局拓展脚本](./clash-utils.js)来防止配置文件自动更新时覆盖添加的自定义规则
+> 3. 你可以使用我们提供的[全局拓展脚本](./scripts/clash-utils.js)来防止配置文件自动更新时覆盖添加的自定义规则
 
 [了解更多](https://oldkingok.cc/share/8bFQXBjOkXt8)
 
@@ -172,10 +172,12 @@ ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <用
 
 ## 鸣谢
 
+- [kowyo](https://github.com/kowyo) 开发的上游项目 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)，本项目基于其二次开发
+
 - [Mythologyli](https://github.com/Mythologyli) 开发的项目 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
-- [Keldos](https://github.com/Keldos-Li) 为本项目重新设计了 macOS 版本的图标
+- [Keldos](https://github.com/Keldos-Li) 为上游项目重新设计了 macOS 版本的图标
 
 - [EasierConnect](https://github.com/lyc8503/EasierConnect)
 
-- 本项目的所有贡献者
+- 上游项目的所有贡献者

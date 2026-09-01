@@ -1,28 +1,28 @@
 <div align="center">
 
-<img src="https://github.com/user-attachments/assets/f72235d8-9a80-476a-b2e8-5de1608d5632" 
+<img src="app/resources/icons/icon.png" 
          width="128" 
          height="128" 
          alt="Icon">
 
-# HITSZ Connect Verge
+# BITZH Connect
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-![Action](https://github.com/kowyo/hitsz-connect-verge/actions/workflows/release.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/kowyo/hitsz-connect-verge)
-![Downloads](https://img.shields.io/github/downloads/kowyo/hitsz-connect-verge/total)
-![License](https://img.shields.io/github/license/kowyo/hitsz-connect-verge)
-![Stars](https://img.shields.io/github/stars/kowyo/hitsz-connect-verge)
+![Action](https://github.com/GtJerry111/bitzh-connect/actions/workflows/release.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/GtJerry111/bitzh-connect)
+![Downloads](https://img.shields.io/github/downloads/GtJerry111/bitzh-connect/total)
+![License](https://img.shields.io/github/license/GtJerry111/bitzh-connect)
+![Stars](https://img.shields.io/github/stars/GtJerry111/bitzh-connect)
 
 </div>
 
 > [!NOTE]
-> This project is no longer maintained as I have lost access to my VPN account. If you still need this project, please create your own fork. Thank you.
+> This is an **unofficial** client for the BITZH campus VPN, maintained for **personal, small-scale use only**. It is not affiliated with or endorsed by Beijing Institute of Technology, Zhuhai.
 
 ## Introduction
 
-HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect). It is built for users of ZJU Connect/EasyConnect.
+BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect), forked from [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) and adapted for the campus network of Beijing Institute of Technology, Zhuhai (BITZH). It works with ZJU Connect/EasyConnect-compatible (Sangfor) VPN servers.
 
 ## Features
 
@@ -34,22 +34,22 @@ HITSZ Connect Verge is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju
 
 ## Installation
 
-You can install HITSZ Connect Verge in two ways: downloading pre-built binaries or building from source.
+You can install BITZH Connect in two ways: downloading pre-built binaries or building from source.
 
 > [!NOTE]
 >
-> 1. If you are a student of HITSZ, username and password are the same as the ones you use to log in to the [Unified Identity Authentic Platform](https://ids.hit.edu.cn).
+> 1. Username and password are the same as the ones you use to log in to the BITZH campus network (unified identity authentication).
 > 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
 
 ### Method 1: Downloading pre-built binaries
 
-HITSZ Connect Verge provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/kowyo/hitsz-connect-verge/releases/latest).
+BITZH Connect provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest).
 
 > [!IMPORTANT]
 > For macOS version, you need to grant access to the application by running:
 >
 > ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/HITSZ\ Connect\ Verge.app
+> sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app
 > ```
 
 ### Method 2: Building from source
@@ -57,8 +57,8 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/kowyo/hitsz-connect-verge.git
-   cd hitsz-connect-verge
+   git clone https://github.com/GtJerry111/bitzh-connect.git
+   cd bitzh-connect
    ```
 
 2. Install dependencies:
@@ -94,16 +94,16 @@ HITSZ Connect Verge provides out-of-the-box experience. You can download the lat
 
 ### Basic information
 
-- **Server**: vpn.hitsz.edu.cn
+- **Server**: 112.91.150.228
 - **SOCKS5 Proxy**: 1080
 - **HTTP Proxy**: 1081
-- **DNS Server**: 10.248.98.30
+- **DNS Server**: automatically obtained from the server (auto DNS)
 
 If you want to learn more about the network configuration, you can visit [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect).
 
 ### Clash
 
-If you want to use Clash at the same time (e.g. watching Youtube and visiting <http://jw.hitsz.edu.cn> at the same time), you can add the following configuration to your clash configuration file.
+If you want to use Clash at the same time (e.g. watching Youtube and visiting <http://jw.bitzh.edu.cn> at the same time), you can add the following configuration to your clash configuration file.
 
 For example, if you are using [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev), you can go to 'Profiles' -> Right click on the profile you are using -> 'Edit File' -> Add the following configuration:
 
@@ -111,16 +111,16 @@ For example, if you are using [Clash Verge Rev](https://github.com/clash-verge-r
 # note: do not append this to the end of the file directly, append it separately to the corresponding position
 proxies:
   # your existing proxies...
-  - { name: "HITSZ Connect Verge", type: socks5, server: 127.0.0.1, port: 1080, udp: true }
+  - { name: "BITZH Connect", type: socks5, server: 127.0.0.1, port: 1080, udp: true }
 
 proxy-groups:
   # your existing proxy-groups...
-  - { name: 校园网, type: select, proxies: ["DIRECT", "HITSZ Connect Verge"] }
+  - { name: 校园网, type: select, proxies: ["DIRECT", "BITZH Connect"] }
 
 rules:
   # your existing rules...
-  - "DOMAIN,vpn.hitsz.edu.cn,DIRECT"
-  - "DOMAIN-SUFFIX,hitsz.edu.cn,校园网"
+  - "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve"
+  - "DOMAIN-SUFFIX,bitzh.edu.cn,校园网"
   - "IP-CIDR,10.0.0.0/8,校园网,no-resolve"
   # - 'IP-CIDR,<other_ip>,校园网,no-resolve'
 ```
@@ -129,7 +129,7 @@ rules:
 >
 > 1. You need to enable `TUN Mode` in Clash, and enable the `Auto Configure Proxy` option of this software.
 > 2. You need to turn off the `Always use Default Bypass` option in the `System Proxy` settings, and add `localhost` to the `Proxy Bypass` field.s
-> 3. A useful [global extend script](./clash-utils.js) is provided if you want to avoid the automatic update of the profiles overwrite your custom rules.
+> 3. A useful [global extend script](./scripts/clash-utils.js) is provided if you want to avoid the automatic update of the profiles overwrite your custom rules.
 
 <!-- > (Confusion) 3. There is no need to enable the `Auto Configure Proxy` feature of this software. In this case, Clash will host the system proxy and the proxy of this software will be forwarded by Clash. -->
 
@@ -176,10 +176,12 @@ Also, any typo is welcome to be fixed.
 
 ## Credits
 
+- [kowyo](https://github.com/kowyo) for the upstream project [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge), on which this fork is based.
+
 - [Mythologyli](https://github.com/Mythologyli) for the project [ZJU Connect](https://github.com/Mythologyli/zju-connect).
 
-- [Keldos](https://github.com/Keldos-Li) for designing the macOS version's icon.
+- [Keldos](https://github.com/Keldos-Li) for designing the upstream macOS version's icon.
 
 - [EasierConnect](https://github.com/lyc8503/EasierConnect).
 
-- All the contributors to this project.
+- All the contributors to the upstream project.

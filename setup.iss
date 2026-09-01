@@ -1,10 +1,10 @@
-#define MyAppName "HITSZ Connect Verge"
-#define MyAppPublisher "Kowyo"
-#define MyAppURL "https://github.com/kowyo/hitsz-connect-verge"
+#define MyAppName "BITZH Connect"
+#define MyAppPublisher "BITZH Connect"
+#define MyAppURL "https://github.com/GtJerry111/bitzh-connect"
 #define MyAppExeName "main.exe"
 
 [Setup]
-AppId={{0A82300E-622C-4436-B80D-65027407B2B7}
+AppId={{B7E2A1C4-3F5D-4E8A-9C1B-2D6F8A0E5B3D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -21,7 +21,7 @@ RestartApplications=yes
 
 LicenseFile=LICENSE
 OutputDir=dist
-OutputBaseFilename=hitsz-connect-verge-windows-{#Architecture}-setup
+OutputBaseFilename=bitzh-connect-windows-{#Architecture}-setup
 
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
