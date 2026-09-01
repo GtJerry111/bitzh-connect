@@ -5,20 +5,20 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
-from utils.credential_utils import save_credentials, load_credentials
+from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import setup_menubar, check_for_updates
 from utils.config_utils import load_settings
 from services.reconnect_manager import ReconnectManager
 from utils.set_proxy import cleanup_residue_proxy
-from views.status_panel import StatusPanel
 from common.constants import APP_NAME
 from common.version import get_version
 
@@ -29,7 +29,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.setMinimumSize(300, 450)
 
         self.worker = None
         self.version = VERSION
@@ -53,58 +52,75 @@ class MainWindow(QMainWindow):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
         self.tray_icon = init_tray_icon(self)
 
+        # B11：启动自动连接前先确认凭据存在，避免拉起一个注定失败的进程
         if self.connect_startup:
-            QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
+            if self.username_input.text() and self.password_input.text():
+                QTimer.singleShot(5000, lambda: self.connect_button.setChecked(True))
+            else:
+                self.output_text.append(
+                    "[BITZH Connect] 已开启启动时自动连接，但未保存凭据，跳过自动连接\n"
+                )
 
         if self.check_update:
             self.check_updates_startup()
 
     def setup_ui(self):
-        # Layouts
-        layout = QVBoxLayout()
+        from common import theme
+        from utils.credential_utils import load_credentials
+        from utils.motion_utils import animated_height_toggle
+        from views.status_panel import StatusPanel
 
-        # 凭据回填以钥匙串为准（含一次性明文迁移）
+        self.setMinimumSize(360, 480)
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # 状态仪表盘
+        self.status_panel = StatusPanel(server_text=self.server_address)
+        layout.addWidget(self.status_panel)
+
+        # 凭据区（两整行，连接中禁用）
         saved_username, saved_password = load_credentials()
 
-        # Account and Password
-        layout.addWidget(QLabel("用户名"))
+        user_row = QHBoxLayout()
+        user_row.addWidget(QLabel("用户名"))
         self.username_input = QLineEdit()
         self.username_input.setText(saved_username)
-        layout.addWidget(self.username_input)
+        self.username_input.setPlaceholderText("学号/工号")
+        user_row.addWidget(self.username_input)
+        layout.addLayout(user_row)
 
-        layout.addWidget(QLabel("密码"))
+        pass_row = QHBoxLayout()
+        pass_row.addWidget(QLabel("密码"))
         self.password_input = QLineEdit()
         self.password_input.setText(saved_password)
         self.password_input.setEchoMode(QLineEdit.Password)
-        layout.addWidget(self.password_input)
+        pass_row.addWidget(self.password_input)
+        layout.addLayout(pass_row)
 
+        opt_row = QHBoxLayout()
+        self.remember_cb = QCheckBox("记住密码")
+        self.remember_cb.setChecked(self.remember)
+        self.remember_cb.stateChanged.connect(self.save_credentials)
+        opt_row.addWidget(self.remember_cb)
         self.show_password_cb = QCheckBox("显示密码")
         self.show_password_cb.stateChanged.connect(
             lambda checked: toggle_password_visibility(self.password_input, checked)
         )
-        layout.addWidget(self.show_password_cb)
+        opt_row.addWidget(self.show_password_cb)
+        opt_row.addStretch()
+        layout.addLayout(opt_row)
 
-        self.remember_cb = QCheckBox("记住密码")
-        self.remember_cb.setChecked(self.remember)
-        self.remember_cb.stateChanged.connect(self.save_credentials)
-        layout.addWidget(self.remember_cb)
-
-        # Status and Output
-        status_layout = QHBoxLayout()
-        status_layout.addWidget(QLabel("运行信息"))
-        layout.addLayout(status_layout)
-        status_layout.addStretch()
-        self.status_panel = StatusPanel()
-        status_layout.addWidget(self.status_panel)
-
-        self.output_text = QTextEdit()
-        self.output_text.setReadOnly(True)
-        layout.addWidget(self.output_text)
-
-        # Buttons
-        button_layout = QHBoxLayout()
+        # 连接按钮（BIT 绿 accent，按下即时加深反馈）
         self.connect_button = QPushButton("连接")
         self.connect_button.setCheckable(True)
+        self.connect_button.setMinimumHeight(38)
+        self.connect_button.setCursor(Qt.PointingHandCursor)
+        self.connect_button.setAttribute(Qt.WA_AlwaysShowToolTips)  # 禁用态也显示 tooltip
+        # 小号次要退出按钮（grilling 确认保留旧 UI 元素；须在 _apply_button_style 前创建）
+        self.exit_button = QPushButton("退出")
+        self.exit_button.setCursor(Qt.PointingHandCursor)
+        self.exit_button.clicked.connect(self.quit_app)
+        self._apply_button_style()
         self.connect_button.toggled.connect(
             lambda: self.start_connection()
             if self.connect_button.isChecked()
@@ -116,20 +132,83 @@ class MainWindow(QMainWindow):
             else self.connect_button.setText("连接")
         )
         self.connect_button.toggled.connect(self.save_credentials)
-        button_layout.addWidget(self.connect_button)
+        self.connect_button.toggled.connect(
+            lambda checked: self.username_input.setDisabled(checked)
+        )
+        self.connect_button.toggled.connect(
+            lambda checked: self.password_input.setDisabled(checked)
+        )
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self.connect_button, 1)
+        btn_row.addWidget(self.exit_button)
+        layout.addLayout(btn_row)
 
-        button_layout.addStretch()
+        # 内联校验：凭据不全即禁用（连接中保持可点以便断开）
+        self._animated_height_toggle = animated_height_toggle
+        self.username_input.textChanged.connect(self._refresh_connect_button)
+        self.password_input.textChanged.connect(self._refresh_connect_button)
+        self._refresh_connect_button()
 
-        self.exit_button = QPushButton("退出")
-        self.exit_button.clicked.connect(self.stop_connection)
-        self.exit_button.clicked.connect(self.quit_app)
-        button_layout.addWidget(self.exit_button)
-        layout.addLayout(button_layout)
+        # 折叠日志区（默认收起，高度动画可中途反向）
+        self.log_toggle = QToolButton()
+        self.log_toggle.setText("运行日志")
+        self.log_toggle.setCheckable(True)
+        self.log_toggle.setChecked(False)
+        self.log_toggle.setArrowType(Qt.RightArrow)
+        self.log_toggle.setStyleSheet("QToolButton {border: none;}")
+        self.log_toggle.toggled.connect(self._toggle_log)
+        layout.addWidget(self.log_toggle)
 
-        # Set main widget
+        self.output_text = QTextEdit()
+        self.output_text.setReadOnly(True)
+        self.output_text.setVisible(False)
+        self.output_text.document().setMaximumBlockCount(5000)  # B9: 日志上限
+        layout.addWidget(self.output_text)
+
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+        # 深浅色切换时刷新样式
+        theme.on_scheme_changed(self._apply_button_style)
+        theme.on_scheme_changed(self.status_panel.refresh_theme)
+
+    def _apply_button_style(self):
+        from common import theme
+
+        self.connect_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+                border: none;
+                border-radius: 6px;
+                font-size: 15px;
+                font-weight: 600;
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.semantic_color("accent_pressed")};
+            }}
+            QPushButton:disabled {{
+                background-color: {theme.semantic_color("idle")};
+                color: {theme.semantic_color("accent_text")};
+            }}
+        """)
+        # 退出按钮：次要样式（无边框灰字），随深浅色刷新
+        self.exit_button.setStyleSheet(
+            f"QPushButton {{ color: {theme.semantic_color('secondary_text')};"
+            f" border: none; padding: 8px 12px; }}"
+        )
+
+    def _refresh_connect_button(self):
+        filled = bool(self.username_input.text() and self.password_input.text())
+        self.connect_button.setEnabled(filled or self.connect_button.isChecked())
+        self.connect_button.setToolTip("" if filled else "请输入用户名和密码")
+
+    def _toggle_log(self, expanding):
+        self.log_toggle.setArrowType(Qt.DownArrow if expanding else Qt.RightArrow)
+        self._animated_height_toggle(
+            self.output_text, expanding, max_height=200, on_frame=self.adjustSize
+        )
 
     def closeEvent(self, event):
         handle_close_event(self, event, self.tray_icon)

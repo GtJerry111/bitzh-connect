@@ -1,20 +1,5 @@
 from unittest.mock import patch
 
-import pytest
-from PySide6.QtWidgets import QApplication
-from pytestqt.qtbot import QtBot  # noqa: F401
-
-
-@pytest.fixture(autouse=True)
-def _no_update_check(monkeypatch):
-    # 注意必须 patch main_window 命名空间（main_window 用 from-import 绑定了该函数）
-    monkeypatch.setattr("views.main_window.check_for_updates", lambda *a, **k: None)
-    # 隔离本机 QSettings，避免 connect_startup=True 等持久化配置干扰测试
-    from PySide6.QtCore import QSettings
-    from common.constants import ORG_NAME, APP_NAME
-
-    QSettings(ORG_NAME, APP_NAME).clear()
-
 
 def _make_window(qtbot):
     from views.main_window import MainWindow

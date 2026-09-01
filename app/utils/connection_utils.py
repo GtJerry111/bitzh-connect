@@ -113,6 +113,11 @@ def mask_command_args(command_args):
 
 def start_connection(window):
     """启动 VPN 连接"""
+    # 防御性校验：与主窗口内联校验双保险，凭据为空不拉起进程
+    if not (window.username_input.text() and window.password_input.text()):
+        window.status_panel.set_disconnected("请输入用户名和密码")
+        return
+
     if window.worker and window.worker.isRunning():
         window.status_panel.set_connecting()
         return
