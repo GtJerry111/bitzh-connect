@@ -10,7 +10,7 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     show_action = menu.addAction("打开面板")
     show_action.triggered.connect(window.show)
     show_action.triggered.connect(window.raise_)
-    connect_action = QAction("系统代理", menu)
+    connect_action = QAction("VPN 连接", menu)
     connect_action.setCheckable(True)
     connect_action.triggered.connect(
         lambda checked: window.connect_button.setChecked(checked)

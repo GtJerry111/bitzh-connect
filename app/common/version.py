@@ -16,3 +16,4 @@ def get_version():
 
     except Exception as e:
         print(f"Error reading version from resource: {e}", file=sys.stderr)
+        return "0.0.0"

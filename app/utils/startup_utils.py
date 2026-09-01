@@ -2,6 +2,8 @@ import os
 import sys
 from platform import system
 
+from common.constants import APP_NAME
+
 if system() == "Windows":
     import winreg
 import subprocess
@@ -18,11 +20,11 @@ def set_launch_at_login(enable: bool):
             ) as key:
                 if enable:
                     winreg.SetValueEx(
-                        key, "HITSZ Connect Verge", 0, winreg.REG_SZ, f'"{app_path}"'
+                        key, APP_NAME, 0, winreg.REG_SZ, f'"{app_path}"'
                     )
                 else:
                     try:
-                        winreg.DeleteValue(key, "HITSZ Connect Verge")
+                        winreg.DeleteValue(key, APP_NAME)
                     except FileNotFoundError:
                         pass
         except OSError:
@@ -64,27 +66,25 @@ def get_launch_at_login() -> bool:
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ
             ) as key:
-                winreg.QueryValueEx(key, "HITSZ Connect Verge")
+                winreg.QueryValueEx(key, APP_NAME)
                 return True
         except WindowsError:
             return False
 
     elif system() == "Darwin":
         try:
-            app_name = os.path.basename(sys.argv[0]).replace(".app", "")
+            # B6：打包后 argv[0] 是 <App>.app/Contents/MacOS/<二进制名>，
+            # 二进制名 ≠ 登录项名，须与 set_launch_at_login 同款路径推导
+            app_path = sys.argv[0]
+            if ".app/Contents/MacOS/" in app_path:
+                app_path = app_path.split(".app/Contents/MacOS/")[0] + ".app"
+            app_name = os.path.basename(app_path).replace(".app", "")
             result = subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    'tell application "System Events" to get the name of every login item',
-                ],
-                capture_output=True,
-                text=True,
+                ["osascript", "-e",
+                 'tell application "System Events" to get the name of every login item'],
+                capture_output=True, text=True,
             )
-            if app_name in result.stdout:
-                return True
-            else:
-                return False
+            return app_name in result.stdout
         except subprocess.SubprocessError:
             return False
 

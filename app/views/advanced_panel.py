@@ -20,6 +20,7 @@ from platform import system
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
 from common.version import get_version
+from common.constants import DEFAULT_SERVER
 from common import resources
 
 VERSION = get_version()
@@ -45,7 +46,7 @@ class AdvancedSettingsDialog(QDialog):
         # Server & Port
         server_layout = QHBoxLayout()
         server_layout.addWidget(QLabel("VPN 服务端地址"))
-        self.server_input = QLineEdit("vpn.hitsz.edu.cn")
+        self.server_input = QLineEdit(DEFAULT_SERVER)
         server_layout.addWidget(self.server_input)
         server_layout.addWidget(QLabel("端口"))
         self.port_input = QLineEdit("443")
@@ -56,7 +57,8 @@ class AdvancedSettingsDialog(QDialog):
         # DNS settings
         dns_layout = QHBoxLayout()
         dns_layout.addWidget(QLabel("DNS 服务器地址"))
-        self.dns_input = QLineEdit("10.248.98.30")
+        self.dns_input = QLineEdit("")
+        self.dns_input.setPlaceholderText("留空则禁用远端 DNS")
         dns_layout.addWidget(self.dns_input)
         self.auto_dns_switch = QCheckBox("自动配置 DNS")
         self.auto_dns_switch.setChecked(True)
@@ -166,6 +168,12 @@ class AdvancedSettingsDialog(QDialog):
         self.check_update_switch = QCheckBox("启动时检查更新")
         general_layout.addWidget(self.check_update_switch)
 
+        # 断线自动重连
+        self.auto_reconnect_switch = QCheckBox("断线自动重连")
+        self.auto_reconnect_switch.setToolTip("非认证失败导致的掉线将自动重连，连续失败 3 次后暂停")
+        self.auto_reconnect_switch.setChecked(True)
+        general_layout.addWidget(self.auto_reconnect_switch)
+
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
@@ -228,6 +236,7 @@ class AdvancedSettingsDialog(QDialog):
             "socks_bind": self.socks_bind_input.text(),
             "cert_file": self.cert_file_input.text(),
             "cert_password": self.cert_password_input.text(),
+            "auto_reconnect": self.auto_reconnect_switch.isChecked(),
         }
 
         if system() == "Darwin":
@@ -253,6 +262,7 @@ class AdvancedSettingsDialog(QDialog):
         auto_dns=True,
         cert_file="",
         cert_password="",
+        auto_reconnect=True,
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -272,6 +282,7 @@ class AdvancedSettingsDialog(QDialog):
         self.socks_bind_input.setText(socks_bind)
         self.cert_file_input.setText(cert_file)
         self.cert_password_input.setText(cert_password)
+        self.auto_reconnect_switch.setChecked(auto_reconnect)
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()

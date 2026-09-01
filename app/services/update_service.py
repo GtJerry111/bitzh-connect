@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Slot
+from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Slot, QTimer
 import requests
 from requests.exceptions import RequestException
 from packaging import version
@@ -56,8 +56,14 @@ class UpdateService:
 
     def __init__(self):
         self.thread_pool = QThreadPool()
+        self._workers = []  # 持有引用，防止 QRunnable 自动删除后信号丢失
 
     def check_for_updates(self, current_version):
         worker = UpdateChecker(current_version)
-        self.thread_pool.start(worker)
+        self._workers.append(worker)
+        worker.signals.update_available.connect(
+            lambda _v, w=worker: self._workers.remove(w)
+        )
+        # 延迟到事件循环下一轮再 start：调用方先连信号，消除竞态
+        QTimer.singleShot(0, lambda: self.thread_pool.start(worker))
         return worker.signals
