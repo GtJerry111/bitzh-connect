@@ -65,3 +65,50 @@ def test_animated_height_toggle_immediate_when_reduce_motion(qtbot, monkeypatch)
     assert not w.isVisible()
     motion_utils.animated_height_toggle(w, expanding=True)
     assert w.isVisible()
+
+
+def test_animate_label_color_interrupt_restarts_from_presentation_value(qtbot, monkeypatch):
+    from PySide6.QtCore import QAbstractAnimation
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QLabel
+
+    from utils import motion_utils
+
+    monkeypatch.setattr(motion_utils, "reduce_motion", lambda: False)
+    label = QLabel("●")
+    qtbot.addWidget(label)
+    label.setStyleSheet("color: #000000;")
+    label._theme_color = "#000000"
+
+    anim1 = motion_utils.animate_label_color(label, "#FF9500", duration=500)
+    qtbot.waitUntil(lambda: "#000000" not in label.styleSheet(), timeout=2000)
+    assert anim1.state() == QAbstractAnimation.State.Running  # 确在动画进行中打断
+    displayed = re.search(r"color:\s*(#[0-9A-Fa-f]{6})", label.styleSheet()).group(1)
+    assert displayed.lower() not in ("#000000", "#ff9500")  # 展示色确为中间态
+
+    anim2 = motion_utils.animate_label_color(label, "#16AE68", duration=500)
+    # 新动画起点 = 打断时刻的展示色，不回跳到逻辑初值
+    assert QColor(anim2.startValue()) == QColor(displayed)
+
+    qtbot.waitUntil(lambda: label._theme_color == "#16AE68", timeout=2000)
+    assert "#16ae68" in label.styleSheet().lower()
+
+
+def test_animated_height_toggle_expand_interrupts_collapse_stays_visible(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QTextEdit
+
+    from utils import motion_utils
+
+    monkeypatch.setattr(motion_utils, "reduce_motion", lambda: False)
+    w = QTextEdit()
+    qtbot.addWidget(w)
+    w.show()
+    motion_utils.animated_height_toggle(w, expanding=True, duration=10)
+    qtbot.wait(100)  # 等完全展开
+
+    motion_utils.animated_height_toggle(w, expanding=False, duration=200)
+    qtbot.wait(80)  # 收起进行中
+    motion_utils.animated_height_toggle(w, expanding=True, duration=200)  # 打断
+    qtbot.wait(300)  # 等展开动画结束
+
+    assert w.isVisible()  # 被停的收起动画不得把 widget 隐藏

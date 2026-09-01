@@ -49,14 +49,26 @@ def animate_label_color(label, target: str, duration: int = ANIMATION_DURATION_M
     anim.setStartValue(QColor(start))
     anim.setEndValue(QColor(target))
     anim.setEasingCurve(QEasingCurve.OutCubic)
-    anim.valueChanged.connect(lambda c: label.setStyleSheet(f"color: {c.name()};"))
+
+    def _on_value(c):
+        label.setStyleSheet(f"color: {c.name()};")
+        label._theme_color = c.name()  # 逐帧同步展示值：打断时新动画从此重启，不回跳
+
+    anim.valueChanged.connect(_on_value)
 
     def _store():
+        if label._color_anim is not anim:  # 被停的旧动画不得覆写新动画状态
+            return
         label._theme_color = target
 
     anim.finished.connect(_store)
+
+    old = getattr(label, "_color_anim", None)
+    label._color_anim = anim  # 先建立身份（_store 守卫基准），同时持有引用防 GC
+    if old is not None:
+        old.stop()  # 显式停旧动画：QVariantAnimation 非属性动画，不会被新动画自动顶替
+
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-    label._color_anim = anim  # 持有引用防 GC
     return anim
 
 
@@ -87,11 +99,13 @@ def animated_height_toggle(widget, expanding: bool, max_height: int = 200,
         anim.valueChanged.connect(lambda _v: on_frame())
 
     def _finish():
+        if getattr(widget, "_height_anim", None) is not anim:
+            return  # 被顶替停掉的旧动画（如收起被展开打断）不得决定终态
         widget.setMaximumHeight(16777215)
         if not expanding:
             widget.setVisible(False)
 
     anim.finished.connect(_finish)
+    widget._height_anim = anim  # 须在 start 前建立身份：start 可能同步触发旧动画 finished
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-    widget._height_anim = anim
     return anim
