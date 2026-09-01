@@ -5,6 +5,7 @@ from PySide6.QtGui import QGuiApplication, QKeySequence
 from .advanced_panel import AdvancedSettingsDialog
 from platform import system
 from services.update_service import UpdateService
+from common.constants import APP_NAME, REPO_URL, RELEASES_URL
 
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
@@ -40,11 +41,12 @@ def setup_menubar(window: QMainWindow, version):
 
 def show_about(window, version):
     """Show about dialog"""
-    about_text = f"""<p style="font-size: 15pt;">HITSZ Connect Verge</p>
+    about_text = f"""<p style="font-size: 15pt;">{APP_NAME}</p>
     <p style="font-size: 10pt;">Version: {version}</p>
-    <p style="font-size: 10pt;">Repository: <a href="https://github.com/kowyo/hitsz-connect-verge">github.com/kowyo/hitsz-connect-verge</a></p>
-    <p style="font-size: 10pt;">Author: <a href="https://github.com/kowyo">Kowyo</a></p> """
-    QMessageBox.about(window, "关于 HITSZ Connect Verge", about_text)
+    <p style="font-size: 10pt;">Repository: <a href="{REPO_URL}">{REPO_URL.replace("https://", "")}</a></p>
+    <p style="font-size: 10pt;">Based on <a href="https://github.com/kowyo/hitsz-connect-verge">HITSZ Connect Verge</a> by Kowyo,
+    powered by <a href="https://github.com/Mythologyli/zju-connect">ZJU Connect</a></p> """
+    QMessageBox.about(window, f"关于 {APP_NAME}", about_text)
 
 
 def copy_log(window):
@@ -70,9 +72,7 @@ def check_for_updates(parent, current_version, startup=False):
                 parent, "检查更新", f"发现新版本 {latest_version}，是否前往下载？"
             )
             if reply == QMessageBox.Yes:
-                webbrowser.open(
-                    "https://github.com/kowyo/hitsz-connect-verge/releases/latest"
-                )
+                webbrowser.open(RELEASES_URL)
         else:
             parent.output_text.append(f"New version {latest_version} is available.\n")
 

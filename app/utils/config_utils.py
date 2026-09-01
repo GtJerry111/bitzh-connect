@@ -1,10 +1,11 @@
 from PySide6.QtCore import QSettings
+from common.constants import APP_NAME, ORG_NAME, DEFAULT_SERVER, DEFAULT_PORT, DEFAULT_DNS
 from .startup_utils import get_launch_at_login
 
 
 def save_config(config):
     """Save config using QSettings"""
-    settings = QSettings("Kowyo", "HITSZ Connect Verge")
+    settings = QSettings(ORG_NAME, APP_NAME)
     for key, value in config.items():
         settings.setValue(key, value)
     settings.sync()
@@ -12,14 +13,14 @@ def save_config(config):
 
 def load_config():
     """Load config from QSettings"""
-    settings = QSettings("Kowyo", "HITSZ Connect Verge")
+    settings = QSettings(ORG_NAME, APP_NAME)
     default_config = {
         "username": "",
         "password": "",
         "remember": False,
-        "server": "vpn.hitsz.edu.cn",
-        "port": "443",
-        "dns": "10.248.98.30",
+        "server": DEFAULT_SERVER,
+        "port": DEFAULT_PORT,
+        "dns": DEFAULT_DNS,
         "auto_dns": True,
         "proxy": True,
         "launch_at_login": get_launch_at_login(),
@@ -30,13 +31,13 @@ def load_config():
         "keep_alive": True,
         "debug_dump": False,
         "disable_multi_line": False,
+        "auto_reconnect": True,
         "socks_bind": "1080",
         "http_bind": "1081",
         "cert_file": "",
         "cert_password": "",
     }
 
-    # Load values from QSettings, falling back to defaults if not found
     for key in default_config.keys():
         value = settings.value(key, default_config[key])
         if isinstance(default_config[key], bool):
@@ -68,3 +69,4 @@ def load_settings(self):
     self.socks_bind = config["socks_bind"]
     self.cert_file = config["cert_file"]
     self.cert_password = config["cert_password"]
+    self.auto_reconnect = config["auto_reconnect"]

@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Slot
 import requests
 from requests.exceptions import RequestException
 from packaging import version
+from common.constants import UPDATE_API_URL
 
 
 class UpdateSignals(QObject):
@@ -39,9 +40,7 @@ class UpdateChecker(QRunnable):
     def get_latest_version(self):
         """Get the latest version from GitHub releases"""
         try:
-            url = (
-                "https://api.github.com/repos/kowyo/hitsz-connect-verge/releases/latest"
-            )
+            url = UPDATE_API_URL
             response = requests.get(url, timeout=10)
             return response.json()["tag_name"].lstrip("v")
         except RequestException as e:

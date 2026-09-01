@@ -16,6 +16,7 @@ from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import setup_menubar, check_for_updates
 from utils.config_utils import load_settings
+from common.constants import APP_NAME
 from common.version import get_version
 
 VERSION = get_version()
@@ -24,7 +25,7 @@ VERSION = get_version()
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("HITSZ Connect Verge")
+        self.setWindowTitle(APP_NAME)
         self.setMinimumSize(300, 450)
 
         self.worker = None
