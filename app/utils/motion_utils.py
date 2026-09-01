@@ -9,6 +9,7 @@ from platform import system
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QVariantAnimation
 from PySide6.QtGui import QColor
+from shiboken6 import isValid
 
 ANIMATION_DURATION_MS = 250
 
@@ -36,6 +37,15 @@ def reduce_motion() -> bool:
 
 def animate_label_color(label, target: str, duration: int = ANIMATION_DURATION_MS):
     """标签颜色平滑过渡。可打断：从当前展示颜色出发（记录在 label._theme_color）。"""
+    # 停掉残留的旧动画。isValid 防御：wrapper 背后的 C++ 对象可能已不存在
+    # （曾用 DeleteWhenStopped 时自然完成后即被删除），直接 stop 会抛 RuntimeError。
+    # 先清身份再 stop：即使 stop 同步触发旧 finished，_store 守卫也已失效。
+    old = getattr(label, "_color_anim", None)
+    if old is not None:
+        label._color_anim = None
+        if isValid(old):
+            old.stop()
+
     if reduce_motion():
         label.setStyleSheet(f"color: {target};")
         label._theme_color = target
@@ -63,12 +73,11 @@ def animate_label_color(label, target: str, duration: int = ANIMATION_DURATION_M
 
     anim.finished.connect(_store)
 
-    old = getattr(label, "_color_anim", None)
-    label._color_anim = anim  # 先建立身份（_store 守卫基准），同时持有引用防 GC
-    if old is not None:
-        old.stop()  # 显式停旧动画：QVariantAnimation 非属性动画，不会被新动画自动顶替
-
-    anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+    label._color_anim = anim  # 身份守卫基准；同时持有引用防 GC
+    # 注意：不能用 DeleteWhenStopped —— Python 侧创建的 QVariantAnimation 经
+    # deleteLater 延迟销毁时在 Qt 事件循环中间歇性段错误（PySide6 6.11 实测）。
+    # 旧动画被显式 stop 后作为 label 子对象随 label 销毁，无需自动删除。
+    anim.start()
     return anim
 
 

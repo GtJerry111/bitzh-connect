@@ -94,6 +94,24 @@ def test_animate_label_color_interrupt_restarts_from_presentation_value(qtbot, m
     assert "#16ae68" in label.styleSheet().lower()
 
 
+def test_animate_label_color_recall_after_completion_no_crash(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QLabel
+
+    from utils import motion_utils
+
+    monkeypatch.setattr(motion_utils, "reduce_motion", lambda: False)
+    label = QLabel("●")
+    qtbot.addWidget(label)
+    label._theme_color = "#000000"
+
+    motion_utils.animate_label_color(label, "#FF9500", duration=10)
+    qtbot.wait(200)  # 越过动画终点，让事件循环处理 DeleteWhenStopped 的删除
+    # 上一次动画已自然完成、C++ 对象已删除；再次调用不得对已删除对象 stop()
+    motion_utils.animate_label_color(label, "#16AE68", duration=10)
+    qtbot.wait(200)
+    assert label._theme_color == "#16AE68"
+
+
 def test_animated_height_toggle_expand_interrupts_collapse_stays_visible(qtbot, monkeypatch):
     from PySide6.QtWidgets import QTextEdit
 
