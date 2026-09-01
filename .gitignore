@@ -5,3 +5,4 @@ __pycache__/
 **/zju-connect.exe
 .venv/
 *.spec
+.superpowers/
