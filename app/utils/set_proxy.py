@@ -37,6 +37,8 @@ class CommandWorker(QThread):
         self.proxy_enabled = proxy_enabled
         self.window = window
         self.process = None
+        # stop() 先于 run() 中 Popen 完成时被调用时记录的终止意图（防竞态丢终止）
+        self._stop_requested = False
         self._proxy_handlers = {
             "Windows": set_windows_proxy,
             "Darwin": set_macos_proxy,
@@ -63,6 +65,10 @@ class CommandWorker(QThread):
                 creationflags=creation_flags,
             )
 
+            # stop() 可能在 Popen 完成前被调用：补杀，避免留下无人看管的存活进程
+            if self._stop_requested:
+                self.process.terminate()
+
             for line in self.process.stdout:
                 self.output.emit(line)
             self.process.wait()
@@ -79,6 +85,9 @@ class CommandWorker(QThread):
         """非阻塞终止进程。进程退出与代理由 run() 的收尾逻辑在工作线程完成。"""
         if self.process and self.process.poll() is None:
             self.process.terminate()
+        elif self.process is None:
+            # 与 run() 中 Popen 竞态：进程尚未 spawn，记录终止意图待 spawn 后补杀
+            self._stop_requested = True
 
 
 def set_windows_proxy(

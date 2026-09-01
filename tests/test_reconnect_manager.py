@@ -75,3 +75,18 @@ def test_unstable_connection_keeps_counter(manager, qtbot):
     m.on_connection_established()
     m.on_process_exited(manual=False, auth_failed=False)  # 60s(测试为0.2s)内又掉 → 不重置
     assert m.retry_count == 2
+
+
+def test_on_connect_attempt_cancels_pending_retry(manager, qtbot):
+    """手动发起连接必须取消在途的退避重连计时器（stray timer）。
+
+    只停计时器：retry_count 保留（不清计数），防止旧退避计时器在手动连接
+    期间到点、用旧凭据再连一次把 UI 从"认证失败"翻回"连接中"。
+    """
+    m, calls = manager
+    m.on_process_exited(manual=False, auth_failed=False)
+    assert m.retry_count == 1
+    m.on_connect_attempt()
+    qtbot.wait(300)  # 越过第一档退避（0.05s）
+    assert calls == []
+    assert m.retry_count == 1

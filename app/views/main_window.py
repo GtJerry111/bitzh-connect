@@ -135,11 +135,17 @@ class MainWindow(QMainWindow):
             else self.connect_button.setText("连接")
         )
         self.connect_button.toggled.connect(self.save_credentials)
+        # 输入框禁用态跟随按钮实时勾选态（而非 toggled 参数）：
+        # start_connection 凭据校验早退已在前面槽位复位按钮，用参数会把输入框重新禁用
         self.connect_button.toggled.connect(
-            lambda checked: self.username_input.setDisabled(checked)
+            lambda checked: self.username_input.setDisabled(
+                self.connect_button.isChecked()
+            )
         )
         self.connect_button.toggled.connect(
-            lambda checked: self.password_input.setDisabled(checked)
+            lambda checked: self.password_input.setDisabled(
+                self.connect_button.isChecked()
+            )
         )
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.connect_button, 1)

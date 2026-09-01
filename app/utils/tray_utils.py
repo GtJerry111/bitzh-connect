@@ -18,6 +18,8 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     window.connect_button.toggled.connect(
         connect_action.setChecked
     )  # Sync connect_action item with connect_button state
+    # 挂到 window 上：断连收尾（按钮 toggled 被 QSignalBlocker 屏蔽）时手动同步勾选态
+    window.tray_connect_action = connect_action
     menu.addAction(connect_action)
     quit_action = menu.addAction("退出")
     quit_action.triggered.connect(window.quit_app)

@@ -52,6 +52,9 @@ def handle_connection_finished(window, exit_code):
         window.username_input.setEnabled(True)
         window.password_input.setEnabled(True)
         del blocker
+        # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
+        if hasattr(window, "tray_connect_action"):
+            window.tray_connect_action.setChecked(False)
 
     window.reconnect_manager.on_process_exited(manual=manual, auth_failed=auth_failed)
 
@@ -115,12 +118,25 @@ def start_connection(window):
     """启动 VPN 连接"""
     # 防御性校验：与主窗口内联校验双保险，凭据为空不拉起进程
     if not (window.username_input.text() and window.password_input.text()):
+        # 早退前复位"假连接"态：toggled(True) 已发出，按钮勾选/文案/输入框禁用态
+        # 都被切换，需手动恢复（屏蔽信号避免回环触发 stop_connection）
+        if hasattr(window, "connect_button"):
+            blocker = QSignalBlocker(window.connect_button)
+            window.connect_button.setChecked(False)
+            window.connect_button.setText("连接")
+            window.username_input.setEnabled(True)
+            window.password_input.setEnabled(True)
+            del blocker
         window.status_panel.set_disconnected("请输入用户名和密码")
         return
 
     if window.worker and window.worker.isRunning():
         window.status_panel.set_connecting()
         return
+
+    # 手动发起连接：取消可能在途的退避重连计时器（stray timer），
+    # 防止它在本次连接期间到点、用旧凭据再拉起一次连接
+    window.reconnect_manager.on_connect_attempt()
 
     window._manual_stop = False
     window._auth_failed = False

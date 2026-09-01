@@ -68,6 +68,15 @@ class ReconnectManager(QObject):
         self._retry_timer.start(int(delay * 1000))
         self.retry_scheduled.emit(self._retry_count, delay)
 
+    def on_connect_attempt(self):
+        """手动发起连接时调用：取消在途的退避重连计时器（stray timer）。
+
+        只停止 _retry_timer，不清零重试计数、不动稳定期计时器——
+        防止旧退避计时器在手动连接期间到点，用旧凭据再连一次，
+        把 UI 从"认证失败"翻回"连接中"。
+        """
+        self._retry_timer.stop()
+
     def cancel(self):
         """用户手动断开/退出应用时调用：停止一切待执行的重连并重置计数。"""
         self._retry_timer.stop()
