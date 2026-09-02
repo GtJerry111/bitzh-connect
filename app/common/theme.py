@@ -4,6 +4,7 @@
 - 深绿 #005C31（校徽中心）→ 浅色模式 accent
 - 标准绿 #16AE68（树）→ 深色模式 accent / 已连接状态
 """
+import sys
 from platform import system
 
 from PySide6.QtCore import Qt
@@ -56,7 +57,8 @@ _scheme_signal_connected = False
 def on_scheme_changed(callback):
     """深浅色切换（含 app 内外观切换）时回调。同一回调只注册一次。"""
     global _scheme_signal_connected
-    _REFRESH_CALLBACKS.append(callback)
+    if callback not in _REFRESH_CALLBACKS:  # 同一回调重复注册无意义且会重复触发
+        _REFRESH_CALLBACKS.append(callback)
     if not _scheme_signal_connected:
         QGuiApplication.styleHints().colorSchemeChanged.connect(
             lambda _scheme: _run_refresh()
@@ -69,8 +71,11 @@ def _run_refresh():
     for cb in list(_REFRESH_CALLBACKS):
         try:
             cb()
-        except RuntimeError:
-            continue  # 回调绑定的 C++ 对象已销毁（如已关闭的窗口），剔除
+        except RuntimeError as e:
+            if "Internal C++ object" in str(e):
+                continue  # 回调绑定的 C++ 对象已销毁（如已关闭的窗口），剔除
+            # 活回调自身抛的 RuntimeError 不得误剔：打印保留，下次仍触发
+            print(f"[theme] 刷新回调执行异常（已保留注册）: {e}", file=sys.stderr)
         alive.append(cb)
     _REFRESH_CALLBACKS[:] = alive
 
@@ -84,6 +89,8 @@ def set_appearance(mode: str):
     macOS 窗口标题栏用 NSAppearance 跟随。
     """
     global _APPEARANCE_OVERRIDE
+    if mode not in ("system", "light", "dark"):
+        mode = "system"  # 配置被手改坏时回退跟随系统，不崩
     _APPEARANCE_OVERRIDE = None if mode == "system" else mode
     scheme = {
         "system": Qt.ColorScheme.Unknown,

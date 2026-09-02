@@ -26,6 +26,9 @@ from common import resources
 
 VERSION = get_version()
 
+# 外观三态取值（与下拉框索引一一对应）
+_APPEARANCE_MODES = ["system", "light", "dark"]
+
 
 class AdvancedSettingsDialog(QDialog):
     def __init__(self, parent=None):
@@ -246,7 +249,7 @@ class AdvancedSettingsDialog(QDialog):
             "cert_file": self.cert_file_input.text(),
             "cert_password": self.cert_password_input.text(),
             "auto_reconnect": self.auto_reconnect_switch.isChecked(),
-            "appearance": ["system", "light", "dark"][self.appearance_combo.currentIndex()],
+            "appearance": _APPEARANCE_MODES[self.appearance_combo.currentIndex()],
         }
 
         if system() == "Darwin":
@@ -294,7 +297,7 @@ class AdvancedSettingsDialog(QDialog):
         self.cert_file_input.setText(cert_file)
         self.cert_password_input.setText(cert_password)
         self.auto_reconnect_switch.setChecked(auto_reconnect)
-        self.appearance_combo.setCurrentIndex(["system", "light", "dark"].index(appearance))
+        self.appearance_combo.setCurrentIndex(_APPEARANCE_MODES.index(appearance))
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()

@@ -27,6 +27,20 @@ def test_set_appearance_triggers_refresh(qapp):
     assert len(calls) >= 1
 
 
+def test_on_scheme_changed_dedupes_same_callback(qapp):
+    from common import theme
+
+    calls = []
+
+    def cb():
+        calls.append(1)
+
+    theme.on_scheme_changed(cb)
+    theme.on_scheme_changed(cb)  # 同一回调重复注册应被忽略
+    theme.set_appearance("dark")
+    assert len(calls) == 1
+
+
 def test_appearance_config_default():
     from utils.config_utils import load_config
 
