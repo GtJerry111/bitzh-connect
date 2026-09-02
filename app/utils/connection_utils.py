@@ -5,8 +5,34 @@ import gc
 from PySide6.QtCore import QSignalBlocker
 from .set_proxy import CommandWorker
 from .log_parser import parse_client_ip, is_auth_failure, is_server_kick
-from .tun_utils import check_tun_conflict, write_launcher, spawn_elevated
+from .tun_utils import (
+    check_tun_conflict,
+    write_launcher,
+    spawn_elevated_async,
+    kill_elevated_async,
+    read_pid,
+)
 from .tun_worker import TunWorker
+
+
+def _reset_connect_ui(window, status_detail: str):
+    """早退路径统一复位：仪表盘断开态 + 按钮/输入框/托盘回滚（屏蔽信号防回环）。
+
+    编程式 setChecked(False) 会触发 toggled → stop_connection() → reconnect_manager.cancel()，
+    必须用 QSignalBlocker；被屏蔽的 toggled 附带效果（按钮文案、输入框禁用态、
+    托盘勾选联动）需手动恢复。
+    """
+    window.status_panel.set_disconnected(hero="未连接", detail=status_detail)
+    if hasattr(window, "connect_button"):
+        blocker = QSignalBlocker(window.connect_button)
+        window.connect_button.setChecked(False)
+        window.connect_button.setText("连接")
+        window.username_input.setEnabled(True)
+        window.password_input.setEnabled(True)
+        del blocker
+        # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
+        if hasattr(window, "tray_connect_action"):
+            window.tray_connect_action.setChecked(False)
 
 
 def handle_output(window, text):
@@ -131,19 +157,8 @@ def start_connection(window):
     """启动 VPN 连接"""
     # 防御性校验：与主窗口内联校验双保险，凭据为空不拉起进程
     if not (window.username_input.text() and window.password_input.text()):
-        # 早退前复位"假连接"态：toggled(True) 已发出，按钮勾选/文案/输入框禁用态
-        # 都被切换，需手动恢复（屏蔽信号避免回环触发 stop_connection）
-        if hasattr(window, "connect_button"):
-            blocker = QSignalBlocker(window.connect_button)
-            window.connect_button.setChecked(False)
-            window.connect_button.setText("连接")
-            window.username_input.setEnabled(True)
-            window.password_input.setEnabled(True)
-            del blocker
-            # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
-            if hasattr(window, "tray_connect_action"):
-                window.tray_connect_action.setChecked(False)
-        window.status_panel.set_disconnected(hero="未连接", detail="请输入用户名和密码")
+        # 早退前复位"假连接"态：toggled(True) 已发出，按钮勾选/文案/输入框禁用态都被切换
+        _reset_connect_ui(window, "请输入用户名和密码")
         return
 
     if window.worker and window.worker.isRunning():
@@ -182,16 +197,7 @@ def start_connection(window):
             window.output_text.append(
                 f"[BITZH Connect] 检测到默认路由已在虚拟网卡 {conflict}（如 Clash TUN），请先关闭再连\n"
             )
-            window.status_panel.set_disconnected(hero="未连接", detail=f"与 {conflict} 的 TUN 冲突")
-            # 按钮复位（早退同空凭据路径的处理）
-            blocker = QSignalBlocker(window.connect_button)
-            window.connect_button.setChecked(False)
-            window.connect_button.setText("连接")
-            window.username_input.setEnabled(True)
-            window.password_input.setEnabled(True)
-            if hasattr(window, "tray_connect_action"):
-                window.tray_connect_action.setChecked(False)
-            del blocker
+            _reset_connect_ui(window, f"与 {conflict} 的 TUN 冲突")
             return
         # 注意：os 已在模块顶部导入，函数内重复 import 会把 os 变成本地变量，
         # 导致函数前段 os.path 用法 UnboundLocalError——这里只补 tempfile
@@ -201,24 +207,41 @@ def start_connection(window):
         pid_fd, pid_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".pid")
         os.close(pid_fd)
         launcher = write_launcher(command, command_args[1:], log_path, pid_path)
-        window._tun_pid_path = pid_path
-        if not spawn_elevated(launcher):
-            window.output_text.append("[BITZH Connect] 授权取消，未启动 TUN 连接\n")
-            window.status_panel.set_disconnected(hero="未连接", detail="已取消授权")
-            blocker = QSignalBlocker(window.connect_button)
-            window.connect_button.setChecked(False)
-            window.connect_button.setText("连接")
-            window.username_input.setEnabled(True)
-            window.password_input.setEnabled(True)
-            if hasattr(window, "tray_connect_action"):
-                window.tray_connect_action.setChecked(False)
-            del blocker
-            return
+        # 授权框可能停留数十秒：提权异步执行，worker 先行启动
+        # （pidfile 120s 等待窗口本就为覆盖授权时长而设）
         window.worker = TunWorker(log_path, pid_path)
         window.worker.output.connect(lambda text: handle_output(window, text))
         window.worker.finished.connect(lambda code: handle_connection_finished(window, code))
         window.worker.start()
         window.status_panel.set_connecting()
+
+        def _on_spawn_done(ok: bool):
+            if ok:
+                # 授权期间用户已先行断开：内核刚被拉起即成孤儿（root + 全局路由），立即补杀
+                worker = window.worker
+                if worker is None or getattr(worker, "_stop_requested", False):
+                    pid = read_pid(pid_path)
+                    if pid is not None:
+                        kill_elevated_async(pid)
+                return
+            # 用户取消授权：连接从未建立，不走"进程退出"收尾路径
+            # （避免 handle_connection_finished 用默认文案覆盖"已取消授权"、误触自动重连）
+            window.output_text.append("[BITZH Connect] 授权取消，未启动 TUN 连接\n")
+            window._manual_stop = True
+            worker = window.worker
+            if worker is not None:
+                try:
+                    worker.output.disconnect()
+                    worker.finished.disconnect()
+                except RuntimeError:
+                    pass
+                worker.finished.connect(worker.deleteLater)  # 线程退出后自毁
+                worker.stop()  # pidfile 尚为空，不会触发 kill，仅停掉等待循环
+                window.worker = None
+            _reset_connect_ui(window, "已取消授权")
+
+        # task 挂 window 防 GC（update_service._workers 同款教训）
+        window._tun_spawn_task = spawn_elevated_async(launcher, _on_spawn_done)
         return
 
     window.worker = CommandWorker(

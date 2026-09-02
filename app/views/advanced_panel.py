@@ -151,9 +151,12 @@ class AdvancedSettingsDialog(QDialog):
 
         # TUN 模式（全局路由，需提权）
         self.tun_mode_switch = QCheckBox("TUN 模式（全局路由）")
-        self.tun_mode_switch.setToolTip(
-            "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
-        )
+        tun_tooltip = "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
+        if system() == "Windows":
+            # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
+            tun_tooltip += "（本期仅 macOS/Linux）"
+            self.tun_mode_switch.setEnabled(False)
+        self.tun_mode_switch.setToolTip(tun_tooltip)
         network_layout.addWidget(self.tun_mode_switch)
 
         network_tab.setLayout(network_layout)

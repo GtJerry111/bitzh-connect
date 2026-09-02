@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
         self._manual_stop = True
         self._auth_failed = False
         self._rate_monitor = None
+        self._rate_monitor_gen = 0  # 在途重试链世代号：stop/重启即翻篇，防止断连后建起残留 monitor
         self.reconnect_manager = ReconnectManager(
             reconnect_action=lambda: self.connect_button.setChecked(True),
         )
@@ -288,7 +289,12 @@ class MainWindow(QMainWindow):
         self.stop_rate_monitor()
         from services.rate_monitor import RateMonitor, find_tun_interface
 
+        self._rate_monitor_gen += 1
+        gen = self._rate_monitor_gen
+
         def _try_start(attempts=0):
+            if gen != self._rate_monitor_gen:
+                return  # 断连/重连已翻篇，丢弃在途重试
             interface = find_tun_interface(virtual_ip)
             if interface:
                 self._rate_monitor = RateMonitor(interface, self.status_panel.set_rates, self)
@@ -300,6 +306,7 @@ class MainWindow(QMainWindow):
         _try_start()
 
     def stop_rate_monitor(self):
+        self._rate_monitor_gen += 1  # 作废在途重试链
         if getattr(self, "_rate_monitor", None):
             self._rate_monitor.stop()
             self._rate_monitor = None

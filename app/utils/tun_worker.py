@@ -8,7 +8,7 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
-from utils.tun_utils import _pid_alive, kill_elevated, read_pid
+from utils.tun_utils import _pid_alive, kill_elevated_async, read_pid
 
 
 class TunWorker(QThread):
@@ -34,24 +34,39 @@ class TunWorker(QThread):
 
         position = 0
         while not self._stop_requested:
-            try:
-                with open(self._log_path, "r", errors="replace") as f:
-                    f.seek(position)
-                    chunk = f.read()
-                    position = f.tell()
-                if chunk:
-                    for line in chunk.splitlines(keepends=True):
-                        self.output.emit(line)
-            except FileNotFoundError:
-                pass
+            position = self._emit_new_content(position)
             if pid is None or not _pid_alive(pid):
                 break
             self.msleep(300)
+        # 循环退出前补读一次：进程死亡瞬间写入的尾部日志可能还没被 tail 到
+        self._emit_new_content(position)
         self.finished.emit(-1)
 
+    def _emit_new_content(self, position: int) -> int:
+        """从 position 起读日志增量并逐行 emit，返回新的文件位置。"""
+        try:
+            with open(self._log_path, "r", errors="replace") as f:
+                f.seek(position)
+                chunk = f.read()
+                position = f.tell()
+            if chunk:
+                for line in chunk.splitlines(keepends=True):
+                    self.output.emit(line)
+        except FileNotFoundError:
+            pass
+        return position
+
     def stop(self):
-        """非阻塞停止：置标志 + 提权 kill；收尾在 run() 循环退出后由 finished 完成。"""
+        """非阻塞停止：置标志 + 异步提权 kill；收尾在 run() 循环退出后由 finished 完成。"""
         self._stop_requested = True
         pid = read_pid(self._pid_path)
         if pid is not None:
-            kill_elevated(pid)
+            kill_elevated_async(pid, on_done=self._on_kill_done)
+
+    def _on_kill_done(self, ok: bool):
+        if not ok:
+            # kill 失败（典型：用户在二次授权框点了取消）→ root 内核成孤儿仍在跑，
+            # 全局路由劫持未解除但 UI 已显示断开——必须留痕（走既有日志上屏链路）
+            self.output.emit(
+                "[BITZH Connect] 警告：未能停止 TUN 内核进程（可能取消了授权），若网络异常请手动检查\n"
+            )
