@@ -87,6 +87,34 @@ def test_disconnected_resets(panel):
     assert not panel._duration_timer.isActive()
 
 
+def test_connecting_hides_dot_even_when_window_hidden(qtbot, monkeypatch):
+    """回归：主窗口隐藏（托盘发起连接/silent_mode 自连）时 dot 也必须让位 spinner。
+    isVisible() 受祖先隐藏影响恒 False，互斥谓词必须用控件自身的 isHidden。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: False)
+    monkeypatch.setattr("views.busy_spinner.reduce_motion", lambda: False)
+    from views.status_panel import StatusPanel
+
+    p = StatusPanel(server_text="112.91.150.228")  # 不 show：模拟窗口隐藏
+    qtbot.addWidget(p)
+    p.set_connecting()
+    assert not p.spinner.isHidden()
+    assert p.status_dot.isHidden()
+
+
+def test_refresh_theme_colors_stat_labels(panel):
+    """深浅色切换（refresh_theme）须刷新统计行标题与副标题颜色。"""
+    from common import theme
+
+    for label in panel._stat_labels:
+        label.setStyleSheet("")
+    panel.subtitle.setStyleSheet("")
+    panel.refresh_theme()
+    expected = theme.semantic_color("secondary_text").lower()
+    for label in panel._stat_labels:
+        assert expected in label.styleSheet().lower()
+    assert expected in panel.subtitle.styleSheet().lower()
+
+
 def test_set_rates(panel):
     panel.set_rates("1.2 MB/s", "3.4 MB/s")
     assert panel.up_text == "1.2 MB/s"

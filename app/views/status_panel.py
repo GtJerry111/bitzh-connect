@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from common import theme
-from utils.motion_utils import animate_label_color, reduce_motion
+from utils.motion_utils import animate_label_color
 from views.busy_spinner import BusySpinner
 
 
@@ -30,6 +30,7 @@ class StatusPanel(QWidget):
         super().__init__(parent)
         self._server_text = server_text
         self._connected_since: datetime | None = None
+        self._virtual_ip: str | None = None
         self._countdown_remaining = 0
         self._retry_attempt = 0
 
@@ -100,7 +101,7 @@ class StatusPanel(QWidget):
 
     @property
     def ip_text(self) -> str:
-        return self.subtitle.text().split(" · ")[0] if " · " in self.subtitle.text() else "—"
+        return self._virtual_ip or "—"
 
     @property
     def duration_text(self) -> str:
@@ -149,7 +150,9 @@ class StatusPanel(QWidget):
     def set_connecting(self):
         self._countdown_timer.stop()
         self.spinner.start()  # 减少动态效果时为空操作（保持隐藏）
-        self.status_dot.setVisible(not self.spinner.isVisible())
+        # 互斥谓词必须用 isHidden（控件自身标志）：isVisible 是有效可见性，
+        # 主窗口隐藏（托盘发起连接/silent_mode 自连）时恒 False，会导致 dot 与 spinner 同屏并现
+        self.status_dot.setVisible(self.spinner.isHidden())
         self._set_hero("连接中…", "working", self._server_text)
         self.areas_changed.emit(True, False)
 
@@ -158,6 +161,7 @@ class StatusPanel(QWidget):
         self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._connected_since = datetime.now()
+        self._virtual_ip = virtual_ip
         self._set_hero("已连接", "connected", f"{virtual_ip} · {self._server_text}")
         self._duration_timer.start()
         self.areas_changed.emit(False, True)
@@ -165,6 +169,7 @@ class StatusPanel(QWidget):
     def set_reconnecting(self, attempt: int, delay: float):
         self.spinner.stop()
         self.status_dot.setVisible(True)
+        self._duration_timer.stop()  # 重连中断期间时长冻结，连接成功由 set_connected 重启
         self._retry_attempt = attempt
         self._countdown_remaining = int(delay)
         self._set_hero("连接中断", "working", f"{self._countdown_remaining}s 后第 {attempt} 次重连…")
@@ -183,6 +188,7 @@ class StatusPanel(QWidget):
         self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._connected_since = None
+        self._virtual_ip = None
         self._duration_timer.stop()
         is_error = hero != "未连接"
         self._set_hero(hero, "error" if is_error else "idle", detail or self._server_text)
