@@ -77,6 +77,25 @@
 - 实现：`QStyleHints.setColorScheme(Qt.ColorScheme.*)`（Qt 6.8+；本项 PySide6 6.11 满足），theme.is_dark() 读取处不变（colorScheme 被显式设置后直接反映），切换后触发 on_scheme_changed 刷新所有样式
 - 若 setColorScheme 在 macOS 上不完全生效（实测验证），回退方案：pyobjc 设 NSAppearance + 手动 palette
 
+## TUN 模式（本轮纳入，grilling 确认）
+
+**动机**：代理模式下 SSH 等裸 TCP 不走 VPN（系统代理只对浏览器类应用生效），用户的开发服务器（10.8.18.32）日常刚需。官方客户端即 TUN 全局路由。
+
+**内核能力已确认**：zju-connect v1.3.1 带 `--tun-mode`（userspace gVisor netstack）与 `--add-route`。
+
+**设计：**
+- 开关：高级设置-网络 tab 加"TUN 模式（全局路由）"，默认关；tooltip 说明需管理员授权 + 与 Clash TUN 互斥
+- 提权（本期最简方案，后续可换特权助手）：
+  - macOS：包装脚本读参数文件 exec 内核，`osascript do shell script ... with administrator privileges` 启动（连接时弹一次系统授权框）；内核输出重定向到临时日志文件，GUI 从文件 tail 解析状态（CommandWorker 增加"读日志文件"模式，对 handle_output 的输出契约不变）；pid 写 pidfile，断开时再提权 kill
+  - Windows：捆绑 wintun.dll + ShellExecute runas（UAC 弹一次）
+  - Linux：pkexec
+- TUN 模式下跳过系统代理自动配置（全局路由已接管，避免自我回环）
+- 速率统计（TUN 专属）：新增 psutil 依赖，`net_io_counters(pernic=True)` 每秒差值读新增 utun 网卡 → 仪表盘上行/下行速率从 "—" 变真数据；代理模式仍显示 "—"
+- 冲突检测：连接前查默认路由网卡，若已是 utun/其他 VPN 网卡（如 Clash TUN），弹提示让用户先关闭
+- 路由验证（Task 11 项）：TUN 连接后 `ssh czr@10.8.18.32` 不通代理直连必须通；若服务器下发的资源路由不含 10.0.0.0/8，补 OS 级路由
+
+**已知体验折衷**：macOS 每次连接/断开可能各弹一次系统授权框（osascript 方案）。后续阶段换 SMAppServices 特权助手可免密。
+
 ## 测试策略
 
 - 现有 62 个测试保持绿；状态面板 API 变化（hero/副标题分离）同步更新 test_status_panel.py / test_main_window.py
