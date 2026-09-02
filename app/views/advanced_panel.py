@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QFileDialog,
     QStyle,
+    QComboBox,
 )
 from PySide6.QtGui import QIcon, QAction
 from utils.config_utils import save_config, load_config
@@ -174,6 +175,14 @@ class AdvancedSettingsDialog(QDialog):
         self.auto_reconnect_switch.setChecked(True)
         general_layout.addWidget(self.auto_reconnect_switch)
 
+        # 外观三态（跟随系统 / 浅色 / 深色）
+        appearance_layout = QHBoxLayout()
+        appearance_layout.addWidget(QLabel("外观"))
+        self.appearance_combo = QComboBox()
+        self.appearance_combo.addItems(["跟随系统", "浅色", "深色"])
+        appearance_layout.addWidget(self.appearance_combo)
+        general_layout.addLayout(appearance_layout)
+
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
@@ -237,6 +246,7 @@ class AdvancedSettingsDialog(QDialog):
             "cert_file": self.cert_file_input.text(),
             "cert_password": self.cert_password_input.text(),
             "auto_reconnect": self.auto_reconnect_switch.isChecked(),
+            "appearance": ["system", "light", "dark"][self.appearance_combo.currentIndex()],
         }
 
         if system() == "Darwin":
@@ -263,6 +273,7 @@ class AdvancedSettingsDialog(QDialog):
         cert_file="",
         cert_password="",
         auto_reconnect=True,
+        appearance="system",
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -283,6 +294,7 @@ class AdvancedSettingsDialog(QDialog):
         self.cert_file_input.setText(cert_file)
         self.cert_password_input.setText(cert_password)
         self.auto_reconnect_switch.setChecked(auto_reconnect)
+        self.appearance_combo.setCurrentIndex(["system", "light", "dark"].index(appearance))
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()

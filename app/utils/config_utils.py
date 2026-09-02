@@ -36,6 +36,7 @@ def load_config():
         "http_bind": "1081",
         "cert_file": "",
         "cert_password": "",
+        "appearance": "system",
     }
 
     for key in default_config.keys():
@@ -70,3 +71,4 @@ def load_settings(self):
     self.cert_file = config["cert_file"]
     self.cert_password = config["cert_password"]
     self.auto_reconnect = config["auto_reconnect"]
+    self.appearance = config["appearance"]

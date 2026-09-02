@@ -34,6 +34,9 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.version = VERSION
         self.load_settings()
+        from common import theme
+
+        theme.set_appearance(self.appearance)
         setup_menubar(self, self.version)
         self.setup_ui()
         self.virtual_ip = None

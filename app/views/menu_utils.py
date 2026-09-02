@@ -117,6 +117,7 @@ def show_advanced_settings(window):
         window.cert_file,
         window.cert_password,
         window.auto_reconnect,
+        window.appearance,
     )
 
     if dialog.exec():
@@ -140,6 +141,10 @@ def show_advanced_settings(window):
         window.cert_password = settings["cert_password"]
         window.auto_reconnect = settings["auto_reconnect"]
         window.reconnect_manager.set_enabled(window.auto_reconnect)
+        window.appearance = settings["appearance"]
+        from common import theme
+
+        theme.set_appearance(settings["appearance"])
         # 服务器变了 → 同步仪表盘副标题中的服务器小字
         if server_changed:
             window.status_panel.set_server_text(window.server_address)

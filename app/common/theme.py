@@ -4,6 +4,8 @@
 - 深绿 #005C31（校徽中心）→ 浅色模式 accent
 - 标准绿 #16AE68（树）→ 深色模式 accent / 已连接状态
 """
+from platform import system
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QGuiApplication, QPalette
 
@@ -20,8 +22,15 @@ _COLORS = {
 }
 
 
+# 显式外观覆盖：None = 跟随系统；"light"/"dark" = app 内强制。
+# offscreen 等平台上 setColorScheme 是 no-op，is_dark 须以此变量为准。
+_APPEARANCE_OVERRIDE = None
+
+
 def is_dark() -> bool:
-    """当前是否为深色模式。Linux 桌面可能不报告，退回 palette 亮度判断。"""
+    """当前是否为深色模式。显式外观覆盖优先；Linux 桌面可能不报告，退回 palette 亮度判断。"""
+    if _APPEARANCE_OVERRIDE is not None:
+        return _APPEARANCE_OVERRIDE == "dark"
     scheme = QGuiApplication.styleHints().colorScheme()
     if scheme == Qt.ColorScheme.Unknown:
         return QGuiApplication.palette().color(QPalette.Window).lightness() < 128
@@ -40,9 +49,61 @@ def card_background() -> str:
     return base.lighter(116 if is_dark() else 104).name()
 
 
+_REFRESH_CALLBACKS = []
+_scheme_signal_connected = False
+
+
 def on_scheme_changed(callback):
-    """系统深浅色切换时回调（用于刷新样式表）。"""
-    QGuiApplication.styleHints().colorSchemeChanged.connect(lambda _scheme: callback())
+    """深浅色切换（含 app 内外观切换）时回调。同一回调只注册一次。"""
+    global _scheme_signal_connected
+    _REFRESH_CALLBACKS.append(callback)
+    if not _scheme_signal_connected:
+        QGuiApplication.styleHints().colorSchemeChanged.connect(
+            lambda _scheme: _run_refresh()
+        )
+        _scheme_signal_connected = True
+
+
+def _run_refresh():
+    alive = []
+    for cb in list(_REFRESH_CALLBACKS):
+        try:
+            cb()
+        except RuntimeError:
+            continue  # 回调绑定的 C++ 对象已销毁（如已关闭的窗口），剔除
+        alive.append(cb)
+    _REFRESH_CALLBACKS[:] = alive
+
+
+def set_appearance(mode: str):
+    """外观三态：system / light / dark。
+
+    Qt 6.8+ setColorScheme 显式覆盖（Unknown = 跟随系统，macOS cocoa 实测可正确复位），
+    同时维护 _APPEARANCE_OVERRIDE 供 is_dark 兜底（offscreen 平台 setColorScheme 无效）。
+    随后手动触发一次刷新（setColorScheme 不一定发 colorSchemeChanged）。
+    macOS 窗口标题栏用 NSAppearance 跟随。
+    """
+    global _APPEARANCE_OVERRIDE
+    _APPEARANCE_OVERRIDE = None if mode == "system" else mode
+    scheme = {
+        "system": Qt.ColorScheme.Unknown,
+        "light": Qt.ColorScheme.Light,
+        "dark": Qt.ColorScheme.Dark,
+    }[mode]
+    QGuiApplication.styleHints().setColorScheme(scheme)
+    if system() == "Darwin":
+        try:
+            import objc
+
+            nsapp = objc.lookUpClass("NSApplication").sharedApplication()
+            if mode == "system":
+                nsapp.setAppearance_(None)
+            else:
+                name = "NSAppearanceNameDarkAqua" if mode == "dark" else "NSAppearanceNameAqua"
+                nsapp.setAppearance_(objc.lookUpClass("NSAppearance").appearanceNamed_(name))
+        except Exception:
+            pass
+    _run_refresh()
 
 
 def status_title_font() -> QFont:
