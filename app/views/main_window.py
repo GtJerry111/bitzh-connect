@@ -69,17 +69,28 @@ class MainWindow(QMainWindow):
         from common import theme
         from utils.credential_utils import load_credentials
         from utils.motion_utils import animated_height_toggle
+        from views.resource_section import ResourceSection
         from views.status_panel import StatusPanel
 
-        self.setMinimumSize(360, 480)
+        self.setMinimumSize(360, 520)
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
-        # 状态仪表盘
+        # 状态仪表盘（hero 布局）
         self.status_panel = StatusPanel(server_text=self.server_address)
         layout.addWidget(self.status_panel)
 
-        # 凭据区（两整行，连接中禁用）
+        # 资源区（初始隐藏，连接成功展开）
+        self.resource_area = ResourceSection()
+        self.resource_area.setVisible(False)
+        layout.addWidget(self.resource_area)
+
+        # 凭据区（容器化，连接成功收起）
+        self.cred_area = QWidget()
+        cred_layout = QVBoxLayout(self.cred_area)
+        cred_layout.setSpacing(8)
+        cred_layout.setContentsMargins(0, 0, 0, 0)
+
         saved_username, saved_password = load_credentials()
 
         user_row = QHBoxLayout()
@@ -88,7 +99,7 @@ class MainWindow(QMainWindow):
         self.username_input.setText(saved_username)
         self.username_input.setPlaceholderText("学号/工号")
         user_row.addWidget(self.username_input)
-        layout.addLayout(user_row)
+        cred_layout.addLayout(user_row)
 
         pass_row = QHBoxLayout()
         pass_row.addWidget(QLabel("密码"))
@@ -96,7 +107,7 @@ class MainWindow(QMainWindow):
         self.password_input.setText(saved_password)
         self.password_input.setEchoMode(QLineEdit.Password)
         pass_row.addWidget(self.password_input)
-        layout.addLayout(pass_row)
+        cred_layout.addLayout(pass_row)
 
         opt_row = QHBoxLayout()
         self.remember_cb = QCheckBox("记住密码")
@@ -109,7 +120,9 @@ class MainWindow(QMainWindow):
         )
         opt_row.addWidget(self.show_password_cb)
         opt_row.addStretch()
-        layout.addLayout(opt_row)
+        cred_layout.addLayout(opt_row)
+
+        layout.addWidget(self.cred_area)
 
         # 连接按钮（BIT 绿 accent，按下即时加深反馈）
         self.connect_button = QPushButton("连接")
@@ -174,6 +187,11 @@ class MainWindow(QMainWindow):
         self.output_text.document().setMaximumBlockCount(5000)  # B9: 日志上限
         layout.addWidget(self.output_text)
 
+        # 一收一放：仪表盘状态驱动凭据区/资源区显隐动画
+        self._cred_visible = True
+        self._res_visible = False
+        self.status_panel.areas_changed.connect(self._apply_area_visibility)
+
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -181,6 +199,20 @@ class MainWindow(QMainWindow):
         # 深浅色切换时刷新样式
         theme.on_scheme_changed(self._apply_button_style)
         theme.on_scheme_changed(self.status_panel.refresh_theme)
+        theme.on_scheme_changed(self.resource_area.refresh_theme)
+
+    def _apply_area_visibility(self, cred_visible: bool, res_visible: bool):
+        """凭据区/资源区一收一放（250ms，可打断，幂等）。"""
+        if cred_visible == self._cred_visible and res_visible == self._res_visible:
+            return
+        self._cred_visible = cred_visible
+        self._res_visible = res_visible
+        self._animated_height_toggle(
+            self.cred_area, cred_visible, max_height=140, on_frame=self.adjustSize
+        )
+        self._animated_height_toggle(
+            self.resource_area, res_visible, max_height=40, on_frame=self.adjustSize
+        )
 
     def _apply_button_style(self):
         from common import theme
