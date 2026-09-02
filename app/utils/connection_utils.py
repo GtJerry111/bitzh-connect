@@ -235,6 +235,10 @@ def start_connection(window):
         window.worker.start()
         window.status_panel.set_connecting()
 
+        # 闭包创建时捕获自己的 worker：快速重连场景授权回调迟到时，
+        # window.worker 可能已换成新 worker，不能用当前值判断孤儿
+        my_worker = window.worker
+
         def _on_spawn_done(ok: bool):
             # 包装脚本已被 shell 读取执行完毕，立即删除（内含命令行参数，不落盘久留）
             try:
@@ -242,9 +246,9 @@ def start_connection(window):
             except OSError:
                 pass
             if ok:
-                # 授权期间用户已先行断开：内核刚被拉起即成孤儿（root + 全局路由），立即补杀
+                # 授权期间用户已断开（或已重连出新 worker）：本内核刚被拉起即成孤儿，立即补杀
                 worker = window.worker
-                if worker is None or getattr(worker, "_stop_requested", False):
+                if worker is not my_worker or getattr(my_worker, "_stop_requested", False):
                     pid = read_pid(pid_path)
                     if pid is not None:
                         kill_elevated_async(pid)
@@ -255,6 +259,7 @@ def start_connection(window):
             window._manual_stop = True
             worker = window.worker
             if worker is not None:
+                log_path_to_clean, pid_path_to_clean = worker.log_path, worker.pid_path
                 try:
                     worker.output.disconnect()
                     worker.finished.disconnect()
@@ -263,6 +268,12 @@ def start_connection(window):
                 worker.finished.connect(worker.deleteLater)  # 线程退出后自毁
                 worker.stop()  # pidfile 尚为空，不会触发 kill，仅停掉等待循环
                 window.worker = None
+                # 本路径绕过了 handle_connection_finished，空临时文件自行清理
+                for path in (log_path_to_clean, pid_path_to_clean):
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
             _reset_connect_ui(window, "提权失败或已取消授权")
 
         # task 挂 window 防 GC（update_service._workers 同款教训）

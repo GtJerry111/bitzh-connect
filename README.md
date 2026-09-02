@@ -141,7 +141,7 @@ rules:
 > [!NOTE]
 >
 > 1. You need to enable `TUN Mode` in Clash, and enable the `Auto Configure Proxy` option of this software.
-> 2. You need to turn off the `Always use Default Bypass` option in the `System Proxy` settings, and add `localhost` to the `Proxy Bypass` field.s
+> 2. You need to turn off the `Always use Default Bypass` option in the `System Proxy` settings, and add `localhost` to the `Proxy Bypass` fields
 > 3. A useful [global extend script](./scripts/clash-utils.js) is provided if you want to avoid the automatic update of the profiles overwrite your custom rules.
 
 <!-- > (Confusion) 3. There is no need to enable the `Auto Configure Proxy` feature of this software. In this case, Clash will host the system proxy and the proxy of this software will be forwarded by Clash. -->

@@ -309,6 +309,8 @@ class AdvancedSettingsDialog(QDialog):
         self.cert_file_input.setText(cert_file)
         self.cert_password_input.setText(cert_password)
         self.auto_reconnect_switch.setChecked(auto_reconnect)
+        # 脏值守卫：手改坏的 QSettings 值（如 "blue"）兜底回 system，防 ValueError
+        appearance = appearance if appearance in _APPEARANCE_MODES else "system"
         self.appearance_combo.setCurrentIndex(_APPEARANCE_MODES.index(appearance))
         self.tun_mode_switch.setChecked(tun_mode)
 
