@@ -37,7 +37,7 @@ def handle_connection_finished(window, exit_code):
     auth_failed = getattr(window, "_auth_failed", False)
 
     if auth_failed:
-        window.status_panel.set_disconnected("认证失败，请检查用户名和密码")
+        window.status_panel.set_disconnected(hero="认证失败", detail="请检查用户名和密码")
     else:
         window.status_panel.set_disconnected()
 
@@ -130,7 +130,7 @@ def start_connection(window):
             # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
             if hasattr(window, "tray_connect_action"):
                 window.tray_connect_action.setChecked(False)
-        window.status_panel.set_disconnected("请输入用户名和密码")
+        window.status_panel.set_disconnected(hero="未连接", detail="请输入用户名和密码")
         return
 
     if window.worker and window.worker.isRunning():

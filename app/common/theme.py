@@ -71,3 +71,12 @@ def card_value_font() -> QFont:
     except (AttributeError, TypeError, ValueError):
         pass
     return f
+
+
+def hero_font() -> QFont:
+    """方案 B 状态大词：26pt Bold，负字距。"""
+    f = QFont()
+    f.setPointSize(26)
+    f.setWeight(QFont.Bold)
+    f.setLetterSpacing(QFont.PercentageSpacing, 97)
+    return f

@@ -53,11 +53,11 @@ def test_set_settings_applies_auto_reconnect(dialog):
     assert dialog.auto_reconnect_switch.isChecked() is True
 
 
-def test_show_advanced_settings_wires_auto_reconnect_and_server_label(
+def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
     qtbot, monkeypatch
 ):
     """保存后：auto_reconnect 写回 window 并同步 reconnect_manager；
-    server 变化时同步仪表盘右上角服务器小字。"""
+    server 变化时同步仪表盘副标题中的服务器小字。"""
     from views.main_window import MainWindow
 
     win = MainWindow()
@@ -109,10 +109,10 @@ def test_show_advanced_settings_wires_auto_reconnect_and_server_label(
     assert win.auto_reconnect is False
     assert win.reconnect_manager._enabled is False
     # server 变了 → 仪表盘同步
-    assert win.status_panel.server_label.text() == "9.9.9.9"
+    assert win.status_panel.subtitle.text() == "9.9.9.9"
 
 
-def test_show_advanced_settings_keeps_server_label_when_unchanged(qtbot, monkeypatch):
+def test_show_advanced_settings_keeps_subtitle_when_unchanged(qtbot, monkeypatch):
     """server 没变时不去动仪表盘（防误刷）。"""
     from views.main_window import MainWindow
 
@@ -152,6 +152,6 @@ def test_show_advanced_settings_keeps_server_label_when_unchanged(qtbot, monkeyp
     monkeypatch.setattr("views.menu_utils.AdvancedSettingsDialog", FakeDialog)
     from views.menu_utils import show_advanced_settings
 
-    win.status_panel.server_label.setText("sentinel")
+    win.status_panel.subtitle.setText("sentinel")
     show_advanced_settings(win)
-    assert win.status_panel.server_label.text() == "sentinel"
+    assert win.status_panel.subtitle.text() == "sentinel"

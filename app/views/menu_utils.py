@@ -140,8 +140,8 @@ def show_advanced_settings(window):
         window.cert_password = settings["cert_password"]
         window.auto_reconnect = settings["auto_reconnect"]
         window.reconnect_manager.set_enabled(window.auto_reconnect)
-        # 服务器变了 → 同步仪表盘右上角服务器小字
+        # 服务器变了 → 同步仪表盘副标题中的服务器小字
         if server_changed:
-            window.status_panel.server_label.setText(window.server_address)
+            window.status_panel.set_server_text(window.server_address)
         if system() == "Darwin":
             hide_dock_icon(window.hide_dock_icon)

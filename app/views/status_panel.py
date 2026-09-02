@@ -1,15 +1,20 @@
 # app/views/status_panel.py
-"""状态仪表盘：状态标题、时长、虚拟 IP、速率。
+"""状态仪表盘（方案 B：极简大状态居中）。
 
-代理模式拿不到速率计数（内核不暴露），速率卡片恒显示 "—"；TUN 模式后续接入。
+hero：圆点/旋转弧 + 26pt 状态词 + 12pt 副标题（状态词保持短，原因进副标题，
+     彻底解决长文案截断问题——原 F3）。
+统计行：时长/上行/下行无边框纯文字（tnum 防每秒抖动）。
+代理模式拿不到速率计数，恒显示 "—"；TUN 模式由 RateMonitor 驱动 set_rates。
+区域联动：areas_changed(credentials_visible, resources_visible) 由主窗口消费，
+驱动"凭据区收起 / 资源区展开"的一收一放动画。
 """
 from datetime import datetime
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from common import theme
-from utils.motion_utils import animate_label_color
+from utils.motion_utils import animate_label_color, reduce_motion
 from views.busy_spinner import BusySpinner
 
 
@@ -18,41 +23,49 @@ def _fmt_duration(seconds: int) -> str:
 
 
 class StatusPanel(QWidget):
+    # (凭据区是否可见, 资源区是否可见)
+    areas_changed = Signal(bool, bool)
+
     def __init__(self, server_text: str = "", parent=None):
         super().__init__(parent)
+        self._server_text = server_text
         self._connected_since: datetime | None = None
         self._countdown_remaining = 0
         self._retry_attempt = 0
 
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(6)
+        layout.setContentsMargins(0, 12, 0, 0)
 
-        # ---- 状态行：spinner + 圆点 + 大标题 + 服务器 ----
-        status_row = QHBoxLayout()
-        status_row.setSpacing(8)
-        self.spinner = BusySpinner(self)
-        status_row.addWidget(self.spinner)
+        # ---- hero：圆点/旋转弧（同位互斥）+ 状态词 + 副标题 ----
+        self.spinner = BusySpinner(self, diameter=18)
         self.status_dot = QLabel("●")
-        status_row.addWidget(self.status_dot)
-        self.status_text = QLabel("未连接")
-        self.status_text.setFont(theme.status_title_font())
-        status_row.addWidget(self.status_text)
-        status_row.addStretch()
-        self.server_label = QLabel(server_text)
-        self.server_label.setFont(theme.card_title_font())
-        status_row.addWidget(self.server_label)
-        layout.addLayout(status_row)
+        self.status_dot.setAlignment(Qt.AlignCenter)
+        dot_row = QHBoxLayout()
+        dot_row.setAlignment(Qt.AlignCenter)
+        dot_row.addWidget(self.spinner)
+        dot_row.addWidget(self.status_dot)
+        layout.addLayout(dot_row)
 
-        # ---- 2×2 圆角卡片 ----
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        self._card_frames = []
-        self._card_title_labels = []
-        self.duration_value = self._add_card(grid, 0, 0, "连接时长", "00:00:00")
-        self.ip_value = self._add_card(grid, 0, 1, "虚拟 IP", "—")
-        self.up_rate_value = self._add_card(grid, 1, 0, "↑ 上行速率", "—")
-        self.down_rate_value = self._add_card(grid, 1, 1, "↓ 下行速率", "—")
-        layout.addLayout(grid)
+        self.status_text = QLabel("未连接")
+        self.status_text.setFont(theme.hero_font())
+        self.status_text.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.status_text)
+
+        self.subtitle = QLabel(server_text)
+        self.subtitle.setFont(theme.card_title_font())
+        self.subtitle.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.subtitle)
+
+        # ---- 统计行：无边框纯文字三列 ----
+        stats = QHBoxLayout()
+        stats.setSpacing(0)
+        stats.setContentsMargins(0, 10, 0, 4)
+        self._stat_labels = []
+        self.duration_value = self._add_stat(stats, "00:00:00", "时长")
+        self.up_value = self._add_stat(stats, "—", "↑ 上行")
+        self.down_value = self._add_stat(stats, "—", "↓ 下行")
+        layout.addLayout(stats)
 
         self.setLayout(layout)
 
@@ -66,37 +79,51 @@ class StatusPanel(QWidget):
 
         self.refresh_theme()
 
-    def _add_card(self, grid, row, col, title, initial):
-        frame = QFrame()
-        frame.setObjectName("statCard")
-        card = QVBoxLayout(frame)
-        card.setContentsMargins(12, 8, 12, 8)
-        card.setSpacing(2)
-        title_label = QLabel(title)
-        title_label.setFont(theme.card_title_font())
-        title_label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
-        self._card_title_labels.append(title_label)
-        value_label = QLabel(initial)
-        value_label.setFont(theme.card_value_font())
-        card.addWidget(title_label)
-        card.addWidget(value_label)
-        grid.addWidget(frame, row, col)
-        self._card_frames.append(frame)
-        return value_label
+    def _add_stat(self, row, initial, caption):
+        row.addStretch()
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        value = QLabel(initial)
+        value.setFont(theme.card_value_font())
+        value.setAlignment(Qt.AlignCenter)
+        label = QLabel(caption)
+        label.setFont(theme.card_title_font())
+        label.setAlignment(Qt.AlignCenter)
+        col.addWidget(value)
+        col.addWidget(label)
+        row.addLayout(col)
+        row.addStretch()
+        self._stat_labels.append(label)
+        return value
+
+    # ---- 便捷只读属性（测试与外部断言用） ----
+
+    @property
+    def ip_text(self) -> str:
+        return self.subtitle.text().split(" · ")[0] if " · " in self.subtitle.text() else "—"
+
+    @property
+    def duration_text(self) -> str:
+        return self.duration_value.text()
+
+    @property
+    def up_text(self) -> str:
+        return self.up_value.text()
+
+    @property
+    def down_text(self) -> str:
+        return self.down_value.text()
 
     def refresh_theme(self):
-        """深浅色切换时刷新所有依赖主题色的样式。"""
-        for frame in self._card_frames:
-            frame.setStyleSheet(
-                f"QFrame#statCard {{ background-color: {theme.card_background()};"
-                f" border-radius: 10px; }}"
-            )
-        for label in self._card_title_labels:
-            label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
-        self.server_label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
+        """深浅色/外观切换时刷新依赖主题色的样式。"""
+        secondary = theme.semantic_color("secondary_text")
+        self.subtitle.setStyleSheet(f"color: {secondary};")
+        for label in self._stat_labels:
+            label.setStyleSheet(f"color: {secondary};")
 
-    def _set_status(self, text: str, color_name: str):
+    def _set_hero(self, text: str, color_name: str, subtitle: str):
         self.status_text.setText(text)
+        self.subtitle.setText(subtitle)
         animate_label_color(self.status_dot, theme.semantic_color(color_name))
 
     def _tick(self):
@@ -107,48 +134,64 @@ class StatusPanel(QWidget):
 
     def _countdown_tick(self):
         self._countdown_remaining = max(0, self._countdown_remaining - 1)
-        self.status_text.setText(
-            f"连接中断，{self._countdown_remaining}s 后第 {self._retry_attempt} 次重连…"
-        )
+        self.subtitle.setText(f"{self._countdown_remaining}s 后第 {self._retry_attempt} 次重连…")
         if self._countdown_remaining == 0:
             self._countdown_timer.stop()
+
+    def set_server_text(self, text: str):
+        """高级设置改了服务器地址后同步副标题（未连接/连接中显示）。"""
+        self._server_text = text
+        if self.status_text.text() in ("未连接", "连接中…"):
+            self.subtitle.setText(text)
 
     # ---- 对外状态接口 ----
 
     def set_connecting(self):
         self._countdown_timer.stop()
-        self._set_status("连接中…", "working")
-        self.spinner.start()
+        self.spinner.start()  # 减少动态效果时为空操作（保持隐藏）
+        self.status_dot.setVisible(not self.spinner.isVisible())
+        self._set_hero("连接中…", "working", self._server_text)
+        self.areas_changed.emit(True, False)
 
     def set_connected(self, virtual_ip: str):
         self.spinner.stop()
+        self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._connected_since = datetime.now()
-        self._set_status("已连接", "connected")
-        self.ip_value.setText(virtual_ip)
+        self._set_hero("已连接", "connected", f"{virtual_ip} · {self._server_text}")
         self._duration_timer.start()
+        self.areas_changed.emit(False, True)
 
     def set_reconnecting(self, attempt: int, delay: float):
         self.spinner.stop()
+        self.status_dot.setVisible(True)
         self._retry_attempt = attempt
         self._countdown_remaining = int(delay)
-        self._set_status(
-            f"连接中断，{self._countdown_remaining}s 后第 {attempt} 次重连…", "working"
-        )
+        self._set_hero("连接中断", "working", f"{self._countdown_remaining}s 后第 {attempt} 次重连…")
         self._countdown_timer.start()
+        self.areas_changed.emit(False, False)
 
     def set_reconnect_paused(self):
         self.spinner.stop()
+        self.status_dot.setVisible(True)
         self._countdown_timer.stop()
-        self._set_status("自动重连已暂停（连续失败 3 次），请手动连接", "error")
+        self._set_hero("自动重连已暂停", "error", "连续失败 3 次，请手动连接")
+        self.areas_changed.emit(True, False)
 
-    def set_disconnected(self, reason: str = ""):
+    def set_disconnected(self, hero: str = "未连接", detail: str = ""):
         self.spinner.stop()
+        self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._connected_since = None
         self._duration_timer.stop()
-        self._set_status(reason or "未连接", "error" if reason else "idle")
-        self.ip_value.setText("—")
+        is_error = hero != "未连接"
+        self._set_hero(hero, "error" if is_error else "idle", detail or self._server_text)
         self.duration_value.setText("00:00:00")
-        self.up_rate_value.setText("—")
-        self.down_rate_value.setText("—")
+        self.up_value.setText("—")
+        self.down_value.setText("—")
+        self.areas_changed.emit(True, False)
+
+    def set_rates(self, up_text: str, down_text: str):
+        """TUN 模式速率喂数（代理模式不调用，保持 "—"）。"""
+        self.up_value.setText(up_text)
+        self.down_value.setText(down_text)
