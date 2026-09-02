@@ -118,6 +118,7 @@ def show_advanced_settings(window):
         window.cert_password,
         window.auto_reconnect,
         window.appearance,
+        window.tun_mode,
     )
 
     if dialog.exec():
@@ -142,6 +143,7 @@ def show_advanced_settings(window):
         window.auto_reconnect = settings["auto_reconnect"]
         window.reconnect_manager.set_enabled(window.auto_reconnect)
         window.appearance = settings["appearance"]
+        window.tun_mode = settings["tun_mode"]
         from common import theme
 
         theme.set_appearance(settings["appearance"])

@@ -8,6 +8,7 @@ dependencies = [
     "keyring>=25.5",
     "nuitka>=4.0.8",
     "packaging>=26.2",
+    "psutil>=6.0",
     "pyobjc>=12.1 ; sys_platform == 'darwin'",
     "pyside6>=6.11.0",
     "requests>=2.33.1",

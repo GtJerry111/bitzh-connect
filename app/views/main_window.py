@@ -42,6 +42,7 @@ class MainWindow(QMainWindow):
         self.virtual_ip = None
         self._manual_stop = True
         self._auth_failed = False
+        self._rate_monitor = None
         self.reconnect_manager = ReconnectManager(
             reconnect_action=lambda: self.connect_button.setChecked(True),
         )
@@ -281,6 +282,27 @@ class MainWindow(QMainWindow):
 
     def stop_connection(self):
         stop_connection(self)
+
+    def start_rate_monitor(self, virtual_ip: str):
+        """TUN 连接成功后启动速率监控（tun 网卡创建可能滞后，最多等 5s）。"""
+        self.stop_rate_monitor()
+        from services.rate_monitor import RateMonitor, find_tun_interface
+
+        def _try_start(attempts=0):
+            interface = find_tun_interface(virtual_ip)
+            if interface:
+                self._rate_monitor = RateMonitor(interface, self.status_panel.set_rates, self)
+                self._rate_monitor.start()
+            elif attempts < 10:
+                QTimer.singleShot(500, lambda: _try_start(attempts + 1))
+
+        self._rate_monitor = None
+        _try_start()
+
+    def stop_rate_monitor(self):
+        if getattr(self, "_rate_monitor", None):
+            self._rate_monitor.stop()
+            self._rate_monitor = None
 
     def load_settings(self):
         load_settings(self)

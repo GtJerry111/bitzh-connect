@@ -97,6 +97,7 @@ def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
                 "cert_password": "",
                 "auto_reconnect": False,
                 "appearance": "system",
+                "tun_mode": False,
             }
 
     monkeypatch.setattr("views.menu_utils.AdvancedSettingsDialog", FakeDialog)
@@ -104,9 +105,10 @@ def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
 
     show_advanced_settings(win)
 
-    # 打开对话框时应把当前 auto_reconnect（默认 True）和 appearance 传入 set_settings
-    assert captured["args"][-2] is True
-    assert captured["args"][-1] == "system"
+    # 打开对话框时应把当前 auto_reconnect（默认 True）、appearance、tun_mode 传入 set_settings
+    assert captured["args"][-3] is True
+    assert captured["args"][-2] == "system"
+    assert captured["args"][-1] is False
     # 保存后写回 window 并联动重连开关
     assert win.auto_reconnect is False
     assert win.reconnect_manager._enabled is False
@@ -150,6 +152,7 @@ def test_show_advanced_settings_keeps_subtitle_when_unchanged(qtbot, monkeypatch
                 "cert_password": "",
                 "auto_reconnect": True,
                 "appearance": "system",
+                "tun_mode": False,
             }
 
     monkeypatch.setattr("views.menu_utils.AdvancedSettingsDialog", FakeDialog)

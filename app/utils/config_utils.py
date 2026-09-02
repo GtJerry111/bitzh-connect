@@ -37,6 +37,7 @@ def load_config():
         "cert_file": "",
         "cert_password": "",
         "appearance": "system",
+        "tun_mode": False,
     }
 
     for key in default_config.keys():
@@ -72,3 +73,4 @@ def load_settings(self):
     self.cert_password = config["cert_password"]
     self.auto_reconnect = config["auto_reconnect"]
     self.appearance = config["appearance"]
+    self.tun_mode = config["tun_mode"]

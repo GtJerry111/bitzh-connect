@@ -149,6 +149,13 @@ class AdvancedSettingsDialog(QDialog):
         cert_pwd_layout.addWidget(self.cert_password_input)
         network_layout.addLayout(cert_pwd_layout)
 
+        # TUN 模式（全局路由，需提权）
+        self.tun_mode_switch = QCheckBox("TUN 模式（全局路由）")
+        self.tun_mode_switch.setToolTip(
+            "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
+        )
+        network_layout.addWidget(self.tun_mode_switch)
+
         network_tab.setLayout(network_layout)
 
         # General tab
@@ -250,6 +257,7 @@ class AdvancedSettingsDialog(QDialog):
             "cert_password": self.cert_password_input.text(),
             "auto_reconnect": self.auto_reconnect_switch.isChecked(),
             "appearance": _APPEARANCE_MODES[self.appearance_combo.currentIndex()],
+            "tun_mode": self.tun_mode_switch.isChecked(),
         }
 
         if system() == "Darwin":
@@ -277,6 +285,7 @@ class AdvancedSettingsDialog(QDialog):
         cert_password="",
         auto_reconnect=True,
         appearance="system",
+        tun_mode=False,
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -298,6 +307,7 @@ class AdvancedSettingsDialog(QDialog):
         self.cert_password_input.setText(cert_password)
         self.auto_reconnect_switch.setChecked(auto_reconnect)
         self.appearance_combo.setCurrentIndex(_APPEARANCE_MODES.index(appearance))
+        self.tun_mode_switch.setChecked(tun_mode)
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()

@@ -5,6 +5,8 @@ import gc
 from PySide6.QtCore import QSignalBlocker
 from .set_proxy import CommandWorker
 from .log_parser import parse_client_ip, is_auth_failure, is_server_kick
+from .tun_utils import check_tun_conflict, write_launcher, spawn_elevated
+from .tun_worker import TunWorker
 
 
 def handle_output(window, text):
@@ -16,6 +18,9 @@ def handle_output(window, text):
         window.virtual_ip = ip
         window.reconnect_manager.on_connection_established()
         window.status_panel.set_connected(ip)
+        # TUN 模式：连接成功即启动网卡速率监控（仪表盘上行/下行）
+        if getattr(window, "tun_mode", False) and hasattr(window, "start_rate_monitor"):
+            window.start_rate_monitor(ip)
 
     if is_auth_failure(text):
         window._auth_failed = True
@@ -35,6 +40,10 @@ def handle_connection_finished(window, exit_code):
 
     manual = getattr(window, "_manual_stop", True)
     auth_failed = getattr(window, "_auth_failed", False)
+
+    # TUN 模式速率监控随连接终止一并停止
+    if hasattr(window, "stop_rate_monitor"):
+        window.stop_rate_monitor()
 
     if auth_failed:
         window.status_panel.set_disconnected(hero="认证失败", detail="请检查用户名和密码")
@@ -99,6 +108,10 @@ def build_command_args(window, command):
         if window.cert_password:
             command_args.extend(["-cert-password", window.cert_password])
 
+    if getattr(window, "tun_mode", False):
+        command_args.append("-tun-mode")
+        command_args.append("-add-route")
+
     command_args.append("-disable-zju-config")
     command_args.append("-skip-domain-resource")
 
@@ -162,6 +175,51 @@ def start_connection(window):
 
     command_args = build_command_args(window, command)
     window.output_text.append(f"Running command: {' '.join(mask_command_args(command_args))}\n")
+
+    if getattr(window, "tun_mode", False):
+        conflict = check_tun_conflict()
+        if conflict:
+            window.output_text.append(
+                f"[BITZH Connect] 检测到默认路由已在虚拟网卡 {conflict}（如 Clash TUN），请先关闭再连\n"
+            )
+            window.status_panel.set_disconnected(hero="未连接", detail=f"与 {conflict} 的 TUN 冲突")
+            # 按钮复位（早退同空凭据路径的处理）
+            blocker = QSignalBlocker(window.connect_button)
+            window.connect_button.setChecked(False)
+            window.connect_button.setText("连接")
+            window.username_input.setEnabled(True)
+            window.password_input.setEnabled(True)
+            if hasattr(window, "tray_connect_action"):
+                window.tray_connect_action.setChecked(False)
+            del blocker
+            return
+        # 注意：os 已在模块顶部导入，函数内重复 import 会把 os 变成本地变量，
+        # 导致函数前段 os.path 用法 UnboundLocalError——这里只补 tempfile
+        import tempfile
+        log_fd, log_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".log")
+        os.close(log_fd)
+        pid_fd, pid_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".pid")
+        os.close(pid_fd)
+        launcher = write_launcher(command, command_args[1:], log_path, pid_path)
+        window._tun_pid_path = pid_path
+        if not spawn_elevated(launcher):
+            window.output_text.append("[BITZH Connect] 授权取消，未启动 TUN 连接\n")
+            window.status_panel.set_disconnected(hero="未连接", detail="已取消授权")
+            blocker = QSignalBlocker(window.connect_button)
+            window.connect_button.setChecked(False)
+            window.connect_button.setText("连接")
+            window.username_input.setEnabled(True)
+            window.password_input.setEnabled(True)
+            if hasattr(window, "tray_connect_action"):
+                window.tray_connect_action.setChecked(False)
+            del blocker
+            return
+        window.worker = TunWorker(log_path, pid_path)
+        window.worker.output.connect(lambda text: handle_output(window, text))
+        window.worker.finished.connect(lambda code: handle_connection_finished(window, code))
+        window.worker.start()
+        window.status_panel.set_connecting()
+        return
 
     window.worker = CommandWorker(
         command_args=command_args, proxy_enabled=window.proxy, window=window

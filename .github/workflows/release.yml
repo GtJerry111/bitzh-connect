@@ -108,6 +108,16 @@ jobs:
           rm app/core/zju-connect.zip
         shell: bash
 
+      # TUN 模式依赖 wintun 驱动库，按 matrix.arch 取对应架构的 dll 放进内核目录
+      - name: Bundle wintun.dll (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          curl -L "https://www.wintun.net/builds/wintun-0.14.1.zip" -o wintun.zip
+          powershell -command "Expand-Archive -Path wintun.zip -DestinationPath wintun"
+          cp "wintun/wintun/bin/${{ matrix.arch }}/wintun.dll" app/core/
+          rm -rf wintun wintun.zip
+        shell: bash
+
       # macOS specific build
       - name: Build Executable (macOS)
         if: runner.os == 'macOS'
