@@ -15,3 +15,9 @@ RELEASES_URL = f"{REPO_URL}/releases/latest"
 DEFAULT_SERVER = "112.91.150.228"
 DEFAULT_PORT = "443"
 DEFAULT_DNS = ""  # 留空即可：默认开启 auto_dns 从服务端获取
+
+# 校内资源入口（用户明确只需要这两个，不做自定义管理）
+RESOURCES = [
+    ("📖 电子图书馆", "http://elib.bitzh.edu.cn:8080/interlibSSO/main/main.jsp"),
+    ("🏛 统一门户", "https://s.bitzh.edu.cn"),
+]
