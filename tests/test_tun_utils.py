@@ -14,7 +14,8 @@ def test_write_launcher_quotes_args(tmp_path):
     )
     content = open(launcher).read()
     assert "'p@ss!word with space'" in content
-    assert "nohup" in content and "echo $!" in content
+    assert "nohup" not in content  # nohup 在无控制终端环境（osascript 提权）下必败
+    assert "> " in content and "&" in content and "echo $!" in content
     assert os.stat(launcher).st_mode & stat.S_IXUSR
 
 

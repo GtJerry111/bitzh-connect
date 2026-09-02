@@ -57,6 +57,8 @@ def handle_output(window, text):
 
 def handle_connection_finished(window, exit_code):
     """进程退出收尾（可能被自动重连重新拉起）"""
+    # TUN 启动失败（内核从未拉起，如提权问题）不自动重连——重连只会再弹授权框
+    never_started = isinstance(window.worker, TunWorker) and not window.worker.kernel_started
     if window.worker:
         # TUN 临时文件（日志/pidfile）随连接收尾清理
         tun_files = None
@@ -101,7 +103,7 @@ def handle_connection_finished(window, exit_code):
         if hasattr(window, "tray_connect_action"):
             window.tray_connect_action.setChecked(False)
 
-    window.reconnect_manager.on_process_exited(manual=manual, auth_failed=auth_failed)
+    window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
 
 
 def build_command_args(window, command):

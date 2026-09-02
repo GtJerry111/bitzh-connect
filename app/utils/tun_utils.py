@@ -44,10 +44,13 @@ def write_launcher(kernel_path: str, args: list, log_path: str, pid_path: str) -
         content = f'@echo off\r\nstart /b "" {quoted} > "{log_path}" 2>&1\r\n'
         suffix = ".bat"
     else:
+        # 不用 nohup：osascript 提权执行时没有控制终端，macOS 的 nohup 会报
+        # "can't detach from console" 直接失败（已实测踩中）。sh 退出时不会给
+        # 后台任务发 SIGHUP，后台+重定向已足够。
         quoted = " ".join(shlex.quote(a) for a in [kernel_path, *args])
         content = (
             "#!/bin/sh\n"
-            f"nohup {quoted} > {shlex.quote(log_path)} 2>&1 &\n"
+            f"{quoted} > {shlex.quote(log_path)} 2>&1 &\n"
             f"echo $! > {shlex.quote(pid_path)}\n"
         )
         suffix = ".sh"

@@ -38,22 +38,28 @@ def set_launch_at_login(enable: bool):
                 app_path = app_path.split(".app/Contents/MacOS/")[0] + ".app"
 
             if enable:
-                subprocess.run(
-                    [
-                        "osascript",
-                        "-e",
-                        f'tell application "System Events" to make login item at end with properties {{path:"{app_path}", hidden:false}}',
-                    ]
-                )
+                # 已存在同名登录项时不重复创建
+                if not get_launch_at_login():
+                    subprocess.run(
+                        [
+                            "osascript",
+                            "-e",
+                            f'tell application "System Events" to make login item at end with properties {{path:"{app_path}", hidden:false}}',
+                        ],
+                        capture_output=True,
+                    )
             else:
                 app_name = os.path.basename(app_path).replace(".app", "")
-                subprocess.run(
-                    [
-                        "osascript",
-                        "-e",
-                        f'tell application "System Events" to delete login item "{app_name}"',
-                    ]
-                )
+                # 登录项不存在时 delete 会报错（-1728）并把 stderr 打到终端——先查再删
+                if get_launch_at_login():
+                    subprocess.run(
+                        [
+                            "osascript",
+                            "-e",
+                            f'tell application "System Events" to delete login item "{app_name}"',
+                        ],
+                        capture_output=True,
+                    )
         except subprocess.SubprocessError:
             pass
 

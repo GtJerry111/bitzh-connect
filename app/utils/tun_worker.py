@@ -24,6 +24,9 @@ class TunWorker(QThread):
         self._pid_path = pid_path
         self._on_kill_failed = on_kill_failed
         self._stop_requested = False
+        # 内核是否真正拉起来过（pidfile 出现且 pid 存活）——从未拉起属启动失败，
+        # 此时自动重连只会再弹授权框骚扰用户，connection_utils 据此跳过重连
+        self.kernel_started = False
 
     @property
     def log_path(self) -> str:
@@ -42,6 +45,10 @@ class TunWorker(QThread):
             pid = read_pid(self._pid_path)
             if pid is None:
                 self.msleep(200)
+        # pidfile 出现不代表内核活着（launcher 写进的是它后台子进程的 pid，
+        # 启动命令本身失败时 pid 即刻死亡）——存活过才算"拉起来了"
+        if pid is not None and _pid_alive(pid):
+            self.kernel_started = True
 
         position = 0
         while not self._stop_requested:

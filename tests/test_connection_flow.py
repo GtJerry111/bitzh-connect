@@ -55,6 +55,48 @@ def test_tray_action_unchecked_on_connection_finished(qtbot):
     assert win.connect_button.isChecked() is False
 
 
+def test_tun_never_started_does_not_reconnect(qtbot):
+    """TUN 内核从未拉起（启动失败）时不自动重连——重连只会再弹授权框骚扰用户"""
+    from utils.connection_utils import handle_connection_finished
+    from utils.tun_worker import TunWorker
+
+    win = _make_window(qtbot)
+    win._manual_stop = False
+    win._auth_failed = False
+    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid")
+    # 与真实启动路径一致：信号先连上（handle_connection_finished 里会 disconnect）
+    worker.output.connect(lambda _t: None)
+    worker.finished.connect(lambda _c: None)
+    win.worker = worker
+    assert worker.kernel_started is False
+
+    fired = []
+    win.reconnect_manager._reconnect_action = lambda: fired.append(True)
+    handle_connection_finished(win, -1)
+    qtbot.wait(300)
+    assert fired == []
+    assert win.reconnect_manager.retry_count == 0
+
+
+def test_tun_kernel_started_does_schedule_reconnect(qtbot):
+    """TUN 内核拉起过再掉线（如断网），应正常进入自动重连"""
+    from utils.connection_utils import handle_connection_finished
+    from utils.tun_worker import TunWorker
+
+    win = _make_window(qtbot)
+    win._manual_stop = False
+    win._auth_failed = False
+    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid")
+    worker.kernel_started = True  # 模拟内核曾正常运行
+    worker.output.connect(lambda _t: None)
+    worker.finished.connect(lambda _c: None)
+    win.worker = worker
+
+    handle_connection_finished(win, -1)
+    assert win.reconnect_manager.retry_count == 1  # 已安排退避重连
+    win.reconnect_manager.cancel()
+
+
 def test_empty_credentials_rolls_back_fake_connected_state(qtbot):
     """空凭据触发连接的早退必须复位按钮勾选/文案/输入框，不留"假连接"态。
 
