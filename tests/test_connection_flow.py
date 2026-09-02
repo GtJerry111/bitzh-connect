@@ -73,3 +73,55 @@ def test_empty_credentials_rolls_back_fake_connected_state(qtbot):
     assert "请输入用户名和密码" in win.status_panel.status_text.text()
     # 早退复位在 QSignalBlocker 下进行，托盘勾选无法靠 toggled 联动，须显式复位
     assert win.tray_connect_action.isChecked() is False
+
+
+class _StubTimer:
+    """记录 singleShot 调用但不真正调度，避免测试进程真的退出"""
+    calls = []
+
+    @staticmethod
+    def singleShot(ms, fn):
+        _StubTimer.calls.append((ms, fn))
+
+
+def test_quit_app_reentrant_and_defers_quit(qtbot, monkeypatch):
+    """退出流程可重入：重复调用 quit_app 不重复调度退出计时器"""
+    monkeypatch.setattr("utils.tray_utils.QTimer", _StubTimer)
+    _StubTimer.calls.clear()
+    win = _make_window(qtbot)
+    win.show()
+    win.quit_app()
+    assert win._quitting is True
+    assert not win.isVisible()
+    assert len(_StubTimer.calls) == 1
+    assert _StubTimer.calls[0][0] == 1500
+    win.quit_app()  # 第二次调用应是空操作
+    assert len(_StubTimer.calls) == 1
+
+
+def test_close_event_during_quit_accepted_without_touching_tray(qtbot, monkeypatch):
+    """macOS teardown 补发的 closeEvent 在退出流程中必须安全放行（F1 回归）"""
+    from PySide6.QtGui import QCloseEvent
+
+    monkeypatch.setattr("utils.tray_utils.QTimer", _StubTimer)
+    win = _make_window(qtbot)
+    win.quit_app()
+    event = QCloseEvent()
+    win.closeEvent(event)  # 不应抛异常（托盘可能已被 deleteLater）
+    assert event.isAccepted()
+
+
+def test_close_event_with_deleted_tray_no_crash(qtbot, monkeypatch):
+    """托盘对象已销毁时 handle_close_event 不得抛异常（RuntimeError 守卫）"""
+    from PySide6.QtCore import QObject
+    from PySide6.QtGui import QCloseEvent
+    from utils.tray_utils import handle_close_event
+
+    monkeypatch.setattr("utils.tray_utils.QTimer", _StubTimer)
+    win = _make_window(qtbot)
+    dead = QObject()
+    dead.deleteLater()
+    qtbot.wait(50)  # 让 DeferredDelete 生效，C++ 对象真正销毁
+    event = QCloseEvent()
+    handle_close_event(win, event, dead)  # 不抛异常，走 quit 路径
+    assert win._quitting is True

@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMainWindow
 from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import QTimer
+from shiboken6 import isValid
 from platform import system
 from common import resources
 
@@ -39,7 +41,18 @@ def tray_icon_activated(reason, window):
 
 def handle_close_event(window, event, tray_icon):
     """Handle window close event"""
-    if tray_icon.isVisible():
+    # 退出流程中（macOS teardown 会补发 closeEvent）：直接放行，
+    # 不触碰任何可能已销毁的对象（F1 崩溃修复）
+    if getattr(window, "_quitting", False):
+        event.accept()
+        return
+    try:
+        # isValid 前置短路：C++ 对象已销毁时根本不触碰它；
+        # RuntimeError 兜底 isValid 与 isVisible 之间的删除竞态
+        tray_visible = isValid(tray_icon) and tray_icon.isVisible()
+    except RuntimeError:
+        tray_visible = False  # 托盘 C++ 对象已销毁（退出竞态）
+    if tray_visible:
         window.hide()
         event.ignore()
     else:
@@ -47,10 +60,14 @@ def handle_close_event(window, event, tray_icon):
 
 
 def quit_app(window, tray_icon):
-    """Quit the application"""
+    """Quit the application（可重入；保证 teardown 期不再有 Python override 抛异常）"""
+    if getattr(window, "_quitting", False):
+        return
+    window._quitting = True
     window.stop_connection()
-    tray_icon.deleteLater()
-    from PySide6.QtCore import QTimer
+    window.hide()
+    if isValid(tray_icon):
+        tray_icon.deleteLater()
     QTimer.singleShot(1500, QApplication.quit)
 
 
