@@ -77,7 +77,9 @@ class MainWindow(QMainWindow):
         from views.resource_section import ResourceSection
         from views.status_panel import StatusPanel
 
-        self.setMinimumSize(360, 520)
+        # 高度下限取未连接态内容自然高度（hero+统计+凭据+按钮）；
+        # 连接后凭据区收起，adjustSize 会把窗口收到接近内容高度，不留大段空白
+        self.setMinimumSize(360, 400)
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
