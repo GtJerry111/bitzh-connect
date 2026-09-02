@@ -30,6 +30,7 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 - Built with PySide6, easy to build and maintain.
 - Multi-platform support, with native optimization for the **macOS** version.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
+- After a successful connection, the dashboard provides quick links to the e-library (电子图书馆) and the unified portal (统一门户).
 - Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
 
 ## Installation
@@ -90,6 +91,16 @@ BITZH Connect provides out-of-the-box experience. You can download the latest ve
 
    Please refer to our [GitHub Actions workflow](.github/workflows/release.yml) for more information.
 
+## TUN Mode
+
+By default (proxy mode), only traffic from applications configured to use the proxy goes through the VPN. To route all traffic (including raw TCP connections such as SSH) through the VPN, enable "TUN Mode (Global Routing)" in Advanced Settings -> Network.
+
+> [!NOTE]
+>
+> 1. TUN mode requires administrator privileges: macOS may prompt for authorization (osascript) on every connect/disconnect, and Linux elevates via pkexec. Windows is not supported in this release.
+> 2. TUN mode is mutually exclusive with Clash's TUN mode — only one of them can be enabled at a time.
+> 3. In TUN mode the dashboard shows the real upload/download rates; in proxy mode the rates are shown as "—".
+
 ## Working with other applications
 
 ### Basic information
@@ -121,6 +132,8 @@ rules:
   # your existing rules...
   - "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve"
   - "DOMAIN-SUFFIX,bitzh.edu.cn,校园网"
+  # on-campus resources also live under zhbit.com (e.g. the payment platform ejf.zhbit.com)
+  - "DOMAIN-SUFFIX,zhbit.com,校园网"
   - "IP-CIDR,10.0.0.0/8,校园网,no-resolve"
   # - 'IP-CIDR,<other_ip>,校园网,no-resolve'
 ```
@@ -148,6 +161,18 @@ For macOS/Linux users:
 ```bash
 ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <root>@<server> -p <port>
 ```
+
+If you connect frequently, you can also put the ProxyCommand into `~/.ssh/config` (in proxy mode, SSH traffic must be forwarded through the local SOCKS5 proxy):
+
+```
+Host <alias>
+    HostName <server>
+    User <username>
+    Port <port>
+    ProxyCommand nc -X 5 -x 127.0.0.1:1080 %h %p
+```
+
+Then simply run `ssh <alias>`.
 
 For Windows users, you can use [ncat](https://nmap.org/download.html) to setup SOCKS 5 proxy. Run the following command after installing ncat:
 

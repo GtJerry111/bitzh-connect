@@ -22,6 +22,8 @@ function main(config, profileName) {
   config.rules.push(
     "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve",
     "DOMAIN-SUFFIX,bitzh.edu.cn,校园网",
+    // 校内资源横跨 zhbit.com（如缴费平台 ejf.zhbit.com），同走"校园网"代理组
+    "DOMAIN-SUFFIX,zhbit.com,校园网",
     "IP-CIDR,10.0.0.0/8,校园网,no-resolve",
     // You can add more IP-CIDR rules here if needed
   );

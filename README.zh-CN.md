@@ -30,6 +30,7 @@ BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的�
 - 基于 PySide6，易于构建，方便初学者参与维护
 - 跨平台支持，对 **macOS** 版本进行了原生适配和优化
 - 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
+- 连接成功后，仪表盘提供「电子图书馆」「统一门户」快捷入口
 - 支持自定义服务器地址/DNS/HTTP/SOCKS5 代理端口、定时保活等 ZJU Connect 常用的参数（如果有需要额外添加的参数，请提交 issue/PR）
 
 ## 安装指南
@@ -90,6 +91,16 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 
    请参考我们的 [GitHub Actions 工作流](.github/workflows/release.yml)。
 
+## TUN 模式
+
+默认的代理模式只转发配置了代理的应用流量；如需让所有流量（包括 SSH 等裸 TCP 连接）都走 VPN，可在「高级设置 → 网络」中开启「TUN 模式（全局路由）」。
+
+> [!NOTE]
+>
+> 1. TUN 模式需要管理员授权：macOS 每次连接/断开时可能弹出授权框（osascript），Linux 通过 pkexec 提权；本期暂不支持 Windows
+> 2. TUN 模式与 Clash 的 TUN 模式互斥，二者只能开启其一
+> 3. TUN 模式下仪表盘显示真实的上行/下行速率；代理模式下速率显示为 "—"
+
 ## 与其他应用协同工作
 
 ### 基础信息
@@ -121,6 +132,8 @@ rules:
   # 您现有的规则...
   - "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve"
   - "DOMAIN-SUFFIX,bitzh.edu.cn,校园网"
+  # 校内资源横跨 zhbit.com（如缴费平台 ejf.zhbit.com）
+  - "DOMAIN-SUFFIX,zhbit.com,校园网"
   - "IP-CIDR,10.0.0.0/8,校园网,no-resolve"
   # - 'IP-CIDR,<其他_ip>,校园网,no-resolve'
 ```
@@ -144,6 +157,18 @@ rules:
 ```bash
 ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地址> -p <端口>
 ```
+
+如果需要经常连接，也可以将 ProxyCommand 写入 `~/.ssh/config`（代理模式下 SSH 需经本地 SOCKS5 代理转发）：
+
+```
+Host <别名>
+    HostName <服务器地址>
+    User <用户名>
+    Port <端口>
+    ProxyCommand nc -X 5 -x 127.0.0.1:1080 %h %p
+```
+
+之后直接 `ssh <别名>` 即可。
 
 如果你是 Windows 用户，可以使用 [ncat](https://nmap.org/download.html) 建立 SOCKS 5 代理。安装 ncat 后，使用以下命令：
 
