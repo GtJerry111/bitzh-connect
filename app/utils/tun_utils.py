@@ -94,7 +94,9 @@ def _pid_alive(pid: int) -> bool:
     kill(pid, 0) 对僵尸仍成功 → 永远判定存活。waitpid 只对子进程有效，
     非子进程抛 ChildProcessError，落入 kill(0) 探测路径。
     """
-    # waitpid/WNOHANG 仅 Unix 存在；Windows 直接走 kill(0) 探测
+    # waitpid/WNOHANG 仅 Unix 存在；Windows 走下方 kill(0) 探测分支。
+    # 注意 Windows 的 os.kill(pid, 0) 实现是 TerminateProcess——会真杀进程；
+    # 本期 Windows TUN 已置灰 + 硬守卫不可达，未来启用需换 OpenProcess 探测
     if system() != "Windows":
         try:
             reaped, _ = os.waitpid(pid, os.WNOHANG)
@@ -147,7 +149,14 @@ class _ElevatedTask(QRunnable):
         self.signals = _ElevatedSignals()
 
     def run(self):
-        self.signals.done.emit(bool(self._fn(self._arg)))
+        try:
+            ok = bool(self._fn(self._arg))
+        except Exception:
+            # osascript/pkexec 缺失等异常按失败上报（update_service.UpdateChecker 同款
+            # try/except 先例）：不能让 done 永不 emit——spawn 路径 UI 会卡"连接中"
+            # 120s 且 _pending_tasks 泄漏；kill 路径警告永不发
+            ok = False
+        self.signals.done.emit(ok)
 
 
 # 持有在途任务引用直到 done 投递完成：QRunnable autoDelete 后

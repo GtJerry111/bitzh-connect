@@ -82,9 +82,15 @@ def test_tun_conflict_aborts_before_spawn(qtbot, monkeypatch):
     win.password_input.setText("p")
     win.tun_mode = True
     monkeypatch.setattr("utils.connection_utils.check_tun_conflict", lambda: "utun9")
+    spawned = []
+    monkeypatch.setattr(
+        "utils.connection_utils.spawn_elevated_async",
+        lambda *a, **k: spawned.append(True),
+    )
 
     win.connect_button.setChecked(True)  # 模拟点"连接"
 
+    assert spawned == []  # 早退绝不能触发真实提权（开发机会弹授权框）
     assert win.worker is None
     assert win.connect_button.isChecked() is False
     assert win.connect_button.text() == "连接"
@@ -93,6 +99,27 @@ def test_tun_conflict_aborts_before_spawn(qtbot, monkeypatch):
     assert win.status_panel.status_text.text() == "未连接"
     assert win.status_panel.subtitle.text() == "与 utun9 的 TUN 冲突"
     assert win.tray_connect_action.isChecked() is False
+
+
+def test_windows_tun_hard_guard(qtbot, monkeypatch):
+    """Windows 硬守卫：即使编程绕过置灰开关，TUN 分支也直接早退、不提权"""
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+    monkeypatch.setattr("utils.connection_utils.system", lambda: "Windows")
+    spawned = []
+    monkeypatch.setattr(
+        "utils.connection_utils.spawn_elevated_async",
+        lambda *a, **k: spawned.append(True),
+    )
+
+    win.connect_button.setChecked(True)
+
+    assert spawned == []
+    assert win.worker is None
+    assert win.connect_button.isChecked() is False
+    assert win.status_panel.subtitle.text() == "本期暂不支持 Windows TUN"
 
 
 class _StubTimer:

@@ -41,3 +41,16 @@ def test_spawn_elevated_async_reports_result(qtbot, monkeypatch):
     task = tu.spawn_elevated_async("/tmp/fake-launcher.sh", lambda ok: results.append(ok))
     qtbot.waitUntil(lambda: results == [True], timeout=3000)
     assert task is not None
+
+
+def test_spawn_elevated_async_exception_reports_false(qtbot, monkeypatch):
+    """提权命令二进制缺失等异常 → done(False)，不能静默卡住 UI + 泄漏任务"""
+    import utils.tun_utils as tu
+
+    def _boom(path):
+        raise FileNotFoundError("osascript missing")
+
+    monkeypatch.setattr(tu, "spawn_elevated", _boom)
+    results = []
+    tu.spawn_elevated_async("/tmp/fake-launcher.sh", lambda ok: results.append(ok))
+    qtbot.waitUntil(lambda: results == [False], timeout=3000)

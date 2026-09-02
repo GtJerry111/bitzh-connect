@@ -18,10 +18,11 @@ class TunWorker(QThread):
     # pidfile 出现前最长等待（覆盖用户输入授权密码的时间）
     PID_WAIT_TIMEOUT_S = 120
 
-    def __init__(self, log_path: str, pid_path: str, parent=None):
+    def __init__(self, log_path: str, pid_path: str, on_kill_failed=None, parent=None):
         super().__init__(parent)
         self._log_path = log_path
         self._pid_path = pid_path
+        self._on_kill_failed = on_kill_failed
         self._stop_requested = False
 
     def run(self):
@@ -64,9 +65,8 @@ class TunWorker(QThread):
             kill_elevated_async(pid, on_done=self._on_kill_done)
 
     def _on_kill_done(self, ok: bool):
-        if not ok:
-            # kill 失败（典型：用户在二次授权框点了取消）→ root 内核成孤儿仍在跑，
-            # 全局路由劫持未解除但 UI 已显示断开——必须留痕（走既有日志上屏链路）
-            self.output.emit(
-                "[BITZH Connect] 警告：未能停止 TUN 内核进程（可能取消了授权），若网络异常请手动检查\n"
-            )
+        if not ok and self._on_kill_failed is not None:
+            # kill 失败（典型：用户取消二次授权；或内核本已退出、kill 返回非 0）。
+            # 告警走注入的 window 级 sink 而非 output.emit：真实时序下本 worker
+            # 已 finished 并被 handle_connection_finished 断开/销毁，emit 不可达
+            self._on_kill_failed()

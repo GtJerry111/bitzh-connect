@@ -192,6 +192,10 @@ def start_connection(window):
     window.output_text.append(f"Running command: {' '.join(mask_command_args(command_args))}\n")
 
     if getattr(window, "tun_mode", False):
+        # 纵深防御：面板开关在 Windows 已置灰，此处硬守卫防编程绕过（.bat 链路本期未验证）
+        if system() == "Windows":
+            _reset_connect_ui(window, "本期暂不支持 Windows TUN")
+            return
         conflict = check_tun_conflict()
         if conflict:
             window.output_text.append(
@@ -209,7 +213,13 @@ def start_connection(window):
         launcher = write_launcher(command, command_args[1:], log_path, pid_path)
         # 授权框可能停留数十秒：提权异步执行，worker 先行启动
         # （pidfile 120s 等待窗口本就为覆盖授权时长而设）
-        window.worker = TunWorker(log_path, pid_path)
+        window.worker = TunWorker(
+            log_path, pid_path,
+            # kill 失败告警走 window 级 sink（worker 销毁后仍必达）
+            on_kill_failed=lambda: window.output_text.append(
+                "[BITZH Connect] 警告：未能停止 TUN 内核进程（可能取消了授权）。若内核本已退出可忽略；若网络异常请检查路由\n"
+            ),
+        )
         window.worker.output.connect(lambda text: handle_output(window, text))
         window.worker.finished.connect(lambda code: handle_connection_finished(window, code))
         window.worker.start()

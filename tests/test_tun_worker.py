@@ -67,7 +67,7 @@ def test_tun_worker_stop_kills_process(qtbot, tmp_path, monkeypatch):
 
 
 def test_tun_worker_kill_failure_emits_warning(qtbot, tmp_path, monkeypatch):
-    """kill 失败（如用户取消二次授权）必须经 output 留痕，不能静默吞掉"""
+    """kill 失败（如用户取消二次授权）必须经注入的 window 级 sink 留痕，不能静默吞掉"""
     import utils.tun_worker as tw
 
     monkeypatch.setattr(
@@ -78,8 +78,9 @@ def test_tun_worker_kill_failure_emits_warning(qtbot, tmp_path, monkeypatch):
     pidf = tmp_path / "t.pid"
     log.write_text("")
     pidf.write_text("424242")
-    worker = tw.TunWorker(str(log), str(pidf))
-    lines = []
-    worker.output.connect(lambda t: lines.append(t))
+    warnings = []
+    worker = tw.TunWorker(
+        str(log), str(pidf), on_kill_failed=lambda: warnings.append(True)
+    )
     worker.stop()
-    assert any("未能停止 TUN 内核进程" in t for t in lines)
+    assert warnings == [True]
