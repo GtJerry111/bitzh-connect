@@ -58,10 +58,20 @@ def handle_output(window, text):
 def handle_connection_finished(window, exit_code):
     """进程退出收尾（可能被自动重连重新拉起）"""
     if window.worker:
+        # TUN 临时文件（日志/pidfile）随连接收尾清理
+        tun_files = None
+        if isinstance(window.worker, TunWorker):
+            tun_files = (window.worker.log_path, window.worker.pid_path)
         window.worker.output.disconnect()
         window.worker.finished.disconnect()
         window.worker.deleteLater()
         window.worker = None
+        if tun_files:
+            for path in tun_files:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
         gc.collect()
 
     manual = getattr(window, "_manual_stop", True)
@@ -226,6 +236,11 @@ def start_connection(window):
         window.status_panel.set_connecting()
 
         def _on_spawn_done(ok: bool):
+            # 包装脚本已被 shell 读取执行完毕，立即删除（内含命令行参数，不落盘久留）
+            try:
+                os.unlink(launcher)
+            except OSError:
+                pass
             if ok:
                 # 授权期间用户已先行断开：内核刚被拉起即成孤儿（root + 全局路由），立即补杀
                 worker = window.worker
@@ -234,9 +249,9 @@ def start_connection(window):
                     if pid is not None:
                         kill_elevated_async(pid)
                 return
-            # 用户取消授权：连接从未建立，不走"进程退出"收尾路径
-            # （避免 handle_connection_finished 用默认文案覆盖"已取消授权"、误触自动重连）
-            window.output_text.append("[BITZH Connect] 授权取消，未启动 TUN 连接\n")
+            # 提权失败或用户取消：连接从未建立，不走"进程退出"收尾路径
+            # （避免 handle_connection_finished 用默认文案覆盖、误触自动重连）
+            window.output_text.append("[BITZH Connect] 提权失败或已取消授权，未启动 TUN 连接\n")
             window._manual_stop = True
             worker = window.worker
             if worker is not None:
@@ -248,7 +263,7 @@ def start_connection(window):
                 worker.finished.connect(worker.deleteLater)  # 线程退出后自毁
                 worker.stop()  # pidfile 尚为空，不会触发 kill，仅停掉等待循环
                 window.worker = None
-            _reset_connect_ui(window, "已取消授权")
+            _reset_connect_ui(window, "提权失败或已取消授权")
 
         # task 挂 window 防 GC（update_service._workers 同款教训）
         window._tun_spawn_task = spawn_elevated_async(launcher, _on_spawn_done)

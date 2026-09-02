@@ -25,6 +25,16 @@ class TunWorker(QThread):
         self._on_kill_failed = on_kill_failed
         self._stop_requested = False
 
+    @property
+    def log_path(self) -> str:
+        """日志文件路径（连接收尾时由 connection_utils 清理）。"""
+        return self._log_path
+
+    @property
+    def pid_path(self) -> str:
+        """pidfile 路径（连接收尾时由 connection_utils 清理）。"""
+        return self._pid_path
+
     def run(self):
         pid = None
         deadline = time.time() + self.PID_WAIT_TIMEOUT_S
