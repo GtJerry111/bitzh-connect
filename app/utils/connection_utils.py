@@ -9,8 +9,7 @@ from .tun_utils import (
     check_tun_conflict,
     write_launcher,
     spawn_elevated_async,
-    kill_elevated_async,
-    read_pid,
+    request_stop,
 )
 from .tun_worker import TunWorker
 
@@ -60,10 +59,14 @@ def handle_connection_finished(window, exit_code):
     # TUN 启动失败（内核从未拉起，如提权问题）不自动重连——重连只会再弹授权框
     never_started = isinstance(window.worker, TunWorker) and not window.worker.kernel_started
     if window.worker:
-        # TUN 临时文件（日志/pidfile）随连接收尾清理
+        # TUN 临时文件（日志/pidfile/停止标记）随连接收尾清理
         tun_files = None
         if isinstance(window.worker, TunWorker):
-            tun_files = (window.worker.log_path, window.worker.pid_path)
+            tun_files = (
+                window.worker.log_path,
+                window.worker.pid_path,
+                window.worker.stop_path,
+            )
         window.worker.output.disconnect()
         window.worker.finished.disconnect()
         window.worker.deleteLater()
@@ -222,14 +225,16 @@ def start_connection(window):
         os.close(log_fd)
         pid_fd, pid_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".pid")
         os.close(pid_fd)
-        launcher = write_launcher(command, command_args[1:], log_path, pid_path)
+        # 停止标记只生成路径不创建——守护循环以"文件出现"为停止信号
+        stop_path = pid_path + ".stop"
+        launcher = write_launcher(command, command_args[1:], log_path, pid_path, stop_path)
         # 授权框可能停留数十秒：提权异步执行，worker 先行启动
         # （pidfile 120s 等待窗口本就为覆盖授权时长而设）
         window.worker = TunWorker(
-            log_path, pid_path,
+            log_path, pid_path, stop_path,
             # kill 失败告警走 window 级 sink（worker 销毁后仍必达）
             on_kill_failed=lambda: window.output_text.append(
-                "[BITZH Connect] 警告：未能停止 TUN 内核进程（可能取消了授权）。若内核本已退出可忽略；若网络异常请检查路由\n"
+                "[BITZH Connect] 警告：TUN 内核进程未能停止。若网络异常请检查路由，或手动 sudo kill 内核进程\n"
             ),
         )
         window.worker.output.connect(lambda text: handle_output(window, text))
@@ -248,12 +253,11 @@ def start_connection(window):
             except OSError:
                 pass
             if ok:
-                # 授权期间用户已断开（或已重连出新 worker）：本内核刚被拉起即成孤儿，立即补杀
+                # 授权期间用户已断开（或已重连出新 worker）：本内核刚被拉起即成孤儿。
+                # 重写停止标记（worker 收尾可能已删掉旧标记），守护循环收标补杀
                 worker = window.worker
                 if worker is not my_worker or getattr(my_worker, "_stop_requested", False):
-                    pid = read_pid(pid_path)
-                    if pid is not None:
-                        kill_elevated_async(pid)
+                    request_stop(stop_path)
                 return
             # 提权失败或用户取消：连接从未建立，不走"进程退出"收尾路径
             # （避免 handle_connection_finished 用默认文案覆盖、误触自动重连）
@@ -261,17 +265,19 @@ def start_connection(window):
             window._manual_stop = True
             worker = window.worker
             if worker is not None:
-                log_path_to_clean, pid_path_to_clean = worker.log_path, worker.pid_path
+                log_path_to_clean = worker.log_path
+                pid_path_to_clean = worker.pid_path
+                stop_path_to_clean = worker.stop_path
                 try:
                     worker.output.disconnect()
                     worker.finished.disconnect()
                 except RuntimeError:
                     pass
                 worker.finished.connect(worker.deleteLater)  # 线程退出后自毁
-                worker.stop()  # pidfile 尚为空，不会触发 kill，仅停掉等待循环
+                worker.stop()  # pidfile 尚为空，仅写停止标记 + 停掉等待循环
                 window.worker = None
                 # 本路径绕过了 handle_connection_finished，空临时文件自行清理
-                for path in (log_path_to_clean, pid_path_to_clean):
+                for path in (log_path_to_clean, pid_path_to_clean, stop_path_to_clean):
                     try:
                         os.unlink(path)
                     except OSError:

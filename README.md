@@ -97,7 +97,7 @@ By default (proxy mode), only traffic from applications configured to use the pr
 
 > [!NOTE]
 >
-> 1. TUN mode requires administrator privileges: macOS may prompt for authorization (osascript) on every connect/disconnect, and Linux elevates via pkexec. Windows is not supported in this release.
+> 1. TUN mode requires administrator privileges: macOS prompts for authorization (osascript) only once on connect — disconnecting is prompt-free (a root watcher loop kills the kernel via a stop-flag file). Linux elevates via pkexec. Windows is not supported in this release.
 > 2. TUN mode is mutually exclusive with Clash's TUN mode — only one of them can be enabled at a time.
 > 3. In TUN mode the dashboard shows the real upload/download rates; in proxy mode the rates are shown as "—".
 

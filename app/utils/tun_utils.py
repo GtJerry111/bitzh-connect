@@ -1,16 +1,18 @@
 # app/utils/tun_utils.py
-"""TUN 模式支持：提权启动/停止内核、pid 管理、冲突检测。
+"""TUN 模式支持：提权启动内核、停止标记、pid 管理、冲突检测。
 
 提权方案（本期最简，后续可换 SMAppServices 特权助手）：
-- macOS：osascript do shell script ... with administrator privileges（每次弹系统授权框）
+- macOS：osascript do shell script ... with administrator privileges（仅连接时弹一次授权框）
 - Linux：pkexec
 - Windows：本期不可用（.bat + UAC 链路未验证，高级设置里开关已置灰，后置处理）
 
 内核以 root 后台运行，输出重定向到日志文件；GUI 用 TunWorker 尾随解析。
+断连零弹窗：包装脚本自带 root 守护循环（轮询停止标记文件，出现即杀内核），
+GUI 断开时只需 request_stop 写标记文件——普通文件写，无需任何权限。
 注意：包装脚本经真实 shell 执行，参数必须 shlex.quote（这里 quoting 是对的——
 与 B1 修复不矛盾：B1 是 subprocess list 不过 shell，这里过 shell）。
 
-同步版 spawn_elevated/kill_elevated 会阻塞等待用户授权（可达数十秒），
+同步版 spawn_elevated 会阻塞等待用户授权（可达数十秒），
 GUI 路径一律走 *_async 版本（QThreadPool 执行，结果信号回主线程）。
 """
 import os
@@ -37,9 +39,17 @@ def check_tun_conflict() -> str | None:
     return None  # Windows/Linux 本期不做检测
 
 
-def write_launcher(kernel_path: str, args: list, log_path: str, pid_path: str) -> str:
-    """生成提权启动包装脚本，返回脚本路径。"""
+def write_launcher(
+    kernel_path: str, args: list, log_path: str, pid_path: str, stop_path: str
+) -> str:
+    """生成提权启动包装脚本，返回脚本路径。
+
+    POSIX 版脚本三段：后台拉起内核 → 写 pidfile → 挂 root 守护循环。
+    守护循环每 0.3s 查一次停止标记文件：出现即杀内核；内核自己退出（如被
+    服务器踢）循环自然结束。断开侧因此只需 touch 标记文件，全程零权限。
+    """
     if system() == "Windows":
+        # Windows TUN 本期硬守卫不可达：.bat 不含守护循环，启用时需补对等机制
         quoted = " ".join(f'"{a}"' for a in [kernel_path, *args])
         content = f'@echo off\r\nstart /b "" {quoted} > "{log_path}" 2>&1\r\n'
         suffix = ".bat"
@@ -48,10 +58,18 @@ def write_launcher(kernel_path: str, args: list, log_path: str, pid_path: str) -
         # "can't detach from console" 直接失败（已实测踩中）。sh 退出时不会给
         # 后台任务发 SIGHUP，后台+重定向已足够。
         quoted = " ".join(shlex.quote(a) for a in [kernel_path, *args])
+        stop_quoted = shlex.quote(stop_path)
         content = (
             "#!/bin/sh\n"
             f"{quoted} > {shlex.quote(log_path)} 2>&1 &\n"
-            f"echo $! > {shlex.quote(pid_path)}\n"
+            "kpid=$!\n"
+            f"echo $kpid > {shlex.quote(pid_path)}\n"
+            # 守护循环：stdio 全部重定向后脱离 osascript 独立存活（不拖住
+            # do shell script 的返回）；停止标记出现即杀内核并退出
+            f"( while kill -0 $kpid 2>/dev/null; do\n"
+            f"    if [ -f {stop_quoted} ]; then kill $kpid 2>/dev/null; break; fi\n"
+            f"    sleep 0.3\n"
+            f"  done ) < /dev/null > /dev/null 2>&1 &\n"
         )
         suffix = ".sh"
     fd, path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=suffix)
@@ -116,21 +134,18 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def kill_elevated(pid: int) -> bool:
-    """提权杀死内核进程（断开连接时可能再弹一次授权框）。"""
-    if system() == "Darwin":
-        r = subprocess.run(
-            ["osascript", "-e",
-             f'do shell script "kill {pid}" with administrator privileges'],
-            capture_output=True,
-        )
-        return r.returncode == 0
-    if system() == "Linux":
-        return subprocess.run(["pkexec", "kill", str(pid)]).returncode == 0
-    if system() == "Windows":
-        return subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                              capture_output=True).returncode == 0
-    return False
+def request_stop(stop_path: str) -> None:
+    """创建停止标记文件，通知包装脚本里的 root 守护循环杀内核。
+
+    普通文件写，零权限、不弹授权框——这是断连/退出路径不再提权的关键。
+    标记可能被 worker 收尾提前清理，需要确保"内核必死"时（如孤儿补杀）
+    调用方应重写一次；重复创建幂等。
+    """
+    try:
+        with open(stop_path, "w"):
+            pass
+    except OSError:
+        pass
 
 
 # ---- 异步提权（GUI 路径专用）----
@@ -190,8 +205,3 @@ def spawn_elevated_async(launcher_path: str, on_done) -> _ElevatedTask:
     返回任务对象——调用方应挂到长生命周期对象（如 window）上防 GC。
     """
     return _run_elevated(spawn_elevated, launcher_path, on_done)
-
-
-def kill_elevated_async(pid: int, on_done=None) -> _ElevatedTask:
-    """异步提权 kill（fire-and-forget）；on_done(ok) 可选，失败时调用方留痕。"""
-    return _run_elevated(kill_elevated, pid, on_done)

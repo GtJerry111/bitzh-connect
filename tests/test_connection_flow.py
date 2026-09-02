@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 
@@ -63,7 +64,8 @@ def test_tun_never_started_does_not_reconnect(qtbot):
     win = _make_window(qtbot)
     win._manual_stop = False
     win._auth_failed = False
-    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid")
+    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid",
+                       "/tmp/bitzh-test-nonexistent.stop")
     # 与真实启动路径一致：信号先连上（handle_connection_finished 里会 disconnect）
     worker.output.connect(lambda _t: None)
     worker.finished.connect(lambda _c: None)
@@ -86,7 +88,8 @@ def test_tun_kernel_started_does_schedule_reconnect(qtbot):
     win = _make_window(qtbot)
     win._manual_stop = False
     win._auth_failed = False
-    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid")
+    worker = TunWorker("/tmp/bitzh-test-nonexistent.log", "/tmp/bitzh-test-nonexistent.pid",
+                       "/tmp/bitzh-test-nonexistent.stop")
     worker.kernel_started = True  # 模拟内核曾正常运行
     worker.output.connect(lambda _t: None)
     worker.finished.connect(lambda _c: None)
@@ -164,9 +167,10 @@ def test_windows_tun_hard_guard(qtbot, monkeypatch):
     assert win.status_panel.subtitle.text() == "本期暂不支持 Windows TUN"
 
 
-def test_stale_spawn_done_kills_orphan_kernel(qtbot, monkeypatch):
+def test_stale_spawn_done_stops_orphan_kernel(qtbot, monkeypatch):
     """快速重连 spawn 竞态：连接1 的授权回调迟到时 window.worker 已换成新 worker，
-    内核1 刚被拉起即成孤儿（root + 全局路由），必须立即补杀；回调2 正常不误杀"""
+    内核1 刚被拉起即成孤儿（root + 全局路由）——回调必须重写停止标记让守护循环
+    补杀（worker1 收尾已把旧标记清掉）；回调2 正常到达不误写标记"""
     win = _make_window(qtbot)
     win.username_input.setText("u")
     win.password_input.setText("p")
@@ -176,11 +180,6 @@ def test_stale_spawn_done_kills_orphan_kernel(qtbot, monkeypatch):
     monkeypatch.setattr(
         "utils.connection_utils.spawn_elevated_async",
         lambda launcher, on_done: callbacks.append(on_done),
-    )
-    killed = []
-    monkeypatch.setattr(
-        "utils.connection_utils.kill_elevated_async",
-        lambda pid, on_done=None: killed.append(pid),
     )
 
     # 连接1：worker1 启动，spawn1 在途
@@ -192,21 +191,18 @@ def test_stale_spawn_done_kills_orphan_kernel(qtbot, monkeypatch):
     # 用户断开1（worker1 收尾、临时文件清掉）→ 立即重连2（worker2 + spawn2）
     win.connect_button.setChecked(False)
     qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+    assert not os.path.exists(worker1.stop_path)  # 收尾已清理
     win.connect_button.setChecked(True)
     assert len(callbacks) == 2
     worker2 = win.worker
     assert worker2 is not None and worker2 is not worker1
 
-    # 模拟 launcher1 已被批准执行：pidfile1 被重新写入内核1 的 pid
-    with open(worker1.pid_path, "w") as f:
-        f.write("31415")
-
-    # 回调1 迟到到达：worker 已换成 worker2 → 内核1 孤儿 → 补杀
+    # 回调1 迟到到达：worker 已换成 worker2 → 重写停止标记，守护循环收标杀孤儿
     callbacks[0](True)
-    assert killed == [31415]
-    # 回调2 正常到达：worker 匹配且未 stop → 不误杀
+    assert os.path.exists(worker1.stop_path)
+    # 回调2 正常到达：worker 匹配且未 stop → 不误写
     callbacks[1](True)
-    assert killed == [31415]
+    assert not os.path.exists(worker2.stop_path)
 
     # 收尾：停掉 worker2，避免测试结束时 QThread 存活告警
     win.connect_button.setChecked(False)

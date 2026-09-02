@@ -9,6 +9,7 @@ def test_tun_worker_tails_log_and_detects_exit(qtbot, tmp_path):
 
     log = tmp_path / "t.log"
     pidf = tmp_path / "t.pid"
+    stop = tmp_path / "t.stop"
     proc = subprocess.Popen(
         [sys.executable, "-c",
          "import time; print('line1', flush=True); time.sleep(0.3); print('Client IP: 10.0.43.17', flush=True)"],
@@ -16,7 +17,7 @@ def test_tun_worker_tails_log_and_detects_exit(qtbot, tmp_path):
     )
     pidf.write_text(str(proc.pid))
 
-    worker = TunWorker(str(log), str(pidf))
+    worker = TunWorker(str(log), str(pidf), str(stop))
     lines, done = [], []
     worker.output.connect(lambda t: lines.append(t))
     worker.finished.connect(lambda c: done.append(c))
@@ -32,6 +33,7 @@ def test_tun_worker_drains_tail_after_process_exit(qtbot, tmp_path):
 
     log = tmp_path / "t.log"
     pidf = tmp_path / "t.pid"
+    stop = tmp_path / "t.stop"
     proc = subprocess.Popen(
         [sys.executable, "-c",
          "print('head-line', flush=True); print('tail-line', flush=True)"],
@@ -39,7 +41,7 @@ def test_tun_worker_drains_tail_after_process_exit(qtbot, tmp_path):
     )
     pidf.write_text(str(proc.pid))
 
-    worker = TunWorker(str(log), str(pidf))
+    worker = TunWorker(str(log), str(pidf), str(stop))
     lines, done = [], []
     worker.output.connect(lambda t: lines.append(t))
     worker.finished.connect(lambda c: done.append(c))
@@ -49,38 +51,35 @@ def test_tun_worker_drains_tail_after_process_exit(qtbot, tmp_path):
     assert "head-line" in text and "tail-line" in text
 
 
-def test_tun_worker_stop_kills_process(qtbot, tmp_path, monkeypatch):
+def test_tun_worker_stop_writes_stop_flag(qtbot, tmp_path):
+    """断开不再提权 kill（不弹授权框）：stop() 只写停止标记，由 root 守护循环杀内核"""
     import utils.tun_worker as tw
-
-    killed = []
-    monkeypatch.setattr(
-        tw, "kill_elevated_async", lambda pid, on_done=None: killed.append(pid)
-    )
 
     log = tmp_path / "t.log"
     pidf = tmp_path / "t.pid"
+    stop = tmp_path / "t.stop"
     log.write_text("")
     pidf.write_text("424242")
-    worker = tw.TunWorker(str(log), str(pidf))
+    worker = tw.TunWorker(str(log), str(pidf), str(stop))
     worker.stop()
-    assert killed == [424242]
+    assert stop.exists()
 
 
-def test_tun_worker_kill_failure_emits_warning(qtbot, tmp_path, monkeypatch):
-    """kill 失败（如用户取消二次授权）必须经注入的 window 级 sink 留痕，不能静默吞掉"""
+def test_tun_worker_warns_if_kernel_survives_grace(qtbot, tmp_path, monkeypatch):
+    """宽限期后内核仍存活（守护循环没杀掉）→ window 级 sink 留痕，不静默吞掉"""
     import utils.tun_worker as tw
 
-    monkeypatch.setattr(
-        tw, "kill_elevated_async", lambda pid, on_done=None: on_done(False)
-    )
+    monkeypatch.setattr(tw.TunWorker, "KILL_GRACE_MS", 50)
+    monkeypatch.setattr(tw, "_pid_alive", lambda pid: True)  # 假装内核顽固存活
 
     log = tmp_path / "t.log"
     pidf = tmp_path / "t.pid"
+    stop = tmp_path / "t.stop"
     log.write_text("")
     pidf.write_text("424242")
     warnings = []
     worker = tw.TunWorker(
-        str(log), str(pidf), on_kill_failed=lambda: warnings.append(True)
+        str(log), str(pidf), str(stop), on_kill_failed=lambda: warnings.append(True)
     )
     worker.stop()
-    assert warnings == [True]
+    qtbot.waitUntil(lambda: warnings == [True], timeout=2000)

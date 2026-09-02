@@ -97,7 +97,7 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 
 > [!NOTE]
 >
-> 1. TUN 模式需要管理员授权：macOS 每次连接/断开时可能弹出授权框（osascript），Linux 通过 pkexec 提权；本期暂不支持 Windows
+> 1. TUN 模式需要管理员授权：macOS 仅连接时弹一次授权框（osascript），断开由 root 守护循环收标记杀进程、不再弹窗，Linux 通过 pkexec 提权；本期暂不支持 Windows
 > 2. TUN 模式与 Clash 的 TUN 模式互斥，二者只能开启其一
 > 3. TUN 模式下仪表盘显示真实的上行/下行速率；代理模式下速率显示为 "—"
 
