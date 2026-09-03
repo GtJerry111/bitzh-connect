@@ -184,9 +184,9 @@ ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <roo
 
 ## Screenshots
 
-| Windows                                                    | Mac                                                | Linux                                                  |
-| ---------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| <img width="412" alt="windows" src="assets/windows.png" /> | <img width="412" alt="mac" src="assets/mac.png" /> | <img width="412" alt="linux" src="assets/linux.png" /> |
+| Disconnected | Connected (live rate graph) | Dark mode |
+| --- | --- | --- |
+| <img width="412" alt="disconnected" src="assets/screenshot-disconnected.png" /> | <img width="412" alt="connected" src="assets/screenshot-connected.png" /> | <img width="412" alt="dark mode" src="assets/screenshot-connected-dark.png" /> |
 
 ## Contributing
 

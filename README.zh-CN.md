@@ -180,9 +180,9 @@ ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <用
 
 ## 截图
 
-| Windows                                                    | macOS                                              | Linux                                                  |
-| ---------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| <img width="412" alt="windows" src="assets/windows.png" /> | <img width="412" alt="mac" src="assets/mac.png" /> | <img width="412" alt="linux" src="assets/linux.png" /> |
+| 未连接 | 已连接（实时速率波形） | 深色模式 |
+| --- | --- | --- |
+| <img width="412" alt="未连接" src="assets/screenshot-disconnected.png" /> | <img width="412" alt="已连接" src="assets/screenshot-connected.png" /> | <img width="412" alt="深色模式" src="assets/screenshot-connected-dark.png" /> |
 
 ## 贡献
 
