@@ -16,7 +16,7 @@ class ResourceSection(QWidget):
         super().__init__(parent)
         row = QHBoxLayout()
         row.setSpacing(8)
-        row.setContentsMargins(0, 0, 0, 0)
+        row.setContentsMargins(0, 10, 0, 10)  # 上下留白：已连接态窗口的呼吸感
         row.setAlignment(Qt.AlignCenter)
         self._buttons = []
         for name, url in RESOURCES:

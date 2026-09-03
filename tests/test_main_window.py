@@ -131,3 +131,14 @@ def test_settings_button_opens_advanced_dialog(window, monkeypatch):
     )
     window.settings_button.click()
     assert opened == [window]
+
+
+def test_motto_visibility_follows_credential_area(window, monkeypatch):
+    """校训水印与凭据区联动：凭据可见时水印隐藏（防遮挡），凭据收起时淡入"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    container = window.centralWidget()
+    assert container._motto_visible is False  # 未连接：凭据可见 → 水印隐藏
+    window.status_panel.set_connected("10.0.43.17")
+    assert container._motto_visible is True   # 凭据收起 → 水印淡入
+    window.status_panel.set_disconnected()
+    assert container._motto_visible is False

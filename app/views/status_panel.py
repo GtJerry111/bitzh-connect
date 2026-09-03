@@ -88,7 +88,7 @@ class StatusPanel(QWidget):
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
-        layout.setContentsMargins(0, 20, 0, 0)
+        layout.setContentsMargins(0, 24, 0, 0)
 
         # ---- hero：圆点/旋转弧（同槽位等径互斥）+ 状态词 + 副标题 ----
         self.spinner = BusySpinner(self, diameter=20)
@@ -113,7 +113,8 @@ class StatusPanel(QWidget):
         self.stats_area = QWidget()
         stats = QHBoxLayout(self.stats_area)
         stats.setSpacing(0)
-        stats.setContentsMargins(0, 12, 0, 4)
+        # 已连接态的呼吸感：统计行上下留白加大（窗口"长一些"的主要来源之一）
+        stats.setContentsMargins(0, 20, 0, 16)
         self._stat_labels = []
         self.duration_value = self._add_stat(stats, "时长")
         self.up_value = self._add_stat(stats, "上行")
@@ -187,7 +188,7 @@ class StatusPanel(QWidget):
             return
         self._stats_visible = visible
         animated_height_toggle(
-            self.stats_area, visible, max_height=52, fade=True,
+            self.stats_area, visible, max_height=72, fade=True,
             on_frame=lambda: self.window().adjustSize(),
         )
 

@@ -4,7 +4,7 @@ from platform import system
 import gc
 from PySide6.QtCore import QSignalBlocker
 from .set_proxy import CommandWorker
-from .log_parser import parse_client_ip, is_auth_failure, is_server_kick
+from .log_parser import parse_client_ip, is_auth_failure, is_server_kick, is_rsa_material
 from .tun_utils import (
     check_tun_conflict,
     write_launcher,
@@ -36,7 +36,16 @@ def _reset_connect_ui(window, status_detail: str):
 
 def handle_output(window, text):
     """处理内核输出：上屏 + 解析状态"""
-    window.output_text.append(text)
+    # RSA 公钥材料行折叠为一行中文说明（每次连接只提示一次）：
+    # 公钥用于加密登录密码，设计上可公开；原样上屏是噪音且易误读为泄密
+    if is_rsa_material(text):
+        if not getattr(window, "_rsa_noted", False):
+            window._rsa_noted = True
+            window.output_text.append(
+                "[BITZH Connect] 已获取服务器 RSA 公钥（用于加密登录密码，公钥可公开）\n"
+            )
+    else:
+        window.output_text.append(text)
 
     ip = parse_client_ip(text)
     if ip:
@@ -186,6 +195,7 @@ def start_connection(window):
 
     window._manual_stop = False
     window._auth_failed = False
+    window._rsa_noted = False  # 每次连接重新折叠 RSA 公钥提示（一次连接只提示一次）
 
     is_nuitka = "__compiled__" in globals()
 

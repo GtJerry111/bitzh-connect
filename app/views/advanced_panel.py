@@ -6,16 +6,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QPushButton,
-    QApplication,
     QTabWidget,
     QWidget,
-    QFileDialog,
     QComboBox,
     QDialogButtonBox,
     QFormLayout,
     QFrame,
 )
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import Qt
 from utils.config_utils import save_config, load_config
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
@@ -24,7 +22,7 @@ from platform import system
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
 from common.version import get_version
-from common.constants import DEFAULT_SERVER
+from common.constants import APP_NAME, DEFAULT_SERVER, REPO_URL
 from common import resources
 from common import theme
 
@@ -39,6 +37,11 @@ class AdvancedSettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("高级设置")
         self.setMinimumWidth(420)
+        # 证书配置在 UI 中隐藏（BITZH 服务端为账号密码认证，用不到 .p12 客户端证书），
+        # 但配置键保留往返：从 window 读入、随保存写回，不丢用户既有配置
+        self._cert_file = ""
+        self._cert_password = ""
+        self._tab_overhead = None  # 标签栏+面框高度开销（首次贴合时实测）
         self.setup_ui()
 
     # ---- 分组与说明行（说明文字从 tooltip 落地为可见的灰字，Nielsen #10）----
@@ -104,13 +107,15 @@ class AdvancedSettingsDialog(QDialog):
             self._description("非认证失败导致的掉线将自动重连，连续失败 3 次后暂停")
         )
 
-        # 外观三态（跟随系统 / 浅色 / 深色）
-        appearance_form = QFormLayout()
-        appearance_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # 外观三态（跟随系统 / 浅色 / 深色）：与复选框同左边距的普通行，不用表单右对齐
+        appearance_row = QHBoxLayout()
+        appearance_row.setContentsMargins(0, 0, 0, 0)
+        appearance_row.addWidget(QLabel("外观"))
         self.appearance_combo = QComboBox()
         self.appearance_combo.addItems(["跟随系统", "浅色", "深色"])
-        appearance_form.addRow("外观", self.appearance_combo)
-        general_layout.addLayout(appearance_form)
+        appearance_row.addWidget(self.appearance_combo)
+        appearance_row.addStretch()
+        general_layout.addLayout(appearance_row)
 
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
@@ -176,50 +181,19 @@ class AdvancedSettingsDialog(QDialog):
             self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发")
         )
 
-        # ---- 证书 ----
-        network_layout.addWidget(self._group_header("证书"))
-        cert_form = QFormLayout()
-        cert_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        cert_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
-
-        cert_row = QHBoxLayout()
-        cert_row.setSpacing(8)
-        self.cert_file_input = QLineEdit()
-        self.cert_file_input.setPlaceholderText("选择 .p12 证书文件")
-        self.cert_file_input.setReadOnly(True)
-        cert_row.addWidget(self.cert_file_input, 1)
-        self.cert_browse_button = QPushButton("浏览…")
-        self.cert_browse_button.clicked.connect(self.browse_cert_file)
-        cert_row.addWidget(self.cert_browse_button)
-        # 文本按钮"清除"替代语义错误的红色 ❌（SP_DialogCancelButton 是"取消"不是"清除"）
-        self.cert_clear_button = QPushButton("清除")
-        self.cert_clear_button.setStyleSheet(
-            f"QPushButton {{ color: {theme.semantic_color('secondary_text')};"
-            f" border: none; padding: 4px 6px; }}"
-        )
-        self.cert_clear_button.clicked.connect(self.clear_cert_file)
-        cert_row.addWidget(self.cert_clear_button)
-        cert_form.addRow("证书路径", cert_row)
-
-        self.cert_password_input = QLineEdit()
-        self.cert_password_input.setPlaceholderText("输入证书密码")
-        self.cert_password_input.setEchoMode(QLineEdit.Password)
-        cert_form.addRow("证书密码", self.cert_password_input)
-        network_layout.addLayout(cert_form)
-
         # ---- 高级 ----
         network_layout.addWidget(self._group_header("高级"))
 
         self.keep_alive_switch = QCheckBox("定时保活")
         network_layout.addWidget(self.keep_alive_switch)
         network_layout.addWidget(
-            self._description("开启后，ZJU Connect 会定时发送心跳包以保持连接")
+            self._description("开启后，BITZH Connect 会定时发送心跳包以保持连接")
         )
 
         self.debug_dump_switch = QCheckBox("调试模式")
         network_layout.addWidget(self.debug_dump_switch)
         network_layout.addWidget(
-            self._description("开启后，ZJU Connect 会记录详细的调试信息到日志文件")
+            self._description("开启后，BITZH Connect 会记录详细的调试信息到日志文件")
         )
 
         # 肯定句表述（原"禁用备用线路检测"勾选=禁用是双重否定）；存储时取反
@@ -242,10 +216,45 @@ class AdvancedSettingsDialog(QDialog):
 
         network_layout.addStretch()
 
-        # macOS 惯例：General 在前
+        # ================= 帮助 tab（原菜单栏"帮助"收编到这里） =================
+        help_tab = QWidget()
+        help_layout = QVBoxLayout(help_tab)
+        help_layout.setSpacing(8)
+
+        help_layout.addWidget(self._group_header("关于"))
+        about = QLabel(
+            f"<p style='font-size:15pt; font-weight:600; margin-bottom:2px;'>{APP_NAME}</p>"
+            f"<p style='margin:0;'>版本 {VERSION}</p>"
+            f"<p style='margin:0;'><a href='{REPO_URL}'>GitHub 仓库</a></p>"
+            f"<p style='margin:0; color:{theme.semantic_color('secondary_text')};'>"
+            f"基于 <a href='https://github.com/kowyo/hitsz-connect-verge'>HITSZ Connect Verge</a>"
+            f"，内核 <a href='https://github.com/Mythologyli/zju-connect'>ZJU Connect</a></p>"
+        )
+        about.setOpenExternalLinks(True)
+        help_layout.addWidget(about)
+
+        help_layout.addWidget(self._group_header("支持"))
+        support_row = QHBoxLayout()
+        support_row.setSpacing(8)
+        copy_log_btn = QPushButton("复制运行日志")
+        copy_log_btn.clicked.connect(self._copy_log)
+        support_row.addWidget(copy_log_btn)
+        update_btn = QPushButton("检查更新")
+        update_btn.clicked.connect(self._check_update)
+        support_row.addWidget(update_btn)
+        support_row.addStretch()
+        help_layout.addLayout(support_row)
+        help_layout.addWidget(
+            self._description("复制日志后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
+        )
+        help_layout.addStretch()
+
+        # macOS 惯例：General 在前；帮助殿后
         tab_widget.addTab(general_tab, "通用")
         tab_widget.addTab(network_tab, "网络")
+        tab_widget.addTab(help_tab, "帮助")
         layout.addWidget(tab_widget)
+        self._tabs = tab_widget
 
         # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮
         self.button_box = QDialogButtonBox(
@@ -277,25 +286,43 @@ class AdvancedSettingsDialog(QDialog):
 
         self.setLayout(layout)
 
+        # macOS 偏好设置式：窗口高度跟随当前 tab 内容（通用 tab 不再有大片留白）。
+        # 注意 QTabWidget.sizeHint 不认页面的 Ignored 策略（恒取最大页），
+        # 经典 QStackedLayout Ignored 技巧在此无效，需显式按当前页高度贴合
+        layout.setSizeConstraint(QVBoxLayout.SetFixedSize)
+        tab_widget.currentChanged.connect(self._fit_to_tab)
+        self._fit_to_tab(0)
+
+    def _fit_to_tab(self, index: int):
+        """对话框高度贴合当前 tab：tab 控件定高 = 当前页 sizeHint + 实测开销。"""
+        if self._tab_overhead is None:
+            self._tab_overhead = self._tabs.sizeHint().height() - max(
+                self._tabs.widget(i).sizeHint().height()
+                for i in range(self._tabs.count())
+            )
+        page = self._tabs.widget(index)
+        self._tabs.setFixedHeight(page.sizeHint().height() + self._tab_overhead)
+        self.adjustSize()
+
+    def _copy_log(self):
+        """复制主窗口运行日志到剪贴板（帮助 tab 按钮）。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        window = self.window()
+        if window is self or not hasattr(window, "output_text"):
+            return  # 无父窗口（测试场景）不动作
+        QGuiApplication.clipboard().setText(window.output_text.toPlainText())
+        QMessageBox.information(self, "复制日志", "日志已复制到剪贴板")
+
+    def _check_update(self):
+        """帮助 tab 的检查更新（复用 menu_utils 的完整弹窗流程）。"""
+        from .menu_utils import check_for_updates  # 局部导入避免循环依赖
+
+        check_for_updates(self.window(), VERSION)
+
     def toggle_dns_input(self):
         """Toggle DNS input field based on auto DNS checkbox"""
         self.dns_input.setEnabled(not self.auto_dns_switch.isChecked())
-
-    def browse_cert_file(self):
-        """Open file dialog to browse for certificate file"""
-        file_dialog = QFileDialog(self)
-        file_dialog.setNameFilter("Certificate files (*.p12)")
-        file_dialog.setFileMode(QFileDialog.ExistingFile)
-
-        if file_dialog.exec():
-            selected_files = file_dialog.selectedFiles()
-            if selected_files:
-                self.cert_file_input.setText(selected_files[0])
-
-    def clear_cert_file(self):
-        """Clear the selected certificate file"""
-        self.cert_file_input.clear()
-        self.cert_password_input.clear()
 
     def get_settings(self):
         settings = {
@@ -313,8 +340,9 @@ class AdvancedSettingsDialog(QDialog):
             "disable_multi_line": not self.auto_multi_line_switch.isChecked(),
             "http_bind": self.http_bind_input.text(),
             "socks_bind": self.socks_bind_input.text(),
-            "cert_file": self.cert_file_input.text(),
-            "cert_password": self.cert_password_input.text(),
+            # 证书组 UI 已隐藏（BITZH 用不到证书认证），配置键原样往返保留
+            "cert_file": self._cert_file,
+            "cert_password": self._cert_password,
             "auto_reconnect": self.auto_reconnect_switch.isChecked(),
             "appearance": _APPEARANCE_MODES[self.appearance_combo.currentIndex()],
             "tun_mode": self.tun_mode_switch.isChecked(),
@@ -363,8 +391,8 @@ class AdvancedSettingsDialog(QDialog):
         self.auto_multi_line_switch.setChecked(not disable_multi_line)
         self.http_bind_input.setText(http_bind)
         self.socks_bind_input.setText(socks_bind)
-        self.cert_file_input.setText(cert_file)
-        self.cert_password_input.setText(cert_password)
+        self._cert_file = cert_file
+        self._cert_password = cert_password
         self.auto_reconnect_switch.setChecked(auto_reconnect)
         # 脏值守卫：手改坏的 QSettings 值（如 "blue"）兜底回 system，防 ValueError
         appearance = appearance if appearance in _APPEARANCE_MODES else "system"
@@ -386,22 +414,9 @@ class AdvancedSettingsDialog(QDialog):
         save_config(settings)
         set_launch_at_login(enable=self.startup_switch.isChecked())
 
-        if system() == "Darwin":
+        if system() == "Darwin" and self.parent() is not None:
+            # 菜单栏已整体移除，隐藏 Dock 只需切换激活策略，无需重建菜单栏
             hide_dock_icon(self.hide_dock_icon_switch.isChecked())
-
-            from .menu_utils import setup_menubar
-
-            main_window = self.parent()
-            main_window.hide_dock_icon = self.hide_dock_icon_switch.isChecked()
-            setup_menubar(main_window, VERSION)
-
-            main_window.show()
-            main_window.raise_()
-
-            icon_path = ":/icons/icon.icns"
-
-            app_icon = QIcon(icon_path)
-            app = QApplication.instance()
-            app.setWindowIcon(app_icon)
+            self.parent().hide_dock_icon = self.hide_dock_icon_switch.isChecked()
 
         super().accept()

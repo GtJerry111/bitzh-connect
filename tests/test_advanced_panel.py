@@ -79,12 +79,25 @@ def test_button_box_save_is_default_and_macos_order(dialog):
 
 
 def test_general_tab_comes_first(dialog):
-    """macOS 惯例：通用 tab 在前"""
+    """macOS 惯例：通用 tab 在前；帮助 tab（原菜单栏收编）殿后"""
     from PySide6.QtWidgets import QTabWidget
 
     tab_widget = dialog.findChild(QTabWidget)
     assert tab_widget.tabText(0) == "通用"
     assert tab_widget.tabText(1) == "网络"
+    assert tab_widget.tabText(2) == "帮助"
+
+
+def test_hidden_cert_group_config_roundtrip(dialog):
+    """证书组 UI 已隐藏，但配置键必须原样往返保留（不丢用户既有配置）"""
+    base = dict(
+        server="1.2.3.4", port="443", dns="", proxy=True,
+        connect_startup=False, silent_mode=False, check_update=True,
+    )
+    dialog.set_settings(**base, cert_file="/tmp/cert.p12", cert_password="pw123")
+    settings = dialog.get_settings()
+    assert settings["cert_file"] == "/tmp/cert.p12"
+    assert settings["cert_password"] == "pw123"
 
 
 def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(

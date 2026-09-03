@@ -31,6 +31,22 @@ def test_output_parsing_sets_virtual_ip(qtbot):
     assert win.virtual_ip == "10.0.43.17"
 
 
+def test_rsa_material_collapsed_to_single_note(qtbot):
+    """RSA 公钥材料行不上屏：折叠为一行中文说明，且每次连接只提示一次"""
+    win = _make_window(qtbot)
+    from utils.connection_utils import handle_output
+
+    win._rsa_noted = False  # 模拟 start_connection 的每连接重置
+    handle_output(win, "2026/09/03 10:00:00 RSA key: AB12CD34...\n")
+    handle_output(win, "2026/09/03 10:00:00 RSA exp: 65537\n")
+    log = win.output_text.toPlainText()
+    assert "AB12CD34" not in log and "RSA exp" not in log
+    assert "RSA 公钥" in log
+    # 第二次同连接不再重复提示
+    handle_output(win, "2026/09/03 10:00:01 RSA key: FF00\n")
+    assert win.output_text.toPlainText().count("RSA 公钥") == 1
+
+
 def test_cleanup_residue_proxy_noop_when_not_ours(qtbot):
     win = _make_window(qtbot)
     from utils.set_proxy import cleanup_residue_proxy

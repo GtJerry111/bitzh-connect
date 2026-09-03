@@ -1,11 +1,10 @@
 import webbrowser
 
-from PySide6.QtWidgets import QMessageBox, QMainWindow, QMenuBar
-from PySide6.QtGui import QGuiApplication, QKeySequence
+from PySide6.QtWidgets import QMessageBox
 from .advanced_panel import AdvancedSettingsDialog
 from platform import system
 from services.update_service import UpdateService
-from common.constants import APP_NAME, REPO_URL, RELEASES_URL
+from common.constants import RELEASES_URL
 
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
@@ -13,46 +12,8 @@ if system() == "Darwin":
 update_service = UpdateService()
 
 
-def setup_menubar(window: QMainWindow, version):
-    """Set up the main window menu bar"""
-    if system() == "Darwin":
-        menubar = QMenuBar(window)
-        menubar.setNativeMenuBar(not window.hide_dock_icon)
-        window.setMenuBar(menubar)
-    else:
-        menubar = window.menuBar()
-
-    # Settings Menu
-    settings_menu = menubar.addMenu("设置")
-    window.advanced_action = settings_menu.addAction("高级设置")
-    window.advanced_action.setShortcut(QKeySequence.Preferences)
-    window.advanced_action.triggered.connect(lambda: show_advanced_settings(window))
-
-    # Help Menu
-    about_menu = menubar.addMenu("帮助")
-    about_menu.addAction("复制日志").triggered.connect(
-        lambda: copy_log(window)
-    )  # Changed text and function
-    about_menu.addAction("检查更新").triggered.connect(
-        lambda: check_for_updates(window, version)
-    )
-    about_menu.addAction("关于").triggered.connect(lambda: show_about(window, version))
-
-
-def show_about(window, version):
-    """Show about dialog"""
-    about_text = f"""<p style="font-size: 15pt;">{APP_NAME}</p>
-    <p style="font-size: 10pt;">Version: {version}</p>
-    <p style="font-size: 10pt;">Repository: <a href="{REPO_URL}">{REPO_URL.replace("https://", "")}</a></p>
-    <p style="font-size: 10pt;">Based on <a href="https://github.com/kowyo/hitsz-connect-verge">HITSZ Connect Verge</a> by Kowyo,
-    powered by <a href="https://github.com/Mythologyli/zju-connect">ZJU Connect</a></p> """
-    QMessageBox.about(window, f"关于 {APP_NAME}", about_text)
-
-
-def copy_log(window):
-    """Copy log text to clipboard directly"""
-    QGuiApplication.clipboard().setText(window.output_text.toPlainText())
-    QMessageBox.information(window, "复制日志", "日志已复制到剪贴板")
+# 注：窗口菜单栏已移除——设置入口在主窗口右下角"设置"按钮（⌘, 快捷键保留），
+# 帮助功能（关于/复制日志/检查更新）收进高级设置对话框的"帮助" tab
 
 
 def check_for_updates(parent, current_version, startup=False):

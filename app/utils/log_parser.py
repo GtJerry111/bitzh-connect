@@ -19,6 +19,10 @@ AUTH_FAILURE_PATTERNS = [
 
 _SERVER_KICK_RE = re.compile(r"SHUTDOWN \(cmd|RECONNECTLATER \(cmd", re.IGNORECASE)
 
+# 握手时内核打印的服务器 RSA 公钥材料（RSA key: <hex> / RSA exp: <exp>）。
+# 公钥本身可公开（密码正是用它加密后才发出），但对用户是噪音且易误读为泄密
+_RSA_MATERIAL_RE = re.compile(r"RSA (key|exp):", re.IGNORECASE)
+
 
 def _valid_ip(ip: str) -> bool:
     return all(0 <= int(part) <= 255 for part in ip.split("."))
@@ -40,3 +44,8 @@ def is_auth_failure(text: str) -> bool:
 def is_server_kick(text: str) -> bool:
     """判断该行输出是否表示被服务器主动断开（用于日志提示）。"""
     return bool(_SERVER_KICK_RE.search(text))
+
+
+def is_rsa_material(text: str) -> bool:
+    """判断该行是否为 RSA 公钥材料（GUI 日志折叠为一行中文说明）。"""
+    return bool(_RSA_MATERIAL_RE.search(text))

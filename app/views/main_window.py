@@ -12,12 +12,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import QEvent, QTimer, Qt
-from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QPixmap, QShortcut
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
-from views.menu_utils import setup_menubar, check_for_updates, show_advanced_settings
+from views.menu_utils import check_for_updates, show_advanced_settings
 from utils.config_utils import load_settings
 from services.reconnect_manager import ReconnectManager
 from utils.set_proxy import cleanup_residue_proxy
@@ -36,14 +36,47 @@ class WatermarkContainer(QWidget):
 
     素材：BIT 视觉识别系统校训"德以明理 学以精工"（透明底淡灰 PNG）。
     水印是最底层背景：子控件（输入框/按钮/标签）背景透明，直接叠在其上。
+    显隐与凭据区联动：凭据可见时（未连接）校训淡出（避免被输入框遮挡）；
+    连接成功凭据收起后淡入——连接成功即品牌时刻。
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._watermark = QPixmap(":/brand/motto.png")
+        self._motto_level = 0.0  # 0=隐藏 1=显示（乘在深浅色基准透明度上）
+        self._motto_visible = False
+
+    def set_motto_visible(self, visible: bool):
+        """校训淡入淡出（250ms，可打断；reduce-motion 即时）。"""
+        if visible == self._motto_visible:
+            return
+        self._motto_visible = visible
+        from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
+        from PySide6.QtCore import QEasingCurve, QVariantAnimation
+
+        if reduce_motion():
+            self._motto_level = 1.0 if visible else 0.0
+            self.update()
+            return
+        old = getattr(self, "_motto_anim", None)
+        if old is not None:
+            self._motto_anim = None
+            old.stop()
+        anim = QVariantAnimation(self)
+        anim.setDuration(ANIMATION_DURATION_MS)
+        anim.setStartValue(self._motto_level)
+        anim.setEndValue(1.0 if visible else 0.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(self._set_motto_level)
+        self._motto_anim = anim
+        anim.start()
+
+    def _set_motto_level(self, level):
+        self._motto_level = float(level)
+        self.update()
 
     def paintEvent(self, event):
-        if not self._watermark.isNull():
+        if not self._watermark.isNull() and self._motto_level > 0.0:
             from common import theme
 
             painter = QPainter(self)
@@ -54,9 +87,8 @@ class WatermarkContainer(QWidget):
             )
             x = self.width() - scaled.width() - 8
             y = (self.height() - scaled.height()) // 2
-            painter.setOpacity(
-                _WATERMARK_OPACITY["dark" if theme.is_dark() else "light"]
-            )
+            base = _WATERMARK_OPACITY["dark" if theme.is_dark() else "light"]
+            painter.setOpacity(base * self._motto_level)
             painter.drawPixmap(x, y, scaled)
             painter.end()
         super().paintEvent(event)
@@ -73,8 +105,13 @@ class MainWindow(QMainWindow):
         from common import theme
 
         theme.set_appearance(self.appearance)
-        setup_menubar(self, self.version)
         self.setup_ui()
+        # 无菜单栏（设置/帮助入口在主窗口右下角与对话框"帮助"tab）；
+        # ⌘, 快捷键保留 macOS 惯例
+        QShortcut(
+            QKeySequence.Preferences, self,
+            activated=lambda: show_advanced_settings(self),
+        )
         self.virtual_ip = None
         self._manual_stop = True
         self._auth_failed = False
@@ -113,9 +150,9 @@ class MainWindow(QMainWindow):
         from views.resource_section import ResourceSection
         from views.status_panel import StatusPanel
 
-        # 高度下限取未连接态内容自然高度（hero+统计+凭据+按钮）；
+        # 高度下限取未连接态内容自然高度（hero+凭据+按钮，统计行未连接不显示）；
         # 连接后凭据区收起，adjustSize 会把窗口收到接近内容高度，不留大段空白
-        self.setMinimumSize(360, 400)
+        self.setMinimumSize(360, 340)
         layout = QVBoxLayout()
         # 间距体系：边距 16/8/16/12，区块间距 12（4/8/12/16 四档制）
         layout.setContentsMargins(16, 8, 16, 12)
@@ -276,7 +313,11 @@ class MainWindow(QMainWindow):
             self.connect_button.click()
 
     def _apply_area_visibility(self, cred_visible: bool, res_visible: bool):
-        """凭据区/资源区一收一放（250ms 高度+淡出，可打断，幂等）。"""
+        """凭据区/资源区一收一放（250ms 高度+淡出，可打断，幂等）。
+
+        校训水印与凭据区联动：凭据可见时水印退出（避免被输入框遮挡），
+        凭据收起时（已连接/连接中断）水印淡入。
+        """
         if cred_visible == self._cred_visible and res_visible == self._res_visible:
             return
         self._cred_visible = cred_visible
@@ -286,9 +327,10 @@ class MainWindow(QMainWindow):
             fade=True,
         )
         self._animated_height_toggle(
-            self.resource_area, res_visible, max_height=40, on_frame=self.adjustSize,
+            self.resource_area, res_visible, max_height=64, on_frame=self.adjustSize,
             fade=True,
         )
+        self.centralWidget().set_motto_visible(not cred_visible)
 
     def _apply_theme_styles(self):
         """主题相关样式统一入口（深浅色切换时重放）。"""
