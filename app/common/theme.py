@@ -11,7 +11,7 @@ import sys
 from platform import system
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QGuiApplication, QPalette
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QPalette
 
 # BIT VI 官方明度色阶（A4-03，100%→10% 实测采样值）
 DEEP_GREEN = ["#005C31", "#00663B", "#227248", "#497F58", "#658E6A",
@@ -138,13 +138,21 @@ def status_title_font() -> QFont:
 
 
 def with_alpha(name: str, alpha: float) -> str:
-    """语义色 + 透明度 → rgba() 字符串（胶囊 hover 底色、焦点环等）。"""
+    """语义色 + 透明度 → rgba() 字符串（仅 QSS 上下文——QColor 不认 rgba() 语法）。"""
     light, dark = _COLORS[name]
     hex_color = dark if is_dark() else light
     r = int(hex_color[1:3], 16)
     g = int(hex_color[3:5], 16)
     b = int(hex_color[5:7], 16)
     return f"rgba({r},{g},{b},{alpha})"
+
+
+def qcolor(name: str, alpha: float | None = None) -> QColor:
+    """语义色 → QColor（QPainter 上下文；可选透明度）。"""
+    color = QColor(semantic_color(name))
+    if alpha is not None:
+        color.setAlphaF(alpha)
+    return color
 
 
 def card_title_font() -> QFont:

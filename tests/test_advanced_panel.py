@@ -69,13 +69,16 @@ def test_multi_line_positive_wording_inverted_storage(dialog):
 
 
 def test_button_box_save_is_default_and_macos_order(dialog):
-    """QDialogButtonBox：保存为主按钮（macOS 惯例取消左、保存右，由平台自动排布）"""
+    """QDialogButtonBox：保存为主按钮（macOS 惯例取消左、保存右，由平台自动排布）；
+    两按钮同宽（自定义样式只改颜色不改尺寸，避免一大一小）"""
     from PySide6.QtWidgets import QDialogButtonBox
 
     save_btn = dialog.button_box.button(QDialogButtonBox.Save)
     assert save_btn.isDefault()
     assert save_btn.text() == "保存"
-    assert dialog.button_box.button(QDialogButtonBox.Cancel).text() == "取消"
+    cancel_btn = dialog.button_box.button(QDialogButtonBox.Cancel)
+    assert cancel_btn.text() == "取消"
+    assert save_btn.minimumWidth() == cancel_btn.minimumWidth() == 88
 
 
 def test_general_tab_comes_first(dialog):
@@ -155,7 +158,7 @@ def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
     # 打开对话框时应把当前 auto_reconnect（默认 True）、appearance、tun_mode 传入 set_settings
     assert captured["args"][-3] is True
     assert captured["args"][-2] == "system"
-    assert captured["args"][-1] is False
+    assert captured["args"][-1] is True  # TUN 默认开启（产品默认形态）
     # 保存后写回 window 并联动重连开关
     assert win.auto_reconnect is False
     assert win.reconnect_manager._enabled is False

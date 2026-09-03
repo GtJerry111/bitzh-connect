@@ -165,16 +165,41 @@ def test_set_rates(panel):
 
 
 def test_placeholder_gray_data_ink(panel):
-    """"—" 占位符染次要色退后，真数据用主文字色（无数据不该和真数据一样重）"""
+    """"—" 占位符染次要色退后；真数据按语义着色（数字与波形颜色自映射）"""
     from common import theme
 
     secondary = theme.semantic_color("secondary_text").lower()
+    working = theme.semantic_color("working").lower()
+    accent = theme.semantic_color("accent").lower()
     ink = theme.semantic_color("ink").lower()
     assert secondary in panel.up_value.styleSheet().lower()
     panel.set_connected("10.0.43.17")
     panel.set_rates("1.2 MB/s", "3.4 MB/s")
-    assert ink in panel.up_value.styleSheet().lower()
+    # 上行赭石、下行绿（与波形一致），时长保持 ink
+    assert working in panel.up_value.styleSheet().lower()
+    assert accent in panel.down_value.styleSheet().lower()
     assert ink in panel.duration_value.styleSheet().lower()
+
+
+def test_graph_visibility_follows_support_and_connection(panel):
+    """波形图：有数据源且已连接才显示；断开清空样本并随统计区收起"""
+    assert panel.rate_graph.isHidden()
+    panel.set_graph_supported(True)
+    panel.set_connected("10.0.43.17")
+    assert not panel.rate_graph.isHidden()
+    panel.append_rate_sample(100.0, 200.0)
+    assert len(panel.rate_graph._samples) == 1
+    panel.set_disconnected()
+    assert len(panel.rate_graph._samples) == 0
+
+
+def test_graph_hidden_when_unsupported(panel):
+    """无数据源（如 Windows/Linux 代理模式）：连接后波形图不显示（不陈列空数据）"""
+    panel.set_graph_supported(False)
+    panel.set_connected("10.0.43.17")
+    assert panel.rate_graph.isHidden()  # offscreen：父链已 show，isHidden 只看自身标志
+    # tooltip 提供克制提示（零常驻像素）
+    assert "TUN" in panel.up_value.toolTip()
 
 
 def test_dark_mode_card_surface(panel):

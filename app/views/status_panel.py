@@ -34,6 +34,7 @@ from utils.motion_utils import (
     reduce_motion,
 )
 from views.busy_spinner import BusySpinner
+from views.rate_graph import RateGraph
 
 
 def _fmt_duration(seconds: int) -> str:
@@ -85,6 +86,9 @@ class StatusPanel(QWidget):
         self._countdown_remaining = 0
         self._retry_attempt = 0
         self._dot_state = "idle"  # 当前语义色名（refresh_theme 重解析用）
+        # 波形图是否有数据源（TUN 网卡计数，或 macOS 代理模式的 nettop 按进程采样）；
+        # 无数据源的平台/模式不陈列空图（"不陈列空数据"的同款克制）
+        self._graph_supported = False
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
@@ -109,16 +113,23 @@ class StatusPanel(QWidget):
         self.subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.subtitle)
 
-        # ---- 统计行（容器化：仅已连接态展开，空态不陈列）----
+        # ---- 统计区（容器化：仅已连接态展开，空态不陈列）----
+        # 结构：统计行（时长/上行/下行）+ 实时波形图（仅在有数据源时显示）
         self.stats_area = QWidget()
-        stats = QHBoxLayout(self.stats_area)
+        stats_col = QVBoxLayout(self.stats_area)
+        # 已连接态的呼吸感：统计区上下留白加大（窗口"长一些"的主要来源之一）
+        stats_col.setContentsMargins(0, 20, 0, 16)
+        stats_col.setSpacing(8)
+        stats = QHBoxLayout()
         stats.setSpacing(0)
-        # 已连接态的呼吸感：统计行上下留白加大（窗口"长一些"的主要来源之一）
-        stats.setContentsMargins(0, 20, 0, 16)
         self._stat_labels = []
         self.duration_value = self._add_stat(stats, "时长")
         self.up_value = self._add_stat(stats, "上行")
         self.down_value = self._add_stat(stats, "下行")
+        stats_col.addLayout(stats)
+        self.rate_graph = RateGraph()
+        self.rate_graph.setVisible(False)
+        stats_col.addWidget(self.rate_graph)
         self.stats_area.setVisible(False)
         layout.addWidget(self.stats_area)
 
@@ -175,20 +186,33 @@ class StatusPanel(QWidget):
 
     # ---- 内部：值标签 / 统计行 / hero ----
 
-    def _set_value(self, label, text: str, placeholder: bool):
-        """占位符染次要色退后，真数据用主文字色；property 供 refresh_theme 重放。"""
+    def _set_value(self, label, text: str, placeholder: bool, color_name: str | None = None):
+        """占位符染次要色退后；真数据可用语义色（数字与波形颜色自映射）。
+
+        property 双记录（placeholder/valuecolor）供 refresh_theme 深浅色重放。
+        """
         label.setText(text)
         label.setProperty("placeholder", placeholder)
-        color = theme.semantic_color("secondary_text" if placeholder else "ink")
+        label.setProperty("valuecolor", color_name)
+        color = theme.semantic_color(
+            "secondary_text" if placeholder else (color_name or "ink")
+        )
         label.setStyleSheet(f"color: {color};")
 
     def _set_stats_visible(self, visible: bool):
-        """统计行展开/收起（250ms 高度+淡出，可打断；reduce-motion 即时）。"""
+        """统计区展开/收起（250ms 高度+淡出，可打断；reduce-motion 即时）。
+
+        波形图只在展开时显隐（收起由 stats_area 整体淡出覆盖，graph 不单独处理）。
+        """
         if visible == getattr(self, "_stats_visible", False):
             return
         self._stats_visible = visible
+        if visible:
+            self.rate_graph.setVisible(self._graph_supported)
+        # 波形图存在时展开终值加大（仅影响动画终点，完成后高度由内容决定）
+        max_height = 148 if (visible and self._graph_supported) else 76
         animated_height_toggle(
-            self.stats_area, visible, max_height=72, fade=True,
+            self.stats_area, visible, max_height=max_height, fade=True,
             on_frame=lambda: self.window().adjustSize(),
         )
 
@@ -256,7 +280,12 @@ class StatusPanel(QWidget):
         for label in self._stat_labels:
             label.setStyleSheet(f"color: {secondary};")
         for value in (self.duration_value, self.up_value, self.down_value):
-            self._set_value(value, value.text(), bool(value.property("placeholder")))
+            self._set_value(
+                value, value.text(),
+                bool(value.property("placeholder")),
+                value.property("valuecolor"),
+            )
+        self.rate_graph.update()  # 波形颜色 paintEvent 现取，触发一次重绘即可
         # 状态色按当前语义重解析（不走动画，切外观是瞬时场景）
         self.status_dot.setColor(theme.semantic_color(self._dot_state))
         hero_color = "ink" if self._dot_state == "idle" else self._dot_state
@@ -334,6 +363,13 @@ class StatusPanel(QWidget):
         self._set_value(self.duration_value, "00:00:00", placeholder=False)
         self._set_value(self.up_value, "—", placeholder=True)
         self._set_value(self.down_value, "—", placeholder=True)
+        # 无速率数据源时的克制提示：常驻像素为零，tooltip 需要时在那里
+        rate_tooltip = (
+            "" if self._graph_supported
+            else "当前平台的代理模式不支持速率统计（可在高级设置开启 TUN 模式）"
+        )
+        self.up_value.setToolTip(rate_tooltip)
+        self.down_value.setToolTip(rate_tooltip)
         self._duration_timer.start()
         self._set_stats_visible(True)
         self.areas_changed.emit(False, True)
@@ -346,6 +382,7 @@ class StatusPanel(QWidget):
         self._countdown_remaining = int(delay)
         self._set_hero("连接中断", "working", f"{self._countdown_remaining}s 后第 {attempt} 次重连…")
         self._countdown_timer.start()
+        self.rate_graph.clear()  # 断点即清空：重连后不画跨断点的假连续
         self._set_stats_visible(False)
         self.areas_changed.emit(False, False)
 
@@ -370,10 +407,21 @@ class StatusPanel(QWidget):
         self._set_value(self.duration_value, "—", placeholder=True)
         self._set_value(self.up_value, "—", placeholder=True)
         self._set_value(self.down_value, "—", placeholder=True)
+        self.rate_graph.clear()  # 断连即清空：重连不画跨断点的假连续
         self._set_stats_visible(False)
         self.areas_changed.emit(True, False)
 
     def set_rates(self, up_text: str, down_text: str):
-        """TUN 模式速率喂数（代理模式不调用，保持 "—"）。箭头前缀让数据语义自明。"""
-        self._set_value(self.up_value, f"↑ {up_text}", placeholder=False)
-        self._set_value(self.down_value, f"↓ {down_text}", placeholder=False)
+        """速率喂数（数字与波形颜色自映射：上行赭石、下行绿，图例因此多余）。"""
+        self._set_value(self.up_value, f"↑ {up_text}", placeholder=False, color_name="working")
+        self._set_value(self.down_value, f"↓ {down_text}", placeholder=False, color_name="accent")
+
+    # ---- 波形图接口 ----
+
+    def set_graph_supported(self, supported: bool):
+        """连接发起时告知是否有速率数据源（TUN 网卡 / macOS nettop 进程采样）。"""
+        self._graph_supported = supported
+
+    def append_rate_sample(self, up_bps: float, down_bps: float):
+        """波形图数值通道（与 set_rates 的格式化字符串通道分离，精度不损）。"""
+        self.rate_graph.append_sample(up_bps, down_bps)

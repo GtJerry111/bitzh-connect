@@ -142,3 +142,9 @@ def test_motto_visibility_follows_credential_area(window, monkeypatch):
     assert container._motto_visible is True   # 凭据收起 → 水印淡入
     window.status_panel.set_disconnected()
     assert container._motto_visible is False
+
+
+def test_connect_button_narrowed_and_centered(window):
+    """主按钮收窄定宽 240px（不再是全宽大色块），与资源胶囊组视觉成组"""
+    assert window.connect_button.minimumWidth() == 240
+    assert window.connect_button.maximumWidth() == 240

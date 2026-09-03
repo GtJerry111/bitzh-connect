@@ -215,9 +215,11 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self.cred_area)
 
-        # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）
+        # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）；
+        # 收窄定宽 240px 居中（与资源胶囊组 248px 视觉成组），不再是全宽大色块
         self.connect_button = QPushButton("连接")
         self.connect_button.setCheckable(True)
+        self.connect_button.setFixedWidth(240)
         self.connect_button.setMinimumHeight(38)
         self.connect_button.setCursor(Qt.PointingHandCursor)
         self.connect_button.setAttribute(Qt.WA_AlwaysShowToolTips)  # 窗口 inactive 时也显示 tooltip
@@ -265,7 +267,11 @@ class MainWindow(QMainWindow):
                 self.connect_button.isChecked()
             )
         )
-        layout.addWidget(self.connect_button)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(self.connect_button)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
 
         # 输入框回车直接发起连接（桌面表单惯例）
         self.username_input.returnPressed.connect(self._connect_on_return)
@@ -454,25 +460,42 @@ class MainWindow(QMainWindow):
         stop_connection(self)
 
     def start_rate_monitor(self, virtual_ip: str):
-        """TUN 连接成功后启动速率监控（tun 网卡创建可能滞后，最多等 5s）。"""
+        """连接成功后启动速率监控。
+
+        TUN 模式：psutil 读 utun 网卡（网卡创建可能滞后，最多等 5s）；
+        代理模式（仅 macOS）：nettop 按进程采样 zju-connect（过滤 loopback 镜像）。
+        """
         self.stop_rate_monitor()
-        from services.rate_monitor import RateMonitor, find_tun_interface
+        from platform import system
+
+        from services.rate_monitor import ProxyRateMonitor, RateMonitor, find_tun_interface
 
         self._rate_monitor_gen += 1
         gen = self._rate_monitor_gen
+        on_rates = self.status_panel.set_rates
+        on_sample = self.status_panel.append_rate_sample
 
-        def _try_start(attempts=0):
-            if gen != self._rate_monitor_gen:
-                return  # 断连/重连已翻篇，丢弃在途重试
-            interface = find_tun_interface(virtual_ip)
-            if interface:
-                self._rate_monitor = RateMonitor(interface, self.status_panel.set_rates, self)
+        if getattr(self, "tun_mode", False):
+            def _try_start(attempts=0):
+                if gen != self._rate_monitor_gen:
+                    return  # 断连/重连已翻篇，丢弃在途重试
+                interface = find_tun_interface(virtual_ip)
+                if interface:
+                    self._rate_monitor = RateMonitor(interface, on_rates, on_sample, self)
+                    self._rate_monitor.start()
+                elif attempts < 10:
+                    QTimer.singleShot(500, lambda: _try_start(attempts + 1))
+
+            self._rate_monitor = None
+            _try_start()
+            return
+
+        if system() == "Darwin":
+            worker = self.worker
+            pid = getattr(getattr(worker, "process", None), "pid", None)
+            if pid is not None:
+                self._rate_monitor = ProxyRateMonitor(pid, on_rates, on_sample, self)
                 self._rate_monitor.start()
-            elif attempts < 10:
-                QTimer.singleShot(500, lambda: _try_start(attempts + 1))
-
-        self._rate_monitor = None
-        _try_start()
 
     def stop_rate_monitor(self):
         self._rate_monitor_gen += 1  # 作废在途重试链

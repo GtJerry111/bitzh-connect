@@ -1,3 +1,5 @@
+from platform import system
+
 from PySide6.QtCore import QSettings
 from common.constants import APP_NAME, ORG_NAME, DEFAULT_SERVER, DEFAULT_PORT, DEFAULT_DNS
 from .startup_utils import get_launch_at_login
@@ -37,7 +39,8 @@ def load_config():
         "cert_file": "",
         "cert_password": "",
         "appearance": "system",
-        "tun_mode": False,
+        # TUN 默认开启（全局路由是产品默认形态）；Windows 提权链路未验证，硬守卫强制关闭
+        "tun_mode": True,
     }
 
     for key in default_config.keys():
@@ -74,3 +77,7 @@ def load_settings(self):
     self.auto_reconnect = config["auto_reconnect"]
     self.appearance = config["appearance"]
     self.tun_mode = config["tun_mode"]
+    if system() == "Windows":
+        # 与 connection_utils 的硬守卫同款策略：Windows 平台 TUN 强制关闭，
+        # 防止脏配置/默认值让 Windows 用户每次连接都撞"本期暂不支持"
+        self.tun_mode = False

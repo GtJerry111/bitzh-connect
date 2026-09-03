@@ -93,7 +93,7 @@ BITZH Connect provides out-of-the-box experience. You can download the latest ve
 
 ## TUN Mode
 
-By default (proxy mode), only traffic from applications configured to use the proxy goes through the VPN. To route all traffic (including raw TCP connections such as SSH) through the VPN, enable "TUN Mode (Global Routing)" in Advanced Settings -> Network.
+TUN mode (global routing) is enabled by default: all traffic, including raw TCP connections such as SSH, goes through the VPN. To fall back to proxy mode (only traffic from proxy-configured apps), disable TUN in Advanced Settings -> Network.
 
 > [!NOTE]
 >

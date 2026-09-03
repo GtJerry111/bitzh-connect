@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from utils.config_utils import load_config, load_settings
 from utils.connection_utils import build_command_args, mask_command_args
 
 
@@ -44,3 +45,18 @@ def test_mask_hides_credentials():
     masked = mask_command_args(args)
     assert "p@ss!word with space" not in " ".join(masked)
     assert "2024000001" not in " ".join(masked)
+
+
+def test_tun_mode_default_on():
+    """TUN 全局路由是产品默认形态"""
+    assert load_config()["tun_mode"] is True
+
+
+def test_tun_mode_forced_off_on_windows(monkeypatch):
+    """Windows 提权链路未验证：即使配置被打开/默认开，也强制关闭（与硬守卫同款策略）"""
+    import utils.config_utils as cu
+
+    monkeypatch.setattr(cu, "system", lambda: "Windows")
+    w = SimpleNamespace()
+    load_settings(w)
+    assert w.tun_mode is False

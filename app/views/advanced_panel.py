@@ -178,7 +178,7 @@ class AdvancedSettingsDialog(QDialog):
         self.proxy_switch = QCheckBox("自动配置代理")
         network_layout.addWidget(self.proxy_switch)
         network_layout.addWidget(
-            self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发")
+            self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）")
         )
 
         # ---- 高级 ----
@@ -209,7 +209,7 @@ class AdvancedSettingsDialog(QDialog):
             # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
             self.tun_mode_switch.setEnabled(False)
         network_layout.addWidget(self.tun_mode_switch)
-        tun_note = "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
+        tun_note = "所有流量（含 SSH 等裸 TCP）都走 VPN，默认开启；需要管理员授权；与 Clash TUN 模式互斥"
         if system() == "Windows":
             tun_note += "（本期仅 macOS/Linux）"
         network_layout.addWidget(self._description(tun_note))
@@ -256,21 +256,25 @@ class AdvancedSettingsDialog(QDialog):
         layout.addWidget(tab_widget)
         self._tabs = tab_widget
 
-        # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮
+        # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮；
+        # 两按钮同宽（自定义样式只改颜色不改尺寸，避免一大一小）
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.Save | QDialogButtonBox.Cancel
         )
         self.button_box.button(QDialogButtonBox.Save).setText("保存")
         self.button_box.button(QDialogButtonBox.Cancel).setText("取消")
         save_btn = self.button_box.button(QDialogButtonBox.Save)
+        cancel_btn = self.button_box.button(QDialogButtonBox.Cancel)
         save_btn.setDefault(True)
+        for btn in (save_btn, cancel_btn):
+            btn.setMinimumWidth(88)
         save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {theme.semantic_color("accent")};
                 color: {theme.semantic_color("accent_text")};
                 border: none;
                 border-radius: 6px;
-                padding: 6px 20px;
+                padding: 6px 0px;
                 font-weight: 600;
             }}
             QPushButton:hover {{

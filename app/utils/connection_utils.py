@@ -52,8 +52,8 @@ def handle_output(window, text):
         window.virtual_ip = ip
         window.reconnect_manager.on_connection_established()
         window.status_panel.set_connected(ip)
-        # TUN 模式：连接成功即启动网卡速率监控（仪表盘上行/下行）
-        if getattr(window, "tun_mode", False) and hasattr(window, "start_rate_monitor"):
+        # 连接成功即启动速率监控（TUN 读网卡；macOS 代理模式走 nettop 进程采样）
+        if hasattr(window, "start_rate_monitor"):
             window.start_rate_monitor(ip)
 
     if is_auth_failure(text):
@@ -196,6 +196,10 @@ def start_connection(window):
     window._manual_stop = False
     window._auth_failed = False
     window._rsa_noted = False  # 每次连接重新折叠 RSA 公钥提示（一次连接只提示一次）
+    # 告知仪表盘本次连接是否有速率数据源（TUN 网卡 / macOS 代理模式 nettop 采样）
+    window.status_panel.set_graph_supported(
+        getattr(window, "tun_mode", False) or system() == "Darwin"
+    )
 
     is_nuitka = "__compiled__" in globals()
 
