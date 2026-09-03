@@ -9,6 +9,20 @@ if system() == "Windows":
 import subprocess
 
 
+def _linux_desktop_file() -> str:
+    """XDG autostart 桌面文件路径（遵循 XDG_CONFIG_HOME，默认 ~/.config/autostart）。"""
+    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(config_home, "autostart", "bitzh-connect.desktop")
+
+
+def _linux_exec_line() -> str:
+    """Exec 行按态分支：打包态（Nuitka 编译）用二进制本体；开发态带 python 解释器。"""
+    app_path = os.path.abspath(sys.argv[0])
+    if "__compiled__" in globals():
+        return f'"{app_path}"'
+    return f'"{sys.executable}" "{app_path}"'
+
+
 def set_launch_at_login(enable: bool):
     """Set application to launch at login"""
     if system() == "Windows":
@@ -63,6 +77,26 @@ def set_launch_at_login(enable: bool):
         except subprocess.SubprocessError:
             pass
 
+    elif system() == "Linux":
+        # XDG autostart（Ubuntu 20.04+ 全系 GNOME 桌面通用）
+        desktop_file = _linux_desktop_file()
+        try:
+            if enable:
+                os.makedirs(os.path.dirname(desktop_file), exist_ok=True)
+                with open(desktop_file, "w") as f:
+                    f.write(
+                        "[Desktop Entry]\n"
+                        "Type=Application\n"
+                        f"Name={APP_NAME}\n"
+                        f"Exec={_linux_exec_line()}\n"
+                        "Icon=bitzh-connect\n"
+                        "X-GNOME-Autostart-enabled=true\n"
+                    )
+            else:
+                os.remove(desktop_file) if os.path.exists(desktop_file) else None
+        except OSError:
+            pass
+
 
 def get_launch_at_login() -> bool:
     """Check if application is set to launch at login"""
@@ -93,5 +127,8 @@ def get_launch_at_login() -> bool:
             return app_name in result.stdout
         except subprocess.SubprocessError:
             return False
+
+    elif system() == "Linux":
+        return os.path.exists(_linux_desktop_file())
 
     return False

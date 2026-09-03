@@ -30,6 +30,16 @@ def reduce_motion() -> bool:
             # SPI_GETCLIENTAREAANIMATION = 0x1042
             ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(enabled), 0)
             return not enabled.value
+        if system() == "Linux":
+            # Ubuntu 全系 GNOME：动画总开关关闭即"减少动态效果"
+            import subprocess
+
+            out = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface",
+                 "enable-animations"],
+                capture_output=True, text=True, timeout=2,
+            )
+            return out.stdout.strip() == "false"
     except Exception:
         return False
     return False

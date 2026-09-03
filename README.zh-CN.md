@@ -44,7 +44,7 @@ BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的�
 
 ### 方式一：下载预编译版本
 
-BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新版本。
+BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新版本。Linux 版为 deb 包，支持 Ubuntu 22.04 及以上版本。
 
 > [!IMPORTANT]
 > macOS 版本需通过以下命令授予应用权限：

@@ -26,7 +26,12 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 
 def check_tun_conflict() -> str | None:
-    """默认路由已在虚拟网卡上（如 Clash TUN）→ 返回该网卡名；否则 None。"""
+    """默认路由已在虚拟网卡上（如 Clash TUN）→ 返回该网卡名；否则 None。
+
+    判定规则：macOS 看 utun*；Linux 看 tun*/utun* 前缀（OpenVPN 的 tun0 也算——
+    它同样是 TUN VPN，全局路由必然打架；WireGuard 的 wg0 不误伤）。
+    Windows 本期不做检测（TUN 硬守卫不可达）。
+    """
     if system() == "Darwin":
         try:
             out = subprocess.check_output(["netstat", "-rn", "-f", "inet"], text=True)
@@ -36,7 +41,20 @@ def check_tun_conflict() -> str | None:
                     return parts[-1]
         except Exception:
             return None
-    return None  # Windows/Linux 本期不做检测
+    elif system() == "Linux":
+        try:
+            out = subprocess.check_output(
+                ["ip", "route", "show", "default"], text=True
+            )
+            for line in out.splitlines():
+                parts = line.split()
+                if parts and parts[0] == "default" and "dev" in parts:
+                    dev = parts[parts.index("dev") + 1]
+                    if dev.startswith(("tun", "utun")):
+                        return dev
+        except Exception:
+            return None
+    return None
 
 
 def write_launcher(

@@ -67,10 +67,13 @@ jobs:
             os_name: darwin
             arch: arm64
             target_arch: arm64
-          - os: ubuntu-latest
+          # Linux 构建固定 22.04：glibc 2.35 为下限，产物可跑 Ubuntu 22.04+
+          #（ubuntu-latest=24.04 的 glibc 2.39 会让 22.04 无法运行；
+          #  20.04 runner 已被 GitHub 退役且 20.04 已 EOL，不做容器构建）
+          - os: ubuntu-22.04
             os_name: linux
             arch: amd64
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             os_name: linux
             arch: arm64
 

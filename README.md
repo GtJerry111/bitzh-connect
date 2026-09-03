@@ -44,7 +44,7 @@ You can install BITZH Connect in two ways: downloading pre-built binaries or bui
 
 ### Method 1: Downloading pre-built binaries
 
-BITZH Connect provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest).
+BITZH Connect provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest). The Linux build is a deb package supporting Ubuntu 22.04 and later.
 
 > [!IMPORTANT]
 > For macOS version, you need to grant access to the application by running:

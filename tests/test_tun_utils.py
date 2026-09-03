@@ -87,3 +87,28 @@ def test_spawn_elevated_async_exception_reports_false(qtbot, monkeypatch):
     results = []
     tu.spawn_elevated_async("/tmp/fake-launcher.sh", lambda ok: results.append(ok))
     qtbot.waitUntil(lambda: results == [False], timeout=3000)
+
+
+def test_linux_tun_conflict_detects_tun_default_route(monkeypatch):
+    """Linux：默认路由 dev 为 tun*/utun*（Clash/OpenVPN）→ 冲突；物理网卡不误伤"""
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "default via 192.168.1.1 dev tun0 proto static\n",
+    )
+    assert tu.check_tun_conflict() == "tun0"
+
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "default via 192.168.1.1 dev eth0 proto dhcp metric 100\n",
+    )
+    assert tu.check_tun_conflict() is None
+
+    # WireGuard 的 wg0 不误伤（不抢全局路由语义）
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "default via 10.0.0.1 dev wg0\n",
+    )
+    assert tu.check_tun_conflict() is None
