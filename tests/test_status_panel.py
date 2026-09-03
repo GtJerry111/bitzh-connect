@@ -202,13 +202,13 @@ def test_graph_hidden_when_unsupported(panel):
     assert "TUN" in panel.up_value.toolTip()
 
 
-def test_dark_mode_card_surface(panel):
-    """深色分层：仪表盘垫一层 card_background 微亮表面；浅色保持透明"""
+def test_panel_stays_transparent_in_both_schemes(panel):
+    """深浅色统一透明（深色卡片分层已撤回——不透明卡片会盖住校训水印）"""
     from common import theme
 
     theme.set_appearance("dark")
     panel.refresh_theme()
-    assert "background-color" in panel.styleSheet()
+    assert "background-color" not in panel.styleSheet()
     theme.set_appearance("light")
     panel.refresh_theme()
     assert panel.styleSheet() == ""

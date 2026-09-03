@@ -268,6 +268,8 @@ class AdvancedSettingsDialog(QDialog):
         save_btn.setDefault(True)
         for btn in (save_btn, cancel_btn):
             btn.setMinimumWidth(88)
+        # 两按钮同款 QSS 几何（同 padding/圆角/字号）——混用"QSS 样式 + 原生样式"
+        # 会因两边 sizeHint 计算路径不同而一大一小，必须两个都走 QSS
         save_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {theme.semantic_color("accent")};
@@ -275,6 +277,7 @@ class AdvancedSettingsDialog(QDialog):
                 border: none;
                 border-radius: 6px;
                 padding: 6px 0px;
+                font-size: 13pt;
                 font-weight: 600;
             }}
             QPushButton:hover {{
@@ -282,6 +285,19 @@ class AdvancedSettingsDialog(QDialog):
             }}
             QPushButton:pressed {{
                 background-color: {theme.semantic_color("accent_pressed")};
+            }}
+        """)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.card_background()};
+                color: {theme.semantic_color("ink")};
+                border: 1px solid {theme.semantic_color("separator")};
+                border-radius: 6px;
+                padding: 6px 0px;
+                font-size: 13pt;
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.semantic_color("separator")};
             }}
         """)
         self.button_box.accepted.connect(self.accept)

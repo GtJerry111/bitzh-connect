@@ -347,8 +347,8 @@ class MainWindow(QMainWindow):
                 background-color: {theme.semantic_color("accent")};
                 color: {theme.semantic_color("accent_text")};
                 border: 2px solid transparent;
-                border-radius: 8px;
-                font-size: 15px;
+                border-radius: 6px;
+                font-size: 13pt;
                 font-weight: 600;
             }}
             QPushButton:hover:enabled {{
@@ -366,12 +366,13 @@ class MainWindow(QMainWindow):
             }}
         """)
         # 退出/设置：次要文字按钮（无边框灰字，hover 升到主文字色）
+        # 字号用 pt 不用 px：QSS 的 px 是物理像素，Retina 下比同值 pt 小一截
         text_button_style = f"""
             QPushButton {{
                 color: {theme.semantic_color('secondary_text')};
                 border: none;
                 padding: 4px 8px;
-                font-size: 12px;
+                font-size: 11pt;
             }}
             QPushButton:hover {{
                 color: {theme.semantic_color('ink')};
@@ -384,7 +385,7 @@ class MainWindow(QMainWindow):
             QToolButton {{
                 border: none;
                 color: {theme.semantic_color('secondary_text')};
-                font-size: 12px;
+                font-size: 11pt;
                 padding: 4px 2px;
             }}
             QToolButton:hover {{

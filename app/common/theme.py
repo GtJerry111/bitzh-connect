@@ -156,15 +156,16 @@ def qcolor(name: str, alpha: float | None = None) -> QColor:
 
 
 def card_title_font() -> QFont:
+    """统计行标题 / 说明行：12pt（真机反馈整体字体偏小的上调）。"""
     f = QFont()
-    f.setPointSize(11)
+    f.setPointSize(12)
     return f
 
 
 def subtitle_font() -> QFont:
-    """hero 副标题：12pt（spec 定稿值，stat 标题仍用 11pt card_title_font）。"""
+    """hero 副标题：13pt（与 macOS 系统正文字号一致）。"""
     f = QFont()
-    f.setPointSize(12)
+    f.setPointSize(13)
     return f
 
 
