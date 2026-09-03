@@ -8,8 +8,10 @@ ORG_NAME = "BITZH Connect"
 REPO_OWNER = "GtJerry111"
 REPO_NAME = "bitzh-connect"
 REPO_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
-UPDATE_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
-RELEASES_URL = f"{REPO_URL}/releases/latest"
+# 注意：/releases/latest（API 与网页同规则）不返回预发布/草稿——发版流水线默认
+# prerelease:true，必须查列表取最新一条非草稿，否则"检查更新"永远查不到
+RELEASES_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases"
+RELEASES_URL = f"{REPO_URL}/releases"
 
 # BITZH VPN 默认服务器（已验证为标准深信服 EasyConnect）
 DEFAULT_SERVER = "112.91.150.228"

@@ -2,7 +2,7 @@ from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Slot, QTimer
 import requests
 from requests.exceptions import RequestException
 from packaging import version
-from common.constants import UPDATE_API_URL
+from common.constants import RELEASES_API_URL
 
 
 class UpdateSignals(QObject):
@@ -38,15 +38,18 @@ class UpdateChecker(QRunnable):
             self.signals.error.emit(f"Update check failed: {str(e)}")
 
     def get_latest_version(self):
-        """Get the latest version from GitHub releases"""
+        """最新版本号：查 releases 列表取第一条非草稿（/releases/latest 不返回
+        预发布，而发版流水线默认 prerelease:true，latest 接口会永远 404）。"""
         try:
-            url = UPDATE_API_URL
-            response = requests.get(url, timeout=10)
-            return response.json()["tag_name"].lstrip("v")
+            response = requests.get(RELEASES_API_URL, timeout=10)
+            for release in response.json():
+                if not release.get("draft", False):
+                    return release["tag_name"].lstrip("v")
+            return None  # 列表为空或全是草稿：还没发过版
         except RequestException as e:
             print(f"Failed to check for updates: {e}")
             return None
-        except (KeyError, ValueError) as e:
+        except (KeyError, ValueError, TypeError) as e:
             print(f"Failed to parse version information: {e}")
             return None
 
