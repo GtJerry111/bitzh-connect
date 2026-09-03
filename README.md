@@ -7,7 +7,7 @@
 
 # BITZH Connect
 
-[English](README.md) | [中文](README.zh-CN.md)
+[中文](README.md) | [English](README.en.md)
 
 ![Action](https://github.com/GtJerry111/bitzh-connect/actions/workflows/release.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/GtJerry111/bitzh-connect)
@@ -18,60 +18,60 @@
 </div>
 
 > [!NOTE]
-> This is an **unofficial** client for the BITZH campus VPN, maintained for **personal, small-scale use only**. It is not affiliated with or endorsed by Beijing Institute of Technology, Zhuhai.
+> 本项目为北京理工大学珠海校区（BITZH）校园网 VPN 的**非官方**客户端，仅供**个人小范围使用**，与校方无任何隶属或授权关系。
 
-## Introduction
+## 简介
 
-BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-connect), forked from [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) and adapted for the campus network of Beijing Institute of Technology, Zhuhai (BITZH). It works with ZJU Connect/EasyConnect-compatible (Sangfor) VPN servers.
+BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的图形用户界面（GUI），基于上游项目 [kowyo/hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge) 二次开发，适配北京理工大学珠海校区（BITZH）校园网。适用于 ZJU Connect/EasyConnect 兼容（深信服）的 VPN 服务器。
 
-## Features
+## 功能特点
 
-- Fast and green compared to **EasyConnect**.
-- Built with PySide6, easy to build and maintain.
-- Multi-platform support, with native optimization for the **macOS** version.
-- Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
-- After a successful connection, the dashboard provides quick links to the e-library (电子图书馆) and the unified portal (统一门户).
-- Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
+- 与 **EasyConnect** 相比更快速、更轻量
+- 基于 PySide6，易于构建，方便初学者参与维护
+- 跨平台支持，对 **macOS** 版本进行了原生适配和优化
+- 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
+- 连接成功后，仪表盘提供「电子图书馆」「统一门户」快捷入口
+- 支持自定义服务器地址/DNS/HTTP/SOCKS5 代理端口、定时保活等 ZJU Connect 常用的参数（如果有需要额外添加的参数，请提交 issue/PR）
 
-## Installation
+## 安装指南
 
-You can install BITZH Connect in two ways: downloading pre-built binaries or building from source.
+您可通过两种方式安装 BITZH Connect：下载预编译版本或从源码构建。
 
 > [!NOTE]
 >
-> 1. Username and password are the same as the ones you use to log in to the BITZH campus network (unified identity authentication).
-> 2. If the download speed is slow, you can try using [gh-proxy](https://gh-proxy.com) to download.
+> 1. 用户名与密码即 BITZH 校园网（统一身份认证）的登录凭证
+> 2. 若下载速度较慢，可尝试使用 [gh-proxy](https://gh-proxy.com) 进行加速
 
-### Method 1: Downloading pre-built binaries
+### 方式一：下载预编译版本
 
-BITZH Connect provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest). The Linux build is a deb package supporting Ubuntu 22.04 and later.
+BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新版本。Linux 版为 deb 包，支持 Ubuntu 22.04 及以上版本。
 
 > [!IMPORTANT]
-> For macOS version, you need to grant access to the application by running:
+> macOS 版本需通过以下命令授予应用权限：
 >
 > ```bash
 > sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app
 > ```
 
-### Method 2: Building from source
+### 方式二：从源码构建
 
-1. Clone the repository:
+1. 克隆仓库：
 
    ```bash
    git clone https://github.com/GtJerry111/bitzh-connect.git
    cd bitzh-connect
    ```
 
-2. Install dependencies:
-   - Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+2. 安装依赖：
+   - 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-   - Sync the environment:
+   - 同步环境：
 
      ```bash
      uv sync
      ```
 
-3. Run the application:
+3. 运行应用：
 
    macOS/Linux
 
@@ -87,126 +87,122 @@ BITZH Connect provides out-of-the-box experience. You can download the latest ve
    uv run .\app\main.py
    ```
 
-4. (Optional) Build the binaries:
+4. （可选）构建二进制文件：
 
-   Please refer to our [GitHub Actions workflow](.github/workflows/release.yml) for more information.
+   请参考我们的 [GitHub Actions 工作流](.github/workflows/release.yml)。
 
-## TUN Mode
+## TUN 模式
 
-TUN mode (global routing) is enabled by default: all traffic, including raw TCP connections such as SSH, goes through the VPN. To fall back to proxy mode (only traffic from proxy-configured apps), disable TUN in Advanced Settings -> Network.
+默认开启「TUN 模式（全局路由）」：所有流量（包括 SSH 等裸 TCP 连接）都走 VPN。如需退回代理模式（只转发配置了代理的应用流量），可在「高级设置 → 网络」中关闭 TUN。
 
 > [!NOTE]
 >
-> 1. TUN mode requires administrator privileges: macOS prompts for authorization (osascript) only once on connect — disconnecting is prompt-free (a root watcher loop kills the kernel via a stop-flag file). Linux elevates via pkexec. Windows is not supported in this release.
-> 2. TUN mode is mutually exclusive with Clash's TUN mode — only one of them can be enabled at a time.
-> 3. In TUN mode the dashboard shows the real upload/download rates; in proxy mode the rates are shown as "—".
+> 1. TUN 模式需要管理员授权：macOS 仅连接时弹一次授权框（osascript），断开由 root 守护循环收标记杀进程、不再弹窗，Linux 通过 pkexec 提权；本期暂不支持 Windows
+> 2. TUN 模式与 Clash 的 TUN 模式互斥，二者只能开启其一
+> 3. TUN 模式下仪表盘显示真实的上行/下行速率；代理模式下速率显示为 "—"
 
-## Working with other applications
+## 与其他应用协同工作
 
-### Basic information
+### 基础信息
 
-- **Server**: 112.91.150.228
-- **SOCKS5 Proxy**: 1080
-- **HTTP Proxy**: 1081
-- **DNS Server**: automatically obtained from the server (auto DNS)
+- **服务器地址**: 112.91.150.228
+- **SOCKS5代理端口**: 1080
+- **HTTP代理端口**: 1081
+- **DNS服务器**: 自动从服务端获取（auto DNS）
 
-If you want to learn more about the network configuration, you can visit [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect).
+如需了解更详细的网络配置信息，请访问 [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)。
 
-### Clash
+### Clash 配置
 
-If you want to use Clash at the same time (e.g. watching Youtube and visiting <http://jw.bitzh.edu.cn> at the same time), you can add the following configuration to your clash configuration file.
+如果您想同时使用 Clash（比如，同时观看 YouTube 和访问 <http://jw.bitzh.edu.cn> ），您可以将以下配置添加到您的 Clash 配置文件中。
 
-For example, if you are using [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev), you can go to 'Profiles' -> Right click on the profile you are using -> 'Edit File' -> Add the following configuration:
+例如，如果您使用 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)，您可以前往"配置文件" -> 右键单击您正在使用的配置文件 -> "编辑文件" -> 添加以下配置：
 
 ```yaml
-# note: do not append this to the end of the file directly, append it separately to the corresponding position
+# 注：请勿将此直接附加到文件末尾，而是分别将其附加到每个配置块的末尾
 proxies:
-  # your existing proxies...
+  # 您现有的代理...
   - { name: "BITZH Connect", type: socks5, server: 127.0.0.1, port: 1080, udp: true }
 
 proxy-groups:
-  # your existing proxy-groups...
+  # 您现有的代理组...
   - { name: 校园网, type: select, proxies: ["DIRECT", "BITZH Connect"] }
 
 rules:
-  # your existing rules...
+  # 您现有的规则...
   - "IP-CIDR,112.91.150.228/32,DIRECT,no-resolve"
   - "DOMAIN-SUFFIX,bitzh.edu.cn,校园网"
-  # on-campus resources also live under zhbit.com (e.g. the payment platform ejf.zhbit.com)
+  # 校内资源横跨 zhbit.com（如缴费平台 ejf.zhbit.com）
   - "DOMAIN-SUFFIX,zhbit.com,校园网"
   - "IP-CIDR,10.0.0.0/8,校园网,no-resolve"
-  # - 'IP-CIDR,<other_ip>,校园网,no-resolve'
+  # - 'IP-CIDR,<其他_ip>,校园网,no-resolve'
 ```
 
 > [!NOTE]
 >
-> 1. You need to enable `TUN Mode` in Clash, and enable the `Auto Configure Proxy` option of this software.
-> 2. You need to turn off the `Always use Default Bypass` option in the `System Proxy` settings, and add `localhost` to the `Proxy Bypass` fields
-> 3. A useful [global extend script](./scripts/clash-utils.js) is provided if you want to avoid the automatic update of the profiles overwrite your custom rules.
+> 1. 需要启用 Clash 的 `TUN 模式`，同时开启本软件的 `自动配置代理` 功能
+> 2. 需要关闭内网绕过代理, 并添加 `localhost` 到`代理绕过设置`区域
+> 3. 你可以使用我们提供的[全局拓展脚本](./scripts/clash-utils.js)来防止配置文件自动更新时覆盖添加的自定义规则
 
-<!-- > (Confusion) 3. There is no need to enable the `Auto Configure Proxy` feature of this software. In this case, Clash will host the system proxy and the proxy of this software will be forwarded by Clash. -->
+[了解更多](https://oldkingok.cc/share/8bFQXBjOkXt8)
 
-[Learn more](https://oldkingok.cc/share/8bFQXBjOkXt8)
+### 远程桌面连接
 
-### Remote Desktop
+如需接入校园网内的远程桌面，可使用 [Parallels Client](https://www.parallels.com/hk/products/ras/capabilities/parallels-client/)，并将本地 1080 端口配置为代理。
 
-If you want to connect to the remote desktop in the campus network, you can use [Parallels Client](https://www.parallels.com/hk/products/ras/capabilities/parallels-client/), and configure the local 1080 port as a proxy.
+### SSH连接
 
-### SSH
-
-If you want to use SSH, you can use the following command to establish a connection.
-
-For macOS/Linux users:
+如果你是 macOS/Linux 用户，可以通过以下命令建立SSH连接：
 
 ```bash
-ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <root>@<server> -p <port>
+ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:1080 %h %p" <用户名>@<服务器地址> -p <端口>
 ```
 
-If you connect frequently, you can also put the ProxyCommand into `~/.ssh/config` (in proxy mode, SSH traffic must be forwarded through the local SOCKS5 proxy):
+如果需要经常连接，也可以将 ProxyCommand 写入 `~/.ssh/config`（代理模式下 SSH 需经本地 SOCKS5 代理转发）：
 
 ```
-Host <alias>
-    HostName <server>
-    User <username>
-    Port <port>
+Host <别名>
+    HostName <服务器地址>
+    User <用户名>
+    Port <端口>
     ProxyCommand nc -X 5 -x 127.0.0.1:1080 %h %p
 ```
 
-Then simply run `ssh <alias>`.
+之后直接 `ssh <别名>` 即可。
 
-For Windows users, you can use [ncat](https://nmap.org/download.html) to setup SOCKS 5 proxy. Run the following command after installing ncat:
+如果你是 Windows 用户，可以使用 [ncat](https://nmap.org/download.html) 建立 SOCKS 5 代理。安装 ncat 后，使用以下命令：
 
-```powershell
-ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <root>@<server> -p <port>
+```
+ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <用户名>@<服务器地址> -p <端口>
 ```
 
-[Learn more](https://hoa.moe/blog/using-hitsz-connect-verge-to-ssh-school-server/#windows)
+[了解更多](https://hoa.moe/blog/using-hitsz-connect-verge-to-ssh-school-server/#通过-ssh-连接服务器)
 
-## Screenshots
+## 截图
 
-| Disconnected | Connected (live rate graph) | Dark mode |
+| 未连接 | 已连接（实时速率波形） | 深色模式 |
 | --- | --- | --- |
-| <img width="412" alt="disconnected" src="assets/screenshot-disconnected.png" /> | <img width="412" alt="connected" src="assets/screenshot-connected.png" /> | <img width="412" alt="dark mode" src="assets/screenshot-connected-dark.png" /> |
+| <img width="412" alt="登录界面" src="assets/screenshot-login.png" /> | <img width="412" alt="已连接" src="assets/screenshot-connected.png" /> | <img width="412" alt="深色模式" src="assets/screenshot-connected-dark.png" /> |
 
-## Contributing
+## 贡献
 
-Contributions are welcome! Feel free to open an issue or submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
+欢迎贡献代码！您可以通过提交 Issue 或 Pull Request 参与项目。重大修改建议先创建 Issue 讨论。
 
-Also, any typo is welcome to be fixed.
+同时，欢迎修正任何拼写错误。
 
-## Related Projects
+## 相关项目
 
-- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows): HITsz Edition of ZJU-Connect-for-Windows. Support advanced settings and multi-platform.
-- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows): Out-of-the-box zju-connect simple GUI for Windows, suitable for HITSZ.
+- [chenx-dust/HITsz-Connect-for-Windows](https://github.com/chenx-dust/HITsz-Connect-for-Windows)：支持高级设置与多平台的 HITsz 版 ZJU-Connect
+- [Co-ding-Man/hitsz-connect-for-windows](https://github.com/Co-ding-Man/hitsz-connect-for-windows)：适用于 HITSZ 的开箱即用版 zju-connect 简易 GUI
 
-## Credits
+## 鸣谢
 
-- [kowyo](https://github.com/kowyo) for the upstream project [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge), on which this fork is based.
+- [kowyo](https://github.com/kowyo) 开发的上游项目 [hitsz-connect-verge](https://github.com/kowyo/hitsz-connect-verge)，本项目基于其二次开发
 
-- [Mythologyli](https://github.com/Mythologyli) for the project [ZJU Connect](https://github.com/Mythologyli/zju-connect).
+- [Mythologyli](https://github.com/Mythologyli) 开发的项目 [ZJU Connect](https://github.com/Mythologyli/zju-connect)
 
-- [Keldos](https://github.com/Keldos-Li) for designing the upstream macOS version's icon.
+- [Keldos](https://github.com/Keldos-Li) 为上游项目重新设计了 macOS 版本的图标
 
-- [EasierConnect](https://github.com/lyc8503/EasierConnect).
+- [EasierConnect](https://github.com/lyc8503/EasierConnect)
 
-- All the contributors to the upstream project.
+- 上游项目的所有贡献者
