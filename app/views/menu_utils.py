@@ -24,7 +24,7 @@ def setup_menubar(window: QMainWindow, version):
 
     # Settings Menu
     settings_menu = menubar.addMenu("设置")
-    window.advanced_action = settings_menu.addAction("高级设置" + (" " * 4))
+    window.advanced_action = settings_menu.addAction("高级设置")
     window.advanced_action.setShortcut(QKeySequence.Preferences)
     window.advanced_action.triggered.connect(lambda: show_advanced_settings(window))
 

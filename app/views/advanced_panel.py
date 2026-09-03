@@ -1,19 +1,22 @@
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QCheckBox,
     QPushButton,
-    QHBoxLayout,
     QApplication,
     QTabWidget,
     QWidget,
     QFileDialog,
-    QStyle,
     QComboBox,
+    QDialogButtonBox,
+    QFormLayout,
+    QFrame,
 )
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt
 from utils.config_utils import save_config, load_config
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
 from platform import system
@@ -23,6 +26,7 @@ if system() == "Darwin":
 from common.version import get_version
 from common.constants import DEFAULT_SERVER
 from common import resources
+from common import theme
 
 VERSION = get_version()
 
@@ -34,190 +38,242 @@ class AdvancedSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("高级设置")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(420)
         self.setup_ui()
+
+    # ---- 分组与说明行（说明文字从 tooltip 落地为可见的灰字，Nielsen #10）----
+
+    def _group_header(self, text):
+        """分组小标题：13pt DemiBold + 细分隔线。"""
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 10, 0, 4)
+        layout.setSpacing(4)
+        label = QLabel(text)
+        font = label.font()
+        font.setPointSize(13)
+        font.setWeight(font.Weight.DemiBold)
+        label.setFont(font)
+        layout.addWidget(label)
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet(f"color: {theme.semantic_color('separator')};")
+        layout.addWidget(line)
+        return wrapper
+
+    def _description(self, text):
+        """11pt 次要色说明行（替代藏在 tooltip 里的关键信息）。"""
+        label = QLabel(text)
+        label.setFont(theme.card_title_font())
+        label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
+        label.setWordWrap(True)
+        return label
 
     def setup_ui(self):
         layout = QVBoxLayout()
 
         tab_widget = QTabWidget()
 
-        # Network tab
-        network_tab = QWidget()
-        network_layout = QVBoxLayout()
-        network_layout.setSpacing(10)
-
-        # Server & Port
-        server_layout = QHBoxLayout()
-        server_layout.addWidget(QLabel("VPN 服务端地址"))
-        self.server_input = QLineEdit(DEFAULT_SERVER)
-        server_layout.addWidget(self.server_input)
-        server_layout.addWidget(QLabel("端口"))
-        self.port_input = QLineEdit("443")
-        self.port_input.setMaximumWidth(60)
-        server_layout.addWidget(self.port_input)
-        network_layout.addLayout(server_layout)
-
-        # DNS settings
-        dns_layout = QHBoxLayout()
-        dns_layout.addWidget(QLabel("DNS 服务器地址"))
-        self.dns_input = QLineEdit("")
-        self.dns_input.setPlaceholderText("留空则禁用远端 DNS")
-        dns_layout.addWidget(self.dns_input)
-        self.auto_dns_switch = QCheckBox("自动配置 DNS")
-        self.auto_dns_switch.setChecked(True)
-        self.auto_dns_switch.toggled.connect(self.toggle_dns_input)
-        dns_layout.addWidget(self.auto_dns_switch)
-        network_layout.addLayout(dns_layout)
-
-        # SOCKS bind
-        socks_bind_layout = QHBoxLayout()
-        socks_bind_layout.addWidget(QLabel("SOCKS5 代理监听地址"))
-        self.socks_bind_input = QLineEdit()
-        self.socks_bind_input.setPlaceholderText("1080")
-        socks_bind_layout.addStretch()
-        socks_bind_layout.addWidget(self.socks_bind_input)
-        network_layout.addLayout(socks_bind_layout)
-
-        # HTTP bind
-        http_bind_layout = QHBoxLayout()
-        http_bind_layout.addWidget(QLabel("HTTP 代理监听地址 "))
-        self.http_bind_input = QLineEdit()
-        self.http_bind_input.setPlaceholderText("1081")
-        http_bind_layout.addStretch()
-        http_bind_layout.addWidget(self.http_bind_input)
-        network_layout.addLayout(http_bind_layout)
-
-        # Proxy Control
-        self.proxy_switch = QCheckBox("自动配置代理")
-        self.proxy_switch.setToolTip("自动配置系统代理设置，将网络流量通过 VPN 转发")
-        network_layout.addWidget(self.proxy_switch)
-
-        # Disable keep-alive
-        self.keep_alive_switch = QCheckBox("定时保活")
-        self.keep_alive_switch.setToolTip(
-            "开启后，ZJU Connect 会定时发送心跳包以保持连接"
-        )
-        network_layout.addWidget(self.keep_alive_switch)
-
-        # Debug-dump
-        self.debug_dump_switch = QCheckBox("调试模式")
-        self.debug_dump_switch.setToolTip(
-            "开启后，ZJU Connect 会记录详细的调试信息到日志文件"
-        )
-        network_layout.addWidget(self.debug_dump_switch)
-
-        # Disable multi line
-        self.disable_multi_line_switch = QCheckBox("禁用备用线路检测")
-        self.disable_multi_line_switch.setToolTip(
-            "开启后，ZJU Connect 将不再自动切换到备用线路"
-        )
-        network_layout.addWidget(self.disable_multi_line_switch)
-
-        # Certificate file selection
-        cert_layout = QHBoxLayout()
-        cert_label = QLabel("证书路径")
-        cert_label.setToolTip("如果服务器要求证书验证，需要配置此参数")
-        cert_layout.addWidget(cert_label)
-        self.cert_file_input = QLineEdit()
-        self.cert_file_input.setPlaceholderText("选择 .p12 证书文件")
-        self.cert_file_input.setReadOnly(True)
-
-        # Add clear action to the text field
-        self.cert_clear_action = QAction()
-        self.cert_clear_action.setIcon(
-            self.style().standardIcon(QStyle.SP_DialogCancelButton)
-        )
-        self.cert_clear_action.setToolTip("清除证书")
-        self.cert_clear_action.triggered.connect(self.clear_cert_file)
-        self.cert_file_input.addAction(
-            self.cert_clear_action, QLineEdit.TrailingPosition
-        )
-
-        cert_layout.addWidget(self.cert_file_input)
-        self.cert_browse_button = QPushButton("浏览...")
-        self.cert_browse_button.clicked.connect(self.browse_cert_file)
-        cert_layout.addWidget(self.cert_browse_button)
-        network_layout.addLayout(cert_layout)
-
-        # Certificate password
-        cert_pwd_layout = QHBoxLayout()
-        cert_pwd_layout.addWidget(QLabel("证书密码"))
-        self.cert_password_input = QLineEdit()
-        self.cert_password_input.setPlaceholderText("输入证书密码")
-        self.cert_password_input.setEchoMode(QLineEdit.Password)
-        cert_pwd_layout.addWidget(self.cert_password_input)
-        network_layout.addLayout(cert_pwd_layout)
-
-        # TUN 模式（全局路由，需提权）
-        self.tun_mode_switch = QCheckBox("TUN 模式（全局路由）")
-        tun_tooltip = "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
-        if system() == "Windows":
-            # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
-            tun_tooltip += "（本期仅 macOS/Linux）"
-            self.tun_mode_switch.setEnabled(False)
-        self.tun_mode_switch.setToolTip(tun_tooltip)
-        network_layout.addWidget(self.tun_mode_switch)
-
-        network_tab.setLayout(network_layout)
-
-        # General tab
+        # ================= 通用 tab =================
         general_tab = QWidget()
-        general_layout = QVBoxLayout()
+        general_layout = QVBoxLayout(general_tab)
+        general_layout.setSpacing(8)
 
-        # Startup Control
+        general_layout.addWidget(self._group_header("启动"))
         self.startup_switch = QCheckBox("开机启动")
         self.startup_switch.setChecked(get_launch_at_login())
         general_layout.addWidget(self.startup_switch)
 
-        # Silent mode
         self.silent_mode_switch = QCheckBox("静默启动")
         general_layout.addWidget(self.silent_mode_switch)
+        general_layout.addWidget(self._description("启动时不显示主窗口，仅驻留系统托盘"))
 
-        # Connect on startup
         self.connect_startup_switch = QCheckBox("启动时自动连接")
         general_layout.addWidget(self.connect_startup_switch)
+        general_layout.addWidget(self._description("启动后自动连接 VPN（需已保存凭据）"))
 
-        # Check for update on startup
+        general_layout.addWidget(self._group_header("外观与更新"))
+
         self.check_update_switch = QCheckBox("启动时检查更新")
         general_layout.addWidget(self.check_update_switch)
 
-        # 断线自动重连
         self.auto_reconnect_switch = QCheckBox("断线自动重连")
-        self.auto_reconnect_switch.setToolTip("非认证失败导致的掉线将自动重连，连续失败 3 次后暂停")
         self.auto_reconnect_switch.setChecked(True)
         general_layout.addWidget(self.auto_reconnect_switch)
+        general_layout.addWidget(
+            self._description("非认证失败导致的掉线将自动重连，连续失败 3 次后暂停")
+        )
 
         # 外观三态（跟随系统 / 浅色 / 深色）
-        appearance_layout = QHBoxLayout()
-        appearance_layout.addWidget(QLabel("外观"))
+        appearance_form = QFormLayout()
+        appearance_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.appearance_combo = QComboBox()
         self.appearance_combo.addItems(["跟随系统", "浅色", "深色"])
-        appearance_layout.addWidget(self.appearance_combo)
-        general_layout.addLayout(appearance_layout)
+        appearance_form.addRow("外观", self.appearance_combo)
+        general_layout.addLayout(appearance_form)
 
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
             general_layout.addWidget(self.hide_dock_icon_switch)
+            general_layout.addWidget(
+                self._description("隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角")
+            )
 
-        general_tab.setLayout(general_layout)
+        general_layout.addStretch()
 
-        # Add tabs to widget
-        tab_widget.addTab(network_tab, "网络")
+        # ================= 网络 tab =================
+        network_tab = QWidget()
+        network_layout = QVBoxLayout(network_tab)
+        network_layout.setSpacing(8)
+
+        # ---- 连接 ----
+        network_layout.addWidget(self._group_header("连接"))
+        connect_form = QFormLayout()
+        connect_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        connect_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+
+        server_row = QHBoxLayout()
+        server_row.setSpacing(8)
+        self.server_input = QLineEdit(DEFAULT_SERVER)
+        server_row.addWidget(self.server_input, 1)
+        server_row.addWidget(QLabel("端口"))
+        self.port_input = QLineEdit("443")
+        self.port_input.setMaximumWidth(60)
+        server_row.addWidget(self.port_input)
+        connect_form.addRow("VPN 服务端地址", server_row)
+        network_layout.addLayout(connect_form)
+
+        # DNS：复选框在上、输入框在下（控制与被控的空间从属即因果自解释）
+        self.auto_dns_switch = QCheckBox("自动配置 DNS")
+        self.auto_dns_switch.setChecked(True)
+        self.auto_dns_switch.toggled.connect(self.toggle_dns_input)
+        network_layout.addWidget(self.auto_dns_switch)
+        dns_row = QHBoxLayout()
+        dns_row.setContentsMargins(24, 0, 0, 0)  # 缩进从属于"自动配置 DNS"
+        dns_row.addWidget(QLabel("DNS 服务器地址"))
+        self.dns_input = QLineEdit("")
+        self.dns_input.setPlaceholderText("留空则禁用远端 DNS")
+        dns_row.addWidget(self.dns_input, 1)
+        network_layout.addLayout(dns_row)
+
+        # ---- 代理 ----
+        network_layout.addWidget(self._group_header("代理"))
+        proxy_form = QFormLayout()
+        proxy_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        proxy_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.socks_bind_input = QLineEdit()
+        self.socks_bind_input.setPlaceholderText("1080")
+        proxy_form.addRow("SOCKS5 代理监听端口", self.socks_bind_input)
+        self.http_bind_input = QLineEdit()
+        self.http_bind_input.setPlaceholderText("1081")
+        proxy_form.addRow("HTTP 代理监听端口", self.http_bind_input)
+        network_layout.addLayout(proxy_form)
+
+        self.proxy_switch = QCheckBox("自动配置代理")
+        network_layout.addWidget(self.proxy_switch)
+        network_layout.addWidget(
+            self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发")
+        )
+
+        # ---- 证书 ----
+        network_layout.addWidget(self._group_header("证书"))
+        cert_form = QFormLayout()
+        cert_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        cert_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+
+        cert_row = QHBoxLayout()
+        cert_row.setSpacing(8)
+        self.cert_file_input = QLineEdit()
+        self.cert_file_input.setPlaceholderText("选择 .p12 证书文件")
+        self.cert_file_input.setReadOnly(True)
+        cert_row.addWidget(self.cert_file_input, 1)
+        self.cert_browse_button = QPushButton("浏览…")
+        self.cert_browse_button.clicked.connect(self.browse_cert_file)
+        cert_row.addWidget(self.cert_browse_button)
+        # 文本按钮"清除"替代语义错误的红色 ❌（SP_DialogCancelButton 是"取消"不是"清除"）
+        self.cert_clear_button = QPushButton("清除")
+        self.cert_clear_button.setStyleSheet(
+            f"QPushButton {{ color: {theme.semantic_color('secondary_text')};"
+            f" border: none; padding: 4px 6px; }}"
+        )
+        self.cert_clear_button.clicked.connect(self.clear_cert_file)
+        cert_row.addWidget(self.cert_clear_button)
+        cert_form.addRow("证书路径", cert_row)
+
+        self.cert_password_input = QLineEdit()
+        self.cert_password_input.setPlaceholderText("输入证书密码")
+        self.cert_password_input.setEchoMode(QLineEdit.Password)
+        cert_form.addRow("证书密码", self.cert_password_input)
+        network_layout.addLayout(cert_form)
+
+        # ---- 高级 ----
+        network_layout.addWidget(self._group_header("高级"))
+
+        self.keep_alive_switch = QCheckBox("定时保活")
+        network_layout.addWidget(self.keep_alive_switch)
+        network_layout.addWidget(
+            self._description("开启后，ZJU Connect 会定时发送心跳包以保持连接")
+        )
+
+        self.debug_dump_switch = QCheckBox("调试模式")
+        network_layout.addWidget(self.debug_dump_switch)
+        network_layout.addWidget(
+            self._description("开启后，ZJU Connect 会记录详细的调试信息到日志文件")
+        )
+
+        # 肯定句表述（原"禁用备用线路检测"勾选=禁用是双重否定）；存储时取反
+        self.auto_multi_line_switch = QCheckBox("自动切换备用线路")
+        self.auto_multi_line_switch.setChecked(True)
+        network_layout.addWidget(self.auto_multi_line_switch)
+        network_layout.addWidget(
+            self._description("当前线路不稳定时自动切换到备用线路")
+        )
+
+        self.tun_mode_switch = QCheckBox("TUN 模式（全局路由）")
+        if system() == "Windows":
+            # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
+            self.tun_mode_switch.setEnabled(False)
+        network_layout.addWidget(self.tun_mode_switch)
+        tun_note = "所有流量（含 SSH 等裸 TCP）都走 VPN；需要管理员授权；与 Clash TUN 模式互斥"
+        if system() == "Windows":
+            tun_note += "（本期仅 macOS/Linux）"
+        network_layout.addWidget(self._description(tun_note))
+
+        network_layout.addStretch()
+
+        # macOS 惯例：General 在前
         tab_widget.addTab(general_tab, "通用")
+        tab_widget.addTab(network_tab, "网络")
         layout.addWidget(tab_widget)
 
-        # Buttons
-        button_layout = QHBoxLayout()
-        save_button = QPushButton("保存")
-        save_button.clicked.connect(self.accept)
-        cancel_button = QPushButton("取消")
-        cancel_button.clicked.connect(self.reject)
-
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-        layout.addLayout(button_layout)
+        # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.Save | QDialogButtonBox.Cancel
+        )
+        self.button_box.button(QDialogButtonBox.Save).setText("保存")
+        self.button_box.button(QDialogButtonBox.Cancel).setText("取消")
+        save_btn = self.button_box.button(QDialogButtonBox.Save)
+        save_btn.setDefault(True)
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+                border: none;
+                border-radius: 6px;
+                padding: 6px 20px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.semantic_color("accent_hover")};
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.semantic_color("accent_pressed")};
+            }}
+        """)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
 
         self.setLayout(layout)
 
@@ -253,7 +309,8 @@ class AdvancedSettingsDialog(QDialog):
             "check_update": self.check_update_switch.isChecked(),
             "keep_alive": self.keep_alive_switch.isChecked(),
             "debug_dump": self.debug_dump_switch.isChecked(),
-            "disable_multi_line": self.disable_multi_line_switch.isChecked(),
+            # 肯定句 UI → 存储键取反（配置键名与语义保持不变）
+            "disable_multi_line": not self.auto_multi_line_switch.isChecked(),
             "http_bind": self.http_bind_input.text(),
             "socks_bind": self.socks_bind_input.text(),
             "cert_file": self.cert_file_input.text(),
@@ -303,7 +360,7 @@ class AdvancedSettingsDialog(QDialog):
             self.hide_dock_icon_switch.setChecked(hide_dock_icon)
         self.keep_alive_switch.setChecked(keep_alive)
         self.debug_dump_switch.setChecked(debug_dump)
-        self.disable_multi_line_switch.setChecked(disable_multi_line)
+        self.auto_multi_line_switch.setChecked(not disable_multi_line)
         self.http_bind_input.setText(http_bind)
         self.socks_bind_input.setText(socks_bind)
         self.cert_file_input.setText(cert_file)

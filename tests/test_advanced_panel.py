@@ -53,6 +53,40 @@ def test_set_settings_applies_auto_reconnect(dialog):
     assert dialog.auto_reconnect_switch.isChecked() is True
 
 
+def test_multi_line_positive_wording_inverted_storage(dialog):
+    """"自动切换备用线路"肯定句 UI，存储键 disable_multi_line 取反（双重否定消除）"""
+    assert dialog.auto_multi_line_switch.text() == "自动切换备用线路"
+    assert dialog.auto_multi_line_switch.isChecked() is True
+    assert dialog.get_settings()["disable_multi_line"] is False
+    dialog.auto_multi_line_switch.setChecked(False)
+    assert dialog.get_settings()["disable_multi_line"] is True
+    base = dict(
+        server="1.2.3.4", port="443", dns="", proxy=True,
+        connect_startup=False, silent_mode=False, check_update=True,
+    )
+    dialog.set_settings(**base, disable_multi_line=True)
+    assert dialog.auto_multi_line_switch.isChecked() is False
+
+
+def test_button_box_save_is_default_and_macos_order(dialog):
+    """QDialogButtonBox：保存为主按钮（macOS 惯例取消左、保存右，由平台自动排布）"""
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    save_btn = dialog.button_box.button(QDialogButtonBox.Save)
+    assert save_btn.isDefault()
+    assert save_btn.text() == "保存"
+    assert dialog.button_box.button(QDialogButtonBox.Cancel).text() == "取消"
+
+
+def test_general_tab_comes_first(dialog):
+    """macOS 惯例：通用 tab 在前"""
+    from PySide6.QtWidgets import QTabWidget
+
+    tab_widget = dialog.findChild(QTabWidget)
+    assert tab_widget.tabText(0) == "通用"
+    assert tab_widget.tabText(1) == "网络"
+
+
 def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
     qtbot, monkeypatch
 ):
