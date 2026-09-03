@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import QEvent, QTimer, Qt
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
 from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
-from views.menu_utils import setup_menubar, check_for_updates
+from views.menu_utils import setup_menubar, check_for_updates, show_advanced_settings
 from utils.config_utils import load_settings
 from services.reconnect_manager import ReconnectManager
 from utils.set_proxy import cleanup_residue_proxy
@@ -24,6 +25,41 @@ from common.constants import APP_NAME
 from common.version import get_version
 
 VERSION = get_version()
+
+# 校训水印透明度：浅色模式下笔画本身是 #D4D4D4 淡灰，需较高不透明度才可见；
+# 深色模式下浅灰笔画对比天然偏高，压低不透明度保持"水印"克制
+_WATERMARK_OPACITY = {"light": 0.60, "dark": 0.14}
+
+
+class WatermarkContainer(QWidget):
+    """中央容器：在内容层之下绘制校训竖排书法水印（右侧垂直居中）。
+
+    素材：BIT 视觉识别系统校训"德以明理 学以精工"（透明底淡灰 PNG）。
+    水印是最底层背景：子控件（输入框/按钮/标签）背景透明，直接叠在其上。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._watermark = QPixmap(":/brand/motto.png")
+
+    def paintEvent(self, event):
+        if not self._watermark.isNull():
+            from common import theme
+
+            painter = QPainter(self)
+            # 高度取窗口 66%（封顶 500，素材原生高度），右侧留 8px 边距
+            target_h = min(int(self.height() * 0.66), 500)
+            scaled = self._watermark.scaledToHeight(
+                target_h, Qt.SmoothTransformation
+            )
+            x = self.width() - scaled.width() - 8
+            y = (self.height() - scaled.height()) // 2
+            painter.setOpacity(
+                _WATERMARK_OPACITY["dark" if theme.is_dark() else "light"]
+            )
+            painter.drawPixmap(x, y, scaled)
+            painter.end()
+        super().paintEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -81,7 +117,9 @@ class MainWindow(QMainWindow):
         # 连接后凭据区收起，adjustSize 会把窗口收到接近内容高度，不留大段空白
         self.setMinimumSize(360, 400)
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        # 间距体系：边距 16/8/16/12，区块间距 12（4/8/12/16 四档制）
+        layout.setContentsMargins(16, 8, 16, 12)
+        layout.setSpacing(12)
 
         # 状态仪表盘（hero 布局）
         self.status_panel = StatusPanel(server_text=self.server_address)
@@ -100,8 +138,13 @@ class MainWindow(QMainWindow):
 
         saved_username, saved_password = load_credentials()
 
+        # 下划线式输入（spec 定稿：无边框 QLineEdit + 底部 1px 线，focus 时 accent 加粗）；
+        # 标签定宽对齐两个输入框的左缘（"用户名"3 字 vs "密码"2 字自然宽度会错开）
         user_row = QHBoxLayout()
-        user_row.addWidget(QLabel("用户名"))
+        user_row.setSpacing(8)
+        user_label = QLabel("用户名")
+        user_label.setFixedWidth(44)
+        user_row.addWidget(user_label)
         self.username_input = QLineEdit()
         self.username_input.setText(saved_username)
         self.username_input.setPlaceholderText("学号/工号")
@@ -109,10 +152,14 @@ class MainWindow(QMainWindow):
         cred_layout.addLayout(user_row)
 
         pass_row = QHBoxLayout()
-        pass_row.addWidget(QLabel("密码"))
+        pass_row.setSpacing(8)
+        pass_label = QLabel("密码")
+        pass_label.setFixedWidth(44)
+        pass_row.addWidget(pass_label)
         self.password_input = QLineEdit()
         self.password_input.setText(saved_password)
         self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setPlaceholderText("统一身份认证密码")
         pass_row.addWidget(self.password_input)
         cred_layout.addLayout(pass_row)
 
@@ -131,7 +178,7 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self.cred_area)
 
-        # 连接按钮（BIT 绿 accent，按下即时加深反馈）
+        # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）
         self.connect_button = QPushButton("连接")
         self.connect_button.setCheckable(True)
         self.connect_button.setMinimumHeight(38)
@@ -139,11 +186,25 @@ class MainWindow(QMainWindow):
         self.connect_button.setAttribute(Qt.WA_AlwaysShowToolTips)  # 窗口 inactive 时也显示 tooltip
         # Qt 不向 disabled widget 派发 tooltip 事件，须由 eventFilter 拦截补发
         self.connect_button.installEventFilter(self)
-        # 小号次要退出按钮（grilling 确认保留旧 UI 元素；须在 _apply_button_style 前创建）
+        # 小号次要退出按钮（grilling 确认保留旧 UI 元素；须在 _apply_theme_styles 前创建）
         self.exit_button = QPushButton("退出")
         self.exit_button.setCursor(Qt.PointingHandCursor)
         self.exit_button.clicked.connect(self.quit_app)
-        self._apply_button_style()
+        # 窗口内设置入口（macOS 真机菜单栏在屏幕顶部，窗口内需要可发现的锚点）
+        self.settings_button = QPushButton("设置")
+        self.settings_button.setCursor(Qt.PointingHandCursor)
+        self.settings_button.clicked.connect(lambda: show_advanced_settings(self))
+        # 日志折叠开关（底部工具行左侧）：默认 ToolButtonIconOnly 会吞掉文字
+        # 只剩裸箭头（真实 bug），必须显式设文字模式
+        self.log_toggle = QToolButton()
+        self.log_toggle.setText("运行日志")
+        self.log_toggle.setCheckable(True)
+        self.log_toggle.setChecked(False)
+        self.log_toggle.setArrowType(Qt.RightArrow)
+        self.log_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.log_toggle.setCursor(Qt.PointingHandCursor)
+        self.log_toggle.toggled.connect(self._toggle_log)
+        self._apply_theme_styles()
         self.connect_button.toggled.connect(
             lambda: self.start_connection()
             if self.connect_button.isChecked()
@@ -167,10 +228,11 @@ class MainWindow(QMainWindow):
                 self.connect_button.isChecked()
             )
         )
-        btn_row = QHBoxLayout()
-        btn_row.addWidget(self.connect_button, 1)
-        btn_row.addWidget(self.exit_button)
-        layout.addLayout(btn_row)
+        layout.addWidget(self.connect_button)
+
+        # 输入框回车直接发起连接（桌面表单惯例）
+        self.username_input.returnPressed.connect(self._connect_on_return)
+        self.password_input.returnPressed.connect(self._connect_on_return)
 
         # 内联校验：凭据不全即禁用（连接中保持可点以便断开）
         self._animated_height_toggle = animated_height_toggle
@@ -178,15 +240,14 @@ class MainWindow(QMainWindow):
         self.password_input.textChanged.connect(self._refresh_connect_button)
         self._refresh_connect_button()
 
-        # 折叠日志区（默认收起，高度动画可中途反向）
-        self.log_toggle = QToolButton()
-        self.log_toggle.setText("运行日志")
-        self.log_toggle.setCheckable(True)
-        self.log_toggle.setChecked(False)
-        self.log_toggle.setArrowType(Qt.RightArrow)
-        self.log_toggle.setStyleSheet("QToolButton {border: none;}")
-        self.log_toggle.toggled.connect(self._toggle_log)
-        layout.addWidget(self.log_toggle)
+        # 底部工具行：日志折叠在左，退出/设置在右（退出远离主 CTA，设置补足窗口内入口）
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(4)
+        bottom_row.addWidget(self.log_toggle)
+        bottom_row.addStretch()
+        bottom_row.addWidget(self.exit_button)
+        bottom_row.addWidget(self.settings_button)
+        layout.addLayout(bottom_row)
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
@@ -194,58 +255,122 @@ class MainWindow(QMainWindow):
         self.output_text.document().setMaximumBlockCount(5000)  # B9: 日志上限
         layout.addWidget(self.output_text)
 
-        # 一收一放：仪表盘状态驱动凭据区/资源区显隐动画
+        # 一收一放：仪表盘状态驱动凭据区/资源区显隐动画（带淡出，不硬裁）
         self._cred_visible = True
         self._res_visible = False
         self.status_panel.areas_changed.connect(self._apply_area_visibility)
 
-        container = QWidget()
+        container = WatermarkContainer()
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-        # 深浅色切换时刷新样式
-        theme.on_scheme_changed(self._apply_button_style)
+        # 深浅色切换时刷新样式（含水印透明度重绘）
+        theme.on_scheme_changed(self._apply_theme_styles)
         theme.on_scheme_changed(self.status_panel.refresh_theme)
         theme.on_scheme_changed(self.resource_area.refresh_theme)
+        theme.on_scheme_changed(container.update)
+
+    def _connect_on_return(self):
+        """回车触发连接：仅凭据齐全且当前未连接时（disabled 态不响应）。"""
+        if self.connect_button.isEnabled() and not self.connect_button.isChecked():
+            self.connect_button.click()
 
     def _apply_area_visibility(self, cred_visible: bool, res_visible: bool):
-        """凭据区/资源区一收一放（250ms，可打断，幂等）。"""
+        """凭据区/资源区一收一放（250ms 高度+淡出，可打断，幂等）。"""
         if cred_visible == self._cred_visible and res_visible == self._res_visible:
             return
         self._cred_visible = cred_visible
         self._res_visible = res_visible
         self._animated_height_toggle(
-            self.cred_area, cred_visible, max_height=140, on_frame=self.adjustSize
+            self.cred_area, cred_visible, max_height=140, on_frame=self.adjustSize,
+            fade=True,
         )
         self._animated_height_toggle(
-            self.resource_area, res_visible, max_height=40, on_frame=self.adjustSize
+            self.resource_area, res_visible, max_height=40, on_frame=self.adjustSize,
+            fade=True,
         )
 
-    def _apply_button_style(self):
+    def _apply_theme_styles(self):
+        """主题相关样式统一入口（深浅色切换时重放）。"""
         from common import theme
 
         self.connect_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {theme.semantic_color("accent")};
                 color: {theme.semantic_color("accent_text")};
-                border: none;
-                border-radius: 6px;
+                border: 2px solid transparent;
+                border-radius: 8px;
                 font-size: 15px;
                 font-weight: 600;
+            }}
+            QPushButton:hover:enabled {{
+                background-color: {theme.semantic_color("accent_hover")};
             }}
             QPushButton:pressed {{
                 background-color: {theme.semantic_color("accent_pressed")};
             }}
+            QPushButton:focus {{
+                border: 2px solid {theme.with_alpha("accent", 0.5)};
+            }}
             QPushButton:disabled {{
-                background-color: {theme.semantic_color("idle")};
+                background-color: {theme.semantic_color("accent_disabled")};
                 color: {theme.semantic_color("accent_text")};
             }}
         """)
-        # 退出按钮：次要样式（无边框灰字），随深浅色刷新
-        self.exit_button.setStyleSheet(
-            f"QPushButton {{ color: {theme.semantic_color('secondary_text')};"
-            f" border: none; padding: 8px 12px; }}"
-        )
+        # 退出/设置：次要文字按钮（无边框灰字，hover 升到主文字色）
+        text_button_style = f"""
+            QPushButton {{
+                color: {theme.semantic_color('secondary_text')};
+                border: none;
+                padding: 4px 8px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                color: {theme.semantic_color('ink')};
+            }}
+        """
+        self.exit_button.setStyleSheet(text_button_style)
+        self.settings_button.setStyleSheet(text_button_style)
+        # 日志折叠：11pt 次要色文字 + 箭头，无边框
+        self.log_toggle.setStyleSheet(f"""
+            QToolButton {{
+                border: none;
+                color: {theme.semantic_color('secondary_text')};
+                font-size: 12px;
+                padding: 4px 2px;
+            }}
+            QToolButton:hover {{
+                color: {theme.semantic_color('ink')};
+            }}
+        """)
+        # 下划线式输入框：无边框 + 底部 1px separator，focus 时 accent 2px
+        input_style = f"""
+            QLineEdit {{
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid {theme.semantic_color('separator')};
+                padding: 5px 2px;
+                selection-background-color: {theme.semantic_color('accent')};
+            }}
+            QLineEdit:focus {{
+                border-bottom: 2px solid {theme.semantic_color('accent')};
+            }}
+            QLineEdit:disabled {{
+                color: {theme.semantic_color('secondary_text')};
+                border-bottom: 1px dotted {theme.semantic_color('separator')};
+            }}
+        """
+        self.username_input.setStyleSheet(input_style)
+        self.password_input.setStyleSheet(input_style)
+        # placeholder 颜色：QSS 管不了，走 QPalette（次要色 70% 透明）
+        from PySide6.QtGui import QPalette
+
+        placeholder = QColor(theme.semantic_color("secondary_text"))
+        placeholder.setAlphaF(0.7)
+        for line_edit in (self.username_input, self.password_input):
+            palette = line_edit.palette()
+            palette.setColor(QPalette.PlaceholderText, placeholder)
+            line_edit.setPalette(palette)
 
     def eventFilter(self, obj, event):
         # 禁用态下 Qt 不派发 tooltip：拦截后手动弹出（内联校验的提示依赖此路径）

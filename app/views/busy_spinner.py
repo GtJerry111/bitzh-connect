@@ -13,7 +13,7 @@ class BusySpinner(QWidget):
         self.setFixedSize(diameter, diameter)
         self._angle = 0
         self._timer = QTimer(self)
-        self._timer.setInterval(33)  # ~30fps
+        self._timer.setInterval(16)  # ~60fps，对齐屏幕刷新率（30fps 肉眼可见顿挫）
         self._timer.timeout.connect(self._tick)
         self.hide()
 
@@ -28,16 +28,16 @@ class BusySpinner(QWidget):
         self.hide()
 
     def _tick(self):
-        self._angle = (self._angle + 24) % 360
+        self._angle = (self._angle + 10) % 360  # 10°/帧 ≈ 0.58s/圈，从容不迫
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         pen = QPen(QColor(theme.semantic_color("working")))
-        pen.setWidth(2)
+        pen.setWidthF(2.5)
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         rect = QRectF(2, 2, self.width() - 4, self.height() - 4)
-        painter.drawArc(rect, -self._angle * 16, 270 * 16)  # drawArc 单位为 1/16 度
+        painter.drawArc(rect, -self._angle * 16, 240 * 16)  # drawArc 单位为 1/16 度
         painter.end()

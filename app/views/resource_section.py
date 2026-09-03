@@ -22,6 +22,7 @@ class ResourceSection(QWidget):
         for name, url in RESOURCES:
             btn = QPushButton(name)
             btn.setCursor(Qt.PointingHandCursor)
+            btn.setMinimumWidth(120)  # 两胶囊等宽（文字长度不一，由宽度补齐视觉平衡）
             btn.setProperty("resource_url", url)
             btn.clicked.connect(
                 lambda _checked=False, u=url: QDesktopServices.openUrl(QUrl(u))
@@ -32,18 +33,24 @@ class ResourceSection(QWidget):
         self.refresh_theme()
 
     def refresh_theme(self):
-        """胶囊样式：BIT 绿描边，按下填充（随深浅色刷新）。"""
+        """胶囊样式：BIT 绿描边，hover 轻填充（8%），pressed 加深（18%）。
+
+        桌面端必须有 hover 反馈（"界面在听"）；瞬时动作的 press 反馈
+        与动作重量匹配——点开浏览器是轻动作，不再整颗填满绿。
+        """
         for btn in self._buttons:
             btn.setStyleSheet(f"""
                 QPushButton {{
                     color: {theme.semantic_color("accent")};
                     border: 1px solid {theme.semantic_color("accent")};
-                    border-radius: 13px;
+                    border-radius: 14px;
                     padding: 5px 14px;
                     background: transparent;
                 }}
+                QPushButton:hover {{
+                    background-color: {theme.with_alpha("accent", 0.08)};
+                }}
                 QPushButton:pressed {{
-                    background-color: {theme.semantic_color("accent")};
-                    color: {theme.semantic_color("accent_text")};
+                    background-color: {theme.with_alpha("accent", 0.18)};
                 }}
             """)

@@ -83,3 +83,51 @@ def test_disabled_button_tooltip_via_event_filter(window):
     assert window.connect_button.isEnabled()
     ev2 = QHelpEvent(QEvent.ToolTip, QPoint(), QPoint())
     assert window.eventFilter(window.connect_button, ev2) is False
+
+
+def test_log_toggle_shows_text_beside_arrow(window):
+    """回归：日志折叠开关必须显示"运行日志"文字（默认 IconOnly 会吞掉文字只剩裸箭头）"""
+    from PySide6.QtCore import Qt
+
+    assert window.log_toggle.toolButtonStyle() == Qt.ToolButtonTextBesideIcon
+    assert window.log_toggle.text() == "运行日志"
+
+
+def test_return_pressed_triggers_connect(window, qtbot, monkeypatch):
+    """凭据齐全时输入框回车直接发起连接（桌面表单惯例）；空凭据不触发"""
+    from PySide6.QtCore import Qt
+
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append(True))
+    window.username_input.setText("")
+    window.password_input.setText("")
+    qtbot.keyClick(window.password_input, Qt.Key_Return)
+    assert fired == []  # disabled 态不响应
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    qtbot.keyClick(window.password_input, Qt.Key_Return)
+    assert fired == [True]
+
+
+def test_watermark_container_with_motto_pixmap(window):
+    """中央容器即水印层：校训素材加载成功（绘制在内容之下）"""
+    from views.main_window import WatermarkContainer
+
+    assert isinstance(window.centralWidget(), WatermarkContainer)
+    assert not window.centralWidget()._watermark.isNull()
+
+
+def test_underline_input_style(window):
+    """凭据输入框为下划线式（无边框 + 底部 1px 线，spec 定稿）"""
+    style = window.username_input.styleSheet()
+    assert "border-bottom" in style and "background: transparent" in style
+
+
+def test_settings_button_opens_advanced_dialog(window, monkeypatch):
+    """窗口内设置入口：点击"设置"打开高级设置对话框"""
+    opened = []
+    monkeypatch.setattr(
+        "views.main_window.show_advanced_settings", lambda w: opened.append(w)
+    )
+    window.settings_button.click()
+    assert opened == [window]

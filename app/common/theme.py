@@ -1,8 +1,11 @@
 """语义化设计 tokens：颜色随深浅色自适应，字体层级统一。
 
-品牌色取自 BIT 视觉识别系统（素材/COLOR_USAGE 色卡）：
-- 深绿 #005C31（校徽中心）→ 浅色模式 accent
-- 标准绿 #16AE68（树）→ 深色模式 accent / 已连接状态
+品牌色严格取自 BIT 视觉识别系统（素材/ai/COLOR_USAGE A4-03 色卡实测采样）：
+- 深绿 #005C31（校徽中心）→ 浅色模式 accent / 已连接状态
+- 标准绿 #009944（树）→ 深色模式 accent / 已连接状态
+- 赭石 #A23F0D（校园建筑）→ 进行中状态（连接中/重连）
+交互态用官方明度色阶取色（90%=微亮 hover、30%=disabled 衰减），
+不引入色卡之外的临时色（仅 error 保留系统红、idle 保留系统灰）。
 """
 import sys
 from platform import system
@@ -10,16 +13,28 @@ from platform import system
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QGuiApplication, QPalette
 
+# BIT VI 官方明度色阶（A4-03，100%→10% 实测采样值）
+DEEP_GREEN = ["#005C31", "#00663B", "#227248", "#497F58", "#658E6A",
+              "#809E7F", "#9AB096", "#CDD8CB", "#E7ECE6"]
+STD_GREEN = ["#009944", "#00A151", "#00A960", "#3FB370", "#69BD83",
+             "#88C897", "#A5D4AD", "#D5EAD8", "#ECF5ED"]
+OCHRE = ["#A23F0D", "#AA501E", "#B26230", "#BB7444", "#C4865A",
+         "#CE9A72", "#D8AD8C", "#ECD7C5", "#F6ECE3"]
+
 _COLORS = {
-    #                 light       dark
-    "idle":           ("#8E8E93", "#98989D"),  # 未连接灰
-    "working":        ("#FF9500", "#FF9F0A"),  # 进行中琥珀
-    "connected":      ("#0E9F5B", "#16AE68"),  # 已连接：BIT 绿系
-    "error":          ("#FF3B30", "#FF453A"),  # 失败红
-    "accent":         ("#005C31", "#16AE68"),  # 主按钮：BIT 品牌绿
-    "accent_pressed": ("#004A26", "#0E9F5B"),  # 按下态加深
-    "accent_text":    ("#FFFFFF", "#000000"),  # accent 上的文字
-    "secondary_text": ("#6E6E73", "#98989D"),  # 次要信息灰
+    #                 light            dark
+    "idle":           ("#8E8E93",      "#98989D"),      # 未连接灰
+    "working":        (OCHRE[0],       OCHRE[3]),       # 进行中：赭石（深色用 70% 提亮）
+    "connected":      (DEEP_GREEN[0],  STD_GREEN[0]),   # 已连接：与 accent 同绿（同屏不单二绿）
+    "error":          ("#FF3B30",      "#FF453A"),      # 失败红（色卡无红，沿用系统语义色）
+    "accent":         (DEEP_GREEN[0],  STD_GREEN[0]),   # 主按钮：深绿 / 标准绿
+    "accent_hover":   (DEEP_GREEN[1],  STD_GREEN[1]),   # 悬停微亮：90% 明度
+    "accent_pressed": ("#004A26",      DEEP_GREEN[0]),  # 按下加深（浅色）/ 换深绿族（深色）
+    "accent_text":    ("#FFFFFF",      "#000000"),      # accent 上的文字
+    "accent_disabled": (DEEP_GREEN[7], DEEP_GREEN[2]),  # 禁用：30% 明度衰减 / 深色 80%
+    "secondary_text": ("#606066",      "#98989D"),      # 次要信息灰（浅色 5.3:1 对比）
+    "ink":            ("#1D1D1F",      "#F5F5F7"),      # 主文字（hero 词未连接态）
+    "separator":      ("#D1D1D6",      "#3A3A3C"),      # 分隔线 / 输入框下划线
 }
 
 
@@ -122,9 +137,26 @@ def status_title_font() -> QFont:
     return f
 
 
+def with_alpha(name: str, alpha: float) -> str:
+    """语义色 + 透明度 → rgba() 字符串（胶囊 hover 底色、焦点环等）。"""
+    light, dark = _COLORS[name]
+    hex_color = dark if is_dark() else light
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def card_title_font() -> QFont:
     f = QFont()
     f.setPointSize(11)
+    return f
+
+
+def subtitle_font() -> QFont:
+    """hero 副标题：12pt（spec 定稿值，stat 标题仍用 11pt card_title_font）。"""
+    f = QFont()
+    f.setPointSize(12)
     return f
 
 

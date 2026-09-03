@@ -1,25 +1,72 @@
 # app/views/status_panel.py
-"""状态仪表盘（方案 B：极简大状态居中）。
+"""状态仪表盘（方案 B：极简大状态居中，VI 品牌色版）。
 
-hero：圆点/旋转弧 + 26pt 状态词 + 12pt 副标题（状态词保持短，原因进副标题，
-     彻底解决长文案截断问题——原 F3）。
-统计行：时长/上行/下行无边框纯文字（tnum 防每秒抖动）。
-代理模式拿不到速率计数，恒显示 "—"；TUN 模式由 RateMonitor 驱动 set_rates。
+hero：自绘圆点/旋转弧（同位互斥）+ 26pt 状态词（带状态色）+ 12pt 副标题
+     （状态词保持短，原因进副标题——原 F3；已连接副标题只给"内网 IP"，
+      服务器地址挪 tooltip，不再双裸 IP 并排）。
+状态色：圆点与状态词同色——未连接 ink 黑、连接中赭石、已连接 BIT 绿（带柔光）、
+     失败红；圆点颜色 250ms 平滑过渡，状态词换字带 160ms 淡入。
+统计行：时长/上行/下行无边框纯文字（tnum 防每秒抖动），仅已连接态展开
+     （未连接/连接中不陈列空数据）；无数据的 "—" 占位符染次要色退后，
+     真数据带 ↑↓ 前缀用主文字色跳出。
 区域联动：areas_changed(credentials_visible, resources_visible) 由主窗口消费，
 驱动"凭据区收起 / 资源区展开"的一收一放动画。
 """
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QEasingCurve, QRectF, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import (
+    QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
+from shiboken6 import isValid
 
 from common import theme
-from utils.motion_utils import animate_label_color
+from utils.motion_utils import (
+    ANIMATION_DURATION_MS,
+    animate_label_color,
+    animated_height_toggle,
+    reduce_motion,
+)
 from views.busy_spinner import BusySpinner
 
 
 def _fmt_duration(seconds: int) -> str:
     return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+class StatusDot(QWidget):
+    """自绘状态圆点：20px 槽位内 12px 正圆（尺寸/基线可控，与 spinner 等径不跳）。
+
+    初始色即 idle——修复"启动第一眼是黑点"（字形方案无人给初始态上色）。
+    已连接态由面板挂 QGraphicsDropShadowEffect 柔光（spec 的"绿+柔光"）。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(20, 20)
+        self._color = QColor(theme.semantic_color("idle"))
+
+    def setColor(self, color):
+        """QVariantAnimation 逐帧回调入口（QColor 或 hex str）。"""
+        self._color = QColor(color)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self._color)
+        d = 12.0
+        painter.drawEllipse(
+            QRectF((self.width() - d) / 2, (self.height() - d) / 2, d, d)
+        )
+        painter.end()
 
 
 class StatusPanel(QWidget):
@@ -33,15 +80,15 @@ class StatusPanel(QWidget):
         self._virtual_ip: str | None = None
         self._countdown_remaining = 0
         self._retry_attempt = 0
+        self._dot_state = "idle"  # 当前语义色名（refresh_theme 重解析用）
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
-        layout.setContentsMargins(0, 12, 0, 0)
+        layout.setContentsMargins(0, 20, 0, 0)
 
-        # ---- hero：圆点/旋转弧（同位互斥）+ 状态词 + 副标题 ----
-        self.spinner = BusySpinner(self, diameter=18)
-        self.status_dot = QLabel("●")
-        self.status_dot.setAlignment(Qt.AlignCenter)
+        # ---- hero：圆点/旋转弧（同槽位等径互斥）+ 状态词 + 副标题 ----
+        self.spinner = BusySpinner(self, diameter=20)
+        self.status_dot = StatusDot(self)
         dot_row = QHBoxLayout()
         dot_row.setAlignment(Qt.AlignCenter)
         dot_row.addWidget(self.spinner)
@@ -54,19 +101,21 @@ class StatusPanel(QWidget):
         layout.addWidget(self.status_text)
 
         self.subtitle = QLabel(server_text)
-        self.subtitle.setFont(theme.card_title_font())
+        self.subtitle.setFont(theme.subtitle_font())
         self.subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.subtitle)
 
-        # ---- 统计行：无边框纯文字三列 ----
-        stats = QHBoxLayout()
+        # ---- 统计行（容器化：仅已连接态展开，空态不陈列）----
+        self.stats_area = QWidget()
+        stats = QHBoxLayout(self.stats_area)
         stats.setSpacing(0)
-        stats.setContentsMargins(0, 10, 0, 4)
+        stats.setContentsMargins(0, 12, 0, 4)
         self._stat_labels = []
-        self.duration_value = self._add_stat(stats, "00:00:00", "时长")
-        self.up_value = self._add_stat(stats, "—", "↑ 上行")
-        self.down_value = self._add_stat(stats, "—", "↓ 下行")
-        layout.addLayout(stats)
+        self.duration_value = self._add_stat(stats, "时长")
+        self.up_value = self._add_stat(stats, "上行")
+        self.down_value = self._add_stat(stats, "下行")
+        self.stats_area.setVisible(False)
+        layout.addWidget(self.stats_area)
 
         self.setLayout(layout)
 
@@ -78,13 +127,17 @@ class StatusPanel(QWidget):
         self._countdown_timer.setInterval(1000)
         self._countdown_timer.timeout.connect(self._countdown_tick)
 
+        # 三个值标签统一进占位符态（"—" 灰化）
+        for value in (self.duration_value, self.up_value, self.down_value):
+            self._set_value(value, "—", placeholder=True)
+
         self.refresh_theme()
 
-    def _add_stat(self, row, initial, caption):
+    def _add_stat(self, row, caption):
         row.addStretch()
         col = QVBoxLayout()
         col.setSpacing(2)
-        value = QLabel(initial)
+        value = QLabel("—")
         value.setFont(theme.card_value_font())
         value.setAlignment(Qt.AlignCenter)
         label = QLabel(caption)
@@ -115,22 +168,120 @@ class StatusPanel(QWidget):
     def down_text(self) -> str:
         return self.down_value.text()
 
+    # ---- 内部：值标签 / 统计行 / hero ----
+
+    def _set_value(self, label, text: str, placeholder: bool):
+        """占位符染次要色退后，真数据用主文字色；property 供 refresh_theme 重放。"""
+        label.setText(text)
+        label.setProperty("placeholder", placeholder)
+        color = theme.semantic_color("secondary_text" if placeholder else "ink")
+        label.setStyleSheet(f"color: {color};")
+
+    def _set_stats_visible(self, visible: bool):
+        """统计行展开/收起（250ms 高度+淡出，可打断；reduce-motion 即时）。"""
+        if visible == getattr(self, "_stats_visible", False):
+            return
+        self._stats_visible = visible
+        animated_height_toggle(
+            self.stats_area, visible, max_height=52, fade=True,
+            on_frame=lambda: self.window().adjustSize(),
+        )
+
+    def _animate_dot_color(self, target: str):
+        """圆点颜色过渡（与 animate_label_color 同款可打断/守卫纪律）。"""
+        dot = self.status_dot
+        old = getattr(dot, "_color_anim", None)
+        if old is not None:
+            dot._color_anim = None
+            if isValid(old):
+                old.stop()
+        if reduce_motion():
+            dot.setColor(target)
+            return
+        anim = QVariantAnimation(dot)
+        anim.setDuration(ANIMATION_DURATION_MS)
+        anim.setStartValue(dot._color)
+        anim.setEndValue(QColor(target))
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(dot.setColor)
+        dot._color_anim = anim  # 身份守卫 + 持有引用防 GC
+        anim.start()
+
+    def _fade_in_hero(self):
+        """状态词换字后 160ms 淡入（状态切换是核心叙事，值得一次呼吸）。"""
+        if reduce_motion():
+            return
+        old = getattr(self, "_hero_fade", None)
+        if old is not None:
+            self._hero_fade = None
+            if isValid(old):
+                old.stop()
+        effect = QGraphicsOpacityEffect(self.status_text)
+        self.status_text.setGraphicsEffect(effect)
+        anim = QVariantAnimation(self.status_text)
+        anim.setDuration(160)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(effect.setOpacity)
+
+        def _cleanup():
+            if getattr(self, "_hero_fade", None) is not anim:
+                return
+            # 终态移除效果：常驻 QGraphicsOpacityEffect 会关掉文字子像素渲染
+            self.status_text.setGraphicsEffect(None)
+
+        anim.finished.connect(_cleanup)
+        self._hero_fade = anim
+        anim.start()
+
     def refresh_theme(self):
-        """深浅色/外观切换时刷新依赖主题色的样式。"""
+        """深浅色/外观切换时刷新依赖主题色的样式（含圆点/状态词当前态重解析）。"""
         secondary = theme.semantic_color("secondary_text")
         self.subtitle.setStyleSheet(f"color: {secondary};")
         for label in self._stat_labels:
             label.setStyleSheet(f"color: {secondary};")
+        for value in (self.duration_value, self.up_value, self.down_value):
+            self._set_value(value, value.text(), bool(value.property("placeholder")))
+        # 状态色按当前语义重解析（不走动画，切外观是瞬时场景）
+        self.status_dot.setColor(theme.semantic_color(self._dot_state))
+        hero_color = "ink" if self._dot_state == "idle" else self._dot_state
+        self.status_text.setStyleSheet(
+            f"color: {theme.semantic_color(hero_color)};"
+        )
+        if self._dot_state == "connected":
+            self._apply_glow(True)
+
+    def _apply_glow(self, on: bool):
+        """已连接态圆点柔光（品牌绿 60% 透明，半径 16，无偏移）。"""
+        if on:
+            glow = QGraphicsDropShadowEffect(self.status_dot)
+            glow.setBlurRadius(16)
+            color = QColor(theme.semantic_color("connected"))
+            color.setAlphaF(0.6)
+            glow.setColor(color)
+            glow.setOffset(0, 0)
+            self.status_dot.setGraphicsEffect(glow)
+        else:
+            self.status_dot.setGraphicsEffect(None)
 
     def _set_hero(self, text: str, color_name: str, subtitle: str):
+        self._dot_state = color_name
         self.status_text.setText(text)
+        self._fade_in_hero()
         self.subtitle.setText(subtitle)
-        animate_label_color(self.status_dot, theme.semantic_color(color_name))
+        self._animate_dot_color(theme.semantic_color(color_name))
+        # 状态词同色（idle 除外：灰词太弱，未连接用主文字色）
+        hero_color = "ink" if color_name == "idle" else color_name
+        animate_label_color(self.status_text, theme.semantic_color(hero_color))
+        self._apply_glow(color_name == "connected")
 
     def _tick(self):
         if self._connected_since:
-            self.duration_value.setText(
-                _fmt_duration(int((datetime.now() - self._connected_since).total_seconds()))
+            self._set_value(
+                self.duration_value,
+                _fmt_duration(int((datetime.now() - self._connected_since).total_seconds())),
+                placeholder=False,
             )
 
     def _countdown_tick(self):
@@ -154,6 +305,7 @@ class StatusPanel(QWidget):
         # 主窗口隐藏（托盘发起连接/silent_mode 自连）时恒 False，会导致 dot 与 spinner 同屏并现
         self.status_dot.setVisible(self.spinner.isHidden())
         self._set_hero("连接中…", "working", self._server_text)
+        self._set_stats_visible(False)
         self.areas_changed.emit(True, False)
 
     def set_connected(self, virtual_ip: str):
@@ -162,8 +314,14 @@ class StatusPanel(QWidget):
         self._countdown_timer.stop()
         self._connected_since = datetime.now()
         self._virtual_ip = virtual_ip
-        self._set_hero("已连接", "connected", f"{virtual_ip} · {self._server_text}")
+        # 副标题只给"内网 IP"（用户语言）；服务器地址挪 tooltip（技术细节退后）
+        self._set_hero("已连接", "connected", f"内网 IP {virtual_ip}")
+        self.subtitle.setToolTip(self._server_text)
+        self._set_value(self.duration_value, "00:00:00", placeholder=False)
+        self._set_value(self.up_value, "—", placeholder=True)
+        self._set_value(self.down_value, "—", placeholder=True)
         self._duration_timer.start()
+        self._set_stats_visible(True)
         self.areas_changed.emit(False, True)
 
     def set_reconnecting(self, attempt: int, delay: float):
@@ -174,6 +332,7 @@ class StatusPanel(QWidget):
         self._countdown_remaining = int(delay)
         self._set_hero("连接中断", "working", f"{self._countdown_remaining}s 后第 {attempt} 次重连…")
         self._countdown_timer.start()
+        self._set_stats_visible(False)
         self.areas_changed.emit(False, False)
 
     def set_reconnect_paused(self):
@@ -181,6 +340,7 @@ class StatusPanel(QWidget):
         self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._set_hero("自动重连已暂停", "error", "连续失败 3 次，请手动连接")
+        self._set_stats_visible(False)
         self.areas_changed.emit(True, False)
 
     def set_disconnected(self, hero: str = "未连接", detail: str = ""):
@@ -192,12 +352,14 @@ class StatusPanel(QWidget):
         self._duration_timer.stop()
         is_error = hero != "未连接"
         self._set_hero(hero, "error" if is_error else "idle", detail or self._server_text)
-        self.duration_value.setText("00:00:00")
-        self.up_value.setText("—")
-        self.down_value.setText("—")
+        self.subtitle.setToolTip("")
+        self._set_value(self.duration_value, "—", placeholder=True)
+        self._set_value(self.up_value, "—", placeholder=True)
+        self._set_value(self.down_value, "—", placeholder=True)
+        self._set_stats_visible(False)
         self.areas_changed.emit(True, False)
 
     def set_rates(self, up_text: str, down_text: str):
-        """TUN 模式速率喂数（代理模式不调用，保持 "—"）。"""
-        self.up_value.setText(up_text)
-        self.down_value.setText(down_text)
+        """TUN 模式速率喂数（代理模式不调用，保持 "—"）。箭头前缀让数据语义自明。"""
+        self._set_value(self.up_value, f"↑ {up_text}", placeholder=False)
+        self._set_value(self.down_value, f"↓ {down_text}", placeholder=False)

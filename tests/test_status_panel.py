@@ -21,9 +21,47 @@ def test_initial_state(panel):
     assert panel.status_text.text() == "未连接"
     assert panel.subtitle.text() == "112.91.150.228"
     assert panel.ip_text == "—"
-    assert panel.duration_text == "00:00:00"
+    # 空态不陈列假数据：时长/速率统一 "—" 占位符
+    assert panel.duration_text == "—"
+    assert panel.up_text == "—" and panel.down_text == "—"
     assert not panel.spinner.isVisible()
     assert panel.status_dot.isVisible()
+    # 统计行仅已连接态展开（未连接不陈列空数据）
+    assert panel.stats_area.isHidden()
+
+
+def test_dot_initial_color_is_idle_not_black(panel):
+    """回归：启动第一眼圆点必须是 idle 灰，不是默认黑（原字形方案无人给初始态上色）"""
+    from common import theme
+
+    expected = theme.semantic_color("idle").lower()
+    assert panel.status_dot._color.name() == expected
+
+
+def test_dot_glow_only_when_connected(panel):
+    """spec 的"绿+柔光"：已连接挂 QGraphicsDropShadowEffect，其余态无"""
+    assert panel.status_dot.graphicsEffect() is None
+    panel.set_connected("10.0.43.17")
+    assert panel.status_dot.graphicsEffect() is not None
+    panel.set_disconnected()
+    assert panel.status_dot.graphicsEffect() is None
+
+
+def test_hero_word_takes_state_color(panel):
+    """状态词本身着色：已连接绿 / 未连接 ink（26pt 大字带色，一眼可读状态）"""
+    from common import theme
+
+    assert theme.semantic_color("ink").lower() in panel.status_text.styleSheet().lower()
+    panel.set_connected("10.0.43.17")
+    assert theme.semantic_color("connected").lower() in panel.status_text.styleSheet().lower()
+
+
+def test_stats_row_expand_collapse_with_connection(panel):
+    """统计行：连接成功展开、断开收起（空态不陈列）"""
+    panel.set_connected("10.0.43.17")
+    assert not panel.stats_area.isHidden()
+    panel.set_disconnected()
+    assert panel.stats_area.isHidden()
 
 
 def test_connecting_shows_spinner_hides_dot(panel, monkeypatch):
@@ -42,7 +80,9 @@ def test_connected_state_and_areas_signal(panel):
     fired.clear()
     panel.set_connected("10.0.43.17")
     assert panel.status_text.text() == "已连接"
-    assert panel.subtitle.text() == "10.0.43.17 · 112.91.150.228"
+    # 副标题只给用户语言"内网 IP"（服务器地址挪 tooltip，不再双裸 IP 并排）
+    assert panel.subtitle.text() == "内网 IP 10.0.43.17"
+    assert panel.subtitle.toolTip() == "112.91.150.228"
     assert panel.ip_text == "10.0.43.17"
     assert panel._duration_timer.isActive()
     assert not panel.spinner.isVisible()
@@ -117,8 +157,21 @@ def test_refresh_theme_colors_stat_labels(panel):
 
 def test_set_rates(panel):
     panel.set_rates("1.2 MB/s", "3.4 MB/s")
-    assert panel.up_text == "1.2 MB/s"
-    assert panel.down_text == "3.4 MB/s"
+    assert panel.up_text == "↑ 1.2 MB/s"
+    assert panel.down_text == "↓ 3.4 MB/s"
     panel.set_disconnected()
     assert panel.up_text == "—"
     assert panel.down_text == "—"
+
+
+def test_placeholder_gray_data_ink(panel):
+    """"—" 占位符染次要色退后，真数据用主文字色（无数据不该和真数据一样重）"""
+    from common import theme
+
+    secondary = theme.semantic_color("secondary_text").lower()
+    ink = theme.semantic_color("ink").lower()
+    assert secondary in panel.up_value.styleSheet().lower()
+    panel.set_connected("10.0.43.17")
+    panel.set_rates("1.2 MB/s", "3.4 MB/s")
+    assert ink in panel.up_value.styleSheet().lower()
+    assert ink in panel.duration_value.styleSheet().lower()

@@ -17,7 +17,8 @@ DEFAULT_PORT = "443"
 DEFAULT_DNS = ""  # 留空即可：默认开启 auto_dns 从服务端获取
 
 # 校内资源入口（用户明确只需要这两个，不做自定义管理）
+# 注意：按钮文案不含 emoji——真机渲染为彩色 emoji，与单色描边胶囊的克制感冲突
 RESOURCES = [
-    ("📖 电子图书馆", "http://elib.bitzh.edu.cn:8080/interlibSSO/main/main.jsp"),
-    ("🏛 统一门户", "https://s.bitzh.edu.cn"),
+    ("电子图书馆", "http://elib.bitzh.edu.cn:8080/interlibSSO/main/main.jsp"),
+    ("统一门户", "https://s.bitzh.edu.cn"),
 ]

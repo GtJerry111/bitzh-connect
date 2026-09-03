@@ -82,15 +82,29 @@ def animate_label_color(label, target: str, duration: int = ANIMATION_DURATION_M
 
 
 def animated_height_toggle(widget, expanding: bool, max_height: int = 200,
-                           duration: int = ANIMATION_DURATION_MS, on_frame=None):
+                           duration: int = ANIMATION_DURATION_MS, on_frame=None,
+                           fade: bool = False):
     """展开/收起 widget 的高度动画。
 
     可打断：再次调用时从当前实际高度重启（QPropertyAnimation 会自动停掉同属性旧动画）。
     on_frame: 每帧回调（例如主窗口 adjustSize，让窗口高度随内容平滑变化）。
+    fade=True 时并行透明度淡入/淡出：收起不再是"裁纸刀"式硬裁，
+    展开也不再是凭空硬切（QGraphicsOpacityEffect，终态后移除防文字渲染降级）。
     """
+    from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+    # 打断场景：先捕获在途透明度再替换 effect（setGraphicsEffect 会删旧对象）
+    old_opacity = None
+    if fade:
+        old_effect = widget.graphicsEffect()
+        if isinstance(old_effect, QGraphicsOpacityEffect):
+            old_opacity = old_effect.opacity()
+
     if reduce_motion():
         widget.setMaximumHeight(16777215)
         widget.setVisible(expanding)
+        if fade:
+            widget.setGraphicsEffect(None)
         if on_frame:
             on_frame()
         return None
@@ -107,14 +121,32 @@ def animated_height_toggle(widget, expanding: bool, max_height: int = 200,
     if on_frame:
         anim.valueChanged.connect(lambda _v: on_frame())
 
+    fade_anim = None
+    if fade:
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+        fade_anim = QPropertyAnimation(effect, b"opacity", widget)
+        fade_anim.setDuration(duration)
+        if old_opacity is not None:
+            start_opacity = old_opacity  # 从打断点继续，不回跳
+        else:
+            start_opacity = 1.0 if start_h > 0 else 0.0
+        fade_anim.setStartValue(start_opacity)
+        fade_anim.setEndValue(1.0 if expanding else 0.0)
+        fade_anim.setEasingCurve(QEasingCurve.OutCubic)
+
     def _finish():
         if getattr(widget, "_height_anim", None) is not anim:
             return  # 被顶替停掉的旧动画（如收起被展开打断）不得决定终态
         widget.setMaximumHeight(16777215)
         if not expanding:
             widget.setVisible(False)
+        # 终态移除透明度效果：常驻 QGraphicsOpacityEffect 会关掉文字的子像素渲染
+        widget.setGraphicsEffect(None)
 
     anim.finished.connect(_finish)
     widget._height_anim = anim  # 须在 start 前建立身份：start 可能同步触发旧动画 finished
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+    if fade_anim is not None:
+        fade_anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
     return anim
