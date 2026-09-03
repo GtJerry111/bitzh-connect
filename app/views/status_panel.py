@@ -75,6 +75,10 @@ class StatusPanel(QWidget):
 
     def __init__(self, server_text: str = "", parent=None):
         super().__init__(parent)
+        # 深色模式下仪表盘垫一层微亮表面（card_background token），制造纵深；
+        # WA_StyledBackground 让纯 QWidget 的 QSS 背景真正参与绘制
+        self.setObjectName("StatusPanelRoot")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._server_text = server_text
         self._connected_since: datetime | None = None
         self._virtual_ip: str | None = None
@@ -237,6 +241,15 @@ class StatusPanel(QWidget):
 
     def refresh_theme(self):
         """深浅色/外观切换时刷新依赖主题色的样式（含圆点/状态词当前态重解析）。"""
+        # 深色分层：窗口之上仪表盘是一块微亮表面；浅色保持透明（白底卡片无意义）
+        if theme.is_dark():
+            self.setStyleSheet(
+                f"QWidget#StatusPanelRoot {{"
+                f" background-color: {theme.card_background()};"
+                f" border-radius: 12px; }}"
+            )
+        else:
+            self.setStyleSheet("")
         secondary = theme.semantic_color("secondary_text")
         self.subtitle.setStyleSheet(f"color: {secondary};")
         for label in self._stat_labels:

@@ -175,3 +175,16 @@ def test_placeholder_gray_data_ink(panel):
     panel.set_rates("1.2 MB/s", "3.4 MB/s")
     assert ink in panel.up_value.styleSheet().lower()
     assert ink in panel.duration_value.styleSheet().lower()
+
+
+def test_dark_mode_card_surface(panel):
+    """深色分层：仪表盘垫一层 card_background 微亮表面；浅色保持透明"""
+    from common import theme
+
+    theme.set_appearance("dark")
+    panel.refresh_theme()
+    assert "background-color" in panel.styleSheet()
+    theme.set_appearance("light")
+    panel.refresh_theme()
+    assert panel.styleSheet() == ""
+    theme.set_appearance("system")
