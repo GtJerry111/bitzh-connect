@@ -328,4 +328,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
           generateReleaseNotes: true
-          prerelease: true
