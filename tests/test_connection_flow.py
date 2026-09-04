@@ -249,6 +249,39 @@ def test_quit_app_reentrant_and_defers_quit(qtbot, monkeypatch):
     assert len(_StubTimer.calls) == 1
 
 
+def test_quit_app_waits_for_worker_thread(qtbot, monkeypatch):
+    """teardown 前必须等 worker 线程退出——QThread 运行中析构必 qFatal（真实崩溃栈：
+    QThreadWrapper::~QThreadWrapper 于解释器收尾期）"""
+    monkeypatch.setattr("utils.tray_utils.QTimer", _StubTimer)
+    _StubTimer.calls.clear()
+    win = _make_window(qtbot)
+
+    class FakeWorker:
+        """stop() 后线程仍需一拍才退出（模拟内核收尾耗时）"""
+
+        def __init__(self):
+            self.waits = []
+            self._running = True
+
+        def stop(self):
+            pass
+
+        def isRunning(self):
+            return self._running
+
+        def wait(self, ms):
+            self.waits.append(ms)
+            self._running = False
+            return True
+
+        def terminate(self):
+            raise AssertionError("正常退出路径不得强杀线程")
+
+    win.worker = FakeWorker()
+    win.quit_app()
+    assert win.worker.waits == [3000]  # 等待过一次（3s 上限）
+
+
 def test_close_event_during_quit_accepted_without_touching_tray(qtbot, monkeypatch):
     """macOS teardown 补发的 closeEvent 在退出流程中必须安全放行（F1 回归）"""
     from PySide6.QtGui import QCloseEvent

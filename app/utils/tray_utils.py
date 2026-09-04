@@ -66,6 +66,18 @@ def quit_app(window, tray_icon):
     window._quitting = True
     window.stop_connection()
     window.hide()
+    # 关键：worker 线程必须死在 QApplication 销毁之前——QThread 析构时线程仍在跑
+    # 会 qFatal（真实崩溃栈：QThreadWrapper::~QThreadWrapper 于解释器收尾期）。
+    # 内核 SIGTERM 后的收尾（清路由/还原 resolver）可能超过原 1.5s 固定延迟，
+    # 改为显式等待；阻塞发生在 hide 之后，用户无感。
+    worker = getattr(window, "worker", None)
+    if worker is not None and worker.isRunning():
+        worker.wait(3000)
+        if worker.isRunning():
+            # 兜底：极端挂死时强杀线程（内核进程已终止，读循环不会自行返回；
+            # 不杀则 teardown 必崩——两害相权取强杀）
+            worker.terminate()
+            worker.wait(500)
     if isValid(tray_icon):
         tray_icon.deleteLater()
     QTimer.singleShot(1500, QApplication.quit)

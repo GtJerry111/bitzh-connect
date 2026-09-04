@@ -12,10 +12,9 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QFrame,
-    QToolButton,
 )
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication, QColor, QPainter
+from PySide6.QtCore import QEasingCurve, QPointF, Qt, QVariantAnimation, Signal
 from utils.config_utils import save_config, load_config
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
 from platform import system
@@ -31,6 +30,102 @@ VERSION = get_version()
 
 # 外观三态取值（与下拉框索引一一对应）
 _APPEARANCE_MODES = ["system", "light", "dark"]
+
+
+class _Chevron(QWidget):
+    """8px 细描边 chevron（1.5pt round cap）——QToolButton 的 ArrowType 又大又钝，
+    与细字重标题不匹配；自绘 + 旋转动画才有 macOS disclosure 的观感。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(12, 12)
+        self._angle = 0.0  # 0=右（收起），90=下（展开）
+
+    def set_angle(self, deg: float):
+        self._angle = deg
+        self.update()
+
+    def paintEvent(self, event):
+        from PySide6.QtGui import QPen
+        from PySide6.QtCore import QPointF
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor(theme.semantic_color("secondary_text")))
+        pen.setWidthF(1.5)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(pen)
+        painter.translate(6, 6)
+        painter.rotate(self._angle)
+        painter.drawLine(QPointF(-1.6, -4.0), QPointF(2.4, 0.0))
+        painter.drawLine(QPointF(2.4, 0.0), QPointF(-1.6, 4.0))
+        painter.end()
+
+
+class DisclosureHeader(QWidget):
+    """分组折叠头：chevron（展开旋转 90°，150ms OutCubic）+ 标题 + 细分隔线。
+
+    整行可点；hover 时文字微亮（桌面端"它在听"的第一层反馈）。
+    """
+
+    toggled = Signal(bool)
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(parent)
+        self._expanded = False
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(28)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 0, 0, 0)
+        layout.setSpacing(8)
+        self._chevron = _Chevron(self)
+        layout.addWidget(self._chevron)
+        self._label = QLabel(text)
+        font = self._label.font()
+        font.setPointSize(13)
+        font.setWeight(font.Weight.DemiBold)
+        self._label.setFont(font)
+        layout.addWidget(self._label)
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setStyleSheet(f"color: {theme.semantic_color('separator')};")
+        layout.addWidget(line, 1)
+
+    def isExpanded(self) -> bool:
+        return self._expanded
+
+    def setExpanded(self, expanded: bool):
+        if expanded == self._expanded:
+            return
+        self._expanded = expanded
+        from utils.motion_utils import reduce_motion
+
+        if reduce_motion():
+            self._chevron.set_angle(90.0 if expanded else 0.0)
+        else:
+            old = getattr(self, "_chevron_anim", None)
+            if old is not None:
+                self._chevron_anim = None
+                old.stop()
+            anim = QVariantAnimation(self)
+            anim.setDuration(150)
+            anim.setStartValue(self._chevron._angle)
+            anim.setEndValue(90.0 if expanded else 0.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.valueChanged.connect(self._chevron.set_angle)
+            self._chevron_anim = anim
+            anim.start()
+        self.toggled.emit(expanded)
+
+    def mousePressEvent(self, event):
+        self.setExpanded(not self._expanded)
+
+    def enterEvent(self, event):
+        self._label.setStyleSheet(f"color: {theme.semantic_color('ink')};")
+
+    def leaveEvent(self, event):
+        self._label.setStyleSheet("")
 
 
 class AdvancedSettingsDialog(QDialog):
@@ -182,31 +277,10 @@ class AdvancedSettingsDialog(QDialog):
             self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）")
         )
 
-        # ---- 高级（默认折叠，点小箭头展开；展开/收起随对话框高度平滑伸缩）----
-        self.advanced_toggle = QToolButton()
-        self.advanced_toggle.setText("高级")
-        self.advanced_toggle.setCheckable(True)
-        self.advanced_toggle.setChecked(False)
-        self.advanced_toggle.setArrowType(Qt.RightArrow)
-        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.advanced_toggle.setCursor(Qt.PointingHandCursor)
-        toggle_font = self.advanced_toggle.font()
-        toggle_font.setPointSize(13)
-        toggle_font.setWeight(toggle_font.Weight.DemiBold)
-        self.advanced_toggle.setFont(toggle_font)
-        self.advanced_toggle.setStyleSheet(
-            "QToolButton { border: none; padding: 0; }"
-            f"QToolButton:hover {{ color: {theme.semantic_color('secondary_text')}; }}"
-        )
+        # ---- 高级（默认折叠，点 chevron 行展开；展开/收起随对话框高度平滑伸缩）----
+        self.advanced_toggle = DisclosureHeader("高级")
         self.advanced_toggle.toggled.connect(self._toggle_advanced)
-        advanced_header = QHBoxLayout()
-        advanced_header.setContentsMargins(0, 10, 0, 4)
-        advanced_header.addWidget(self.advanced_toggle)
-        header_line = QFrame()
-        header_line.setFrameShape(QFrame.HLine)
-        header_line.setStyleSheet(f"color: {theme.semantic_color('separator')};")
-        advanced_header.addWidget(header_line, 1)
-        network_layout.addLayout(advanced_header)
+        network_layout.addWidget(self.advanced_toggle)
 
         self.advanced_area = QWidget()
         advanced_layout = QVBoxLayout(self.advanced_area)
@@ -415,14 +489,10 @@ class AdvancedSettingsDialog(QDialog):
         不做区域高度动画：per-tab 定高下内容长高会撞固定高度；对话框即时贴合 +
         内容淡入淡出，等效 macOS 系统设置的分组展开观感。
         """
-        from PySide6.QtCore import QEasingCurve, QVariantAnimation
         from PySide6.QtWidgets import QGraphicsOpacityEffect
 
         from utils.motion_utils import reduce_motion
 
-        self.advanced_toggle.setArrowType(
-            Qt.DownArrow if expanding else Qt.RightArrow
-        )
         if reduce_motion():
             self.advanced_area.setVisible(expanding)
             self._fit_to_tab(self._tabs.currentIndex())
@@ -441,6 +511,8 @@ class AdvancedSettingsDialog(QDialog):
             self.advanced_area.setGraphicsEffect(None)  # 常驻会关文字子像素渲染
             if not expanding:
                 self.advanced_area.setVisible(False)
+                # 收回后对话框高度同步收回（内容隐藏后才重新贴合，否则留白残留）
+                self._fit_to_tab(self._tabs.currentIndex())
 
         anim.finished.connect(_finish)
         if expanding:

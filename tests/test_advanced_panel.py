@@ -92,17 +92,29 @@ def test_general_tab_comes_first(dialog):
 
 
 def test_advanced_area_collapsed_by_default(dialog, monkeypatch):
-    """高级区默认折叠（网络 tab 保持清爽），点小箭头展开/收起"""
-    from PySide6.QtCore import Qt
-
+    """高级区默认折叠（网络 tab 保持清爽），点 chevron 行展开/收起"""
     assert dialog.advanced_area.isHidden()  # 默认折叠
-    assert dialog.advanced_toggle.arrowType() == Qt.RightArrow
+    assert dialog.advanced_toggle.isExpanded() is False
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    dialog.advanced_toggle.setChecked(True)
+    dialog.advanced_toggle.setExpanded(True)
     assert not dialog.advanced_area.isHidden()
-    assert dialog.advanced_toggle.arrowType() == Qt.DownArrow
-    dialog.advanced_toggle.setChecked(False)
+    dialog.advanced_toggle.setExpanded(False)
     assert dialog.advanced_area.isHidden()
+
+
+def test_advanced_collapse_reclaims_dialog_height(dialog, monkeypatch):
+    """展开再收起：对话框高度必须跟着收回来（不留空白）"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    from PySide6.QtWidgets import QTabWidget
+
+    dialog.show()
+    dialog.findChild(QTabWidget).setCurrentIndex(1)  # 网络 tab
+    h_collapsed = dialog.height()
+    dialog.advanced_toggle.setExpanded(True)
+    h_expanded = dialog.height()
+    assert h_expanded > h_collapsed
+    dialog.advanced_toggle.setExpanded(False)
+    assert dialog.height() == h_collapsed
 
 
 def test_log_viewer_follows_main_window(qtbot, monkeypatch):
