@@ -236,17 +236,43 @@ class AdvancedSettingsDialog(QDialog):
         help_layout.addWidget(self._group_header("支持"))
         support_row = QHBoxLayout()
         support_row.setSpacing(8)
-        copy_log_btn = QPushButton("复制运行日志")
-        copy_log_btn.clicked.connect(self._copy_log)
-        support_row.addWidget(copy_log_btn)
         update_btn = QPushButton("检查更新")
         update_btn.clicked.connect(self._check_update)
         support_row.addWidget(update_btn)
         support_row.addStretch()
         help_layout.addLayout(support_row)
+
+        # 运行日志（主窗口不再陈列日志区，收编到这里查看；实时跟随）
+        help_layout.addWidget(self._group_header("运行日志"))
+        from PySide6.QtGui import QFontDatabase
+        from PySide6.QtWidgets import QTextEdit
+
+        self.log_viewer = QTextEdit()
+        self.log_viewer.setReadOnly(True)
+        self.log_viewer.setMinimumHeight(180)
+        self.log_viewer.setMaximumHeight(240)
+        log_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        log_font.setPointSize(11)
+        self.log_viewer.setFont(log_font)
+        help_layout.addWidget(self.log_viewer)
+        log_btn_row = QHBoxLayout()
+        log_btn_row.addStretch()
+        copy_log_btn = QPushButton("复制日志")
+        copy_log_btn.clicked.connect(self._copy_log)
+        log_btn_row.addWidget(copy_log_btn)
+        help_layout.addLayout(log_btn_row)
         help_layout.addWidget(
-            self._description("复制日志后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
+            self._description("复制后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
         )
+        # 打开时同步一次主窗口日志缓冲；对话框存活期间实时跟随 + 自动滚到底部
+        source = getattr(self.parent(), "output_text", None)
+        if source is not None:
+            self.log_viewer.setPlainText(source.toPlainText())
+            self.log_viewer.verticalScrollBar().setValue(
+                self.log_viewer.verticalScrollBar().maximum()
+            )
+            source.textChanged.connect(self._sync_log)
+
         help_layout.addStretch()
 
         # macOS 惯例：General 在前；帮助殿后
@@ -323,6 +349,15 @@ class AdvancedSettingsDialog(QDialog):
         page = self._tabs.widget(index)
         self._tabs.setFixedHeight(page.sizeHint().height() + self._tab_overhead)
         self.adjustSize()
+
+    def _sync_log(self):
+        """日志缓冲有新内容时实时跟随（含自动滚到底部）。"""
+        source = getattr(self.parent(), "output_text", None)
+        if source is None:
+            return
+        self.log_viewer.setPlainText(source.toPlainText())
+        scrollbar = self.log_viewer.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def _copy_log(self):
         """复制主窗口运行日志到剪贴板（帮助 tab 按钮）。"""

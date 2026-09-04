@@ -27,13 +27,11 @@ def test_connect_button_enabled_after_filling_credentials(window):
     assert window.connect_button.isEnabled()
 
 
-def test_log_toggle_reveals_output(window, monkeypatch):
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    assert not window.output_text.isVisible()
-    window.log_toggle.setChecked(True)
-    assert window.output_text.isVisible()
-    window.log_toggle.setChecked(False)
-    assert not window.output_text.isVisible()
+def test_log_not_on_main_window(window):
+    """运行日志已从主窗口撤除（收进设置对话框帮助 tab）；
+    output_text 缓冲保留为隐藏存储（各处 append 路径不动）"""
+    assert not hasattr(window, "log_toggle")
+    assert window.output_text.isVisible() is False
 
 
 def test_accent_button_uses_bit_green(window):
@@ -85,12 +83,77 @@ def test_disabled_button_tooltip_via_event_filter(window):
     assert window.eventFilter(window.connect_button, ev2) is False
 
 
-def test_log_toggle_shows_text_beside_arrow(window):
-    """回归：日志折叠开关必须显示"运行日志"文字（默认 IconOnly 会吞掉文字只剩裸箭头）"""
-    from PySide6.QtCore import Qt
+def test_mode_switch_defaults_to_tun(window):
+    """TUN 默认开启 → 分段选择器初始落在 TUN 段"""
+    assert window.tun_mode is True
+    assert window.mode_switch.currentIndex() == 1
 
-    assert window.log_toggle.toolButtonStyle() == Qt.ToolButtonTextBesideIcon
-    assert window.log_toggle.text() == "运行日志"
+
+def test_mode_switch_click_persists(window, qtbot):
+    """主界面切模式：立即写回配置（与高级设置的 TUN 开关同一配置键）"""
+    from PySide6.QtCore import QPoint, Qt
+
+    qtbot.mouseClick(window.mode_switch, Qt.LeftButton, pos=QPoint(5, 15))
+    assert window.mode_switch.currentIndex() == 0
+    assert window.tun_mode is False
+    from utils.config_utils import load_config
+
+    assert load_config()["tun_mode"] is False
+
+
+def test_mode_switch_locked_while_connected(window, monkeypatch):
+    """连接中锁定模式开关（连接参数下个周期再调）"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append(True))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.connect_button.setChecked(True)
+    assert not window.mode_switch.isEnabled()
+    window.connect_button.setChecked(False)
+    assert window.mode_switch.isEnabled()
+
+
+def test_sleep_cancels_pending_reconnect(window):
+    """休眠：在途重连退避取消（盒盖期间重连只会无人理会地弹授权框）"""
+    window._manual_stop = False
+    window._auth_failed = False
+    window.reconnect_manager.on_process_exited(manual=False, auth_failed=False)
+    assert window.reconnect_manager._retry_timer.isActive()
+    window._on_system_sleep()
+    assert not window.reconnect_manager._retry_timer.isActive()
+    assert window.reconnect_manager.retry_count == 0
+
+
+def test_wake_bounces_active_connection(window, monkeypatch):
+    """唤醒且处于"应连接"态：先断后连（bounce），TUN 断开零弹窗、重连一次授权"""
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window._manual_stop = False
+    window._auth_failed = False
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    delayed = []
+    monkeypatch.setattr(
+        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
+    )
+
+    window.connect_button.setChecked(True)  # 模拟已连接（start 已 mock 不真实连接）
+    fired.clear()
+    window._on_system_wake()
+    assert fired == ["stop"]  # 先完整断开
+    assert window.connect_button.isChecked() is False
+    delayed[0]()  # 1s 后的重连回调
+    assert window.connect_button.isChecked() is True
+    assert fired == ["stop", "start"]
+
+
+def test_wake_noop_when_manually_disconnected(window):
+    """手动断开状态下唤醒：不得自作主张重连"""
+    window._manual_stop = True
+    window._auth_failed = False
+    window._on_system_wake()
+    assert "休眠唤醒" not in window.output_text.toPlainText()
 
 
 def test_return_pressed_triggers_connect(window, qtbot, monkeypatch):

@@ -1,3 +1,5 @@
+from platform import system
+
 from PySide6.QtWidgets import (
     QMainWindow,
     QLabel,
@@ -5,7 +7,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QPushButton,
     QTextEdit,
-    QToolButton,
     QToolTip,
     QVBoxLayout,
     QHBoxLayout,
@@ -18,7 +19,7 @@ from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import check_for_updates, show_advanced_settings
-from utils.config_utils import load_settings
+from utils.config_utils import load_config, load_settings, save_config
 from services.reconnect_manager import ReconnectManager
 from utils.set_proxy import cleanup_residue_proxy
 from common.constants import APP_NAME
@@ -131,6 +132,11 @@ class MainWindow(QMainWindow):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
         self.tray_icon = init_tray_icon(self)
 
+        # 休眠/唤醒联动（仅 macOS 实装）：休眠抑制重连，唤醒立即重连
+        from utils.sleep_wake import install_sleep_wake_hooks
+
+        install_sleep_wake_hooks(self)
+
         # B11：启动自动连接前先确认凭据存在，避免拉起一个注定失败的进程
         if self.connect_startup:
             if self.username_input.text() and self.password_input.text():
@@ -213,6 +219,19 @@ class MainWindow(QMainWindow):
         opt_row.addStretch()
         cred_layout.addLayout(opt_row)
 
+        # 连接模式分段选择（代理 | TUN 全局路由）——主界面直达，不必翻高级设置；
+        # 随凭据区一起收起（连接参数在连接后锁定）
+        from views.mode_switch import SegmentedModeSwitch
+
+        self.mode_switch = SegmentedModeSwitch()
+        self.mode_switch.setCurrentIndex(1 if self.tun_mode else 0)
+        self.mode_switch.currentChanged.connect(self._on_mode_changed)
+        if system() == "Windows":
+            # 与高级设置同款 honest 置灰（提权链路未验证）
+            self.mode_switch.setEnabled(False)
+            self.mode_switch.setToolTip("本期 TUN 仅支持 macOS/Linux")
+        cred_layout.addWidget(self.mode_switch)
+
         layout.addWidget(self.cred_area)
 
         # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）；
@@ -233,16 +252,6 @@ class MainWindow(QMainWindow):
         self.settings_button = QPushButton("设置")
         self.settings_button.setCursor(Qt.PointingHandCursor)
         self.settings_button.clicked.connect(lambda: show_advanced_settings(self))
-        # 日志折叠开关（底部工具行左侧）：默认 ToolButtonIconOnly 会吞掉文字
-        # 只剩裸箭头（真实 bug），必须显式设文字模式
-        self.log_toggle = QToolButton()
-        self.log_toggle.setText("运行日志")
-        self.log_toggle.setCheckable(True)
-        self.log_toggle.setChecked(False)
-        self.log_toggle.setArrowType(Qt.RightArrow)
-        self.log_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.log_toggle.setCursor(Qt.PointingHandCursor)
-        self.log_toggle.toggled.connect(self._toggle_log)
         self._apply_theme_styles()
         self.connect_button.toggled.connect(
             lambda: self.start_connection()
@@ -267,6 +276,12 @@ class MainWindow(QMainWindow):
                 self.connect_button.isChecked()
             )
         )
+        # 模式开关同样锁定（连接中不允许改连接参数，下个连接周期再调）
+        self.connect_button.toggled.connect(
+            lambda checked: self.mode_switch.setDisabled(
+                self.connect_button.isChecked()
+            )
+        )
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         btn_row.addWidget(self.connect_button)
@@ -283,20 +298,19 @@ class MainWindow(QMainWindow):
         self.password_input.textChanged.connect(self._refresh_connect_button)
         self._refresh_connect_button()
 
-        # 底部工具行：日志折叠在左，退出/设置在右（退出远离主 CTA，设置补足窗口内入口）
+        # 底部工具行：退出/设置在右（运行日志已收进设置对话框的"帮助" tab，
+        # 主窗口不再陈列）；日志缓冲 output_text 保留为隐藏存储（各处 append 路径不动）
         bottom_row = QHBoxLayout()
         bottom_row.setSpacing(4)
-        bottom_row.addWidget(self.log_toggle)
         bottom_row.addStretch()
         bottom_row.addWidget(self.exit_button)
         bottom_row.addWidget(self.settings_button)
         layout.addLayout(bottom_row)
 
-        self.output_text = QTextEdit()
+        self.output_text = QTextEdit(self)  # 隐藏日志缓冲：不进布局、永不显示
         self.output_text.setReadOnly(True)
         self.output_text.setVisible(False)
         self.output_text.document().setMaximumBlockCount(5000)  # B9: 日志上限
-        layout.addWidget(self.output_text)
 
         # 一收一放：仪表盘状态驱动凭据区/资源区显隐动画（带淡出，不硬裁）
         self._cred_visible = True
@@ -380,18 +394,6 @@ class MainWindow(QMainWindow):
         """
         self.exit_button.setStyleSheet(text_button_style)
         self.settings_button.setStyleSheet(text_button_style)
-        # 日志折叠：11pt 次要色文字 + 箭头，无边框
-        self.log_toggle.setStyleSheet(f"""
-            QToolButton {{
-                border: none;
-                color: {theme.semantic_color('secondary_text')};
-                font-size: 11pt;
-                padding: 4px 2px;
-            }}
-            QToolButton:hover {{
-                color: {theme.semantic_color('ink')};
-            }}
-        """)
         # 下划线式输入框：无边框 + 底部 1px separator，focus 时 accent 2px
         input_style = f"""
             QLineEdit {{
@@ -439,11 +441,44 @@ class MainWindow(QMainWindow):
         self.connect_button.setEnabled(filled or self.connect_button.isChecked())
         self.connect_button.setToolTip("" if filled else "请输入用户名和密码")
 
-    def _toggle_log(self, expanding):
-        self.log_toggle.setArrowType(Qt.DownArrow if expanding else Qt.RightArrow)
-        self._animated_height_toggle(
-            self.output_text, expanding, max_height=200, on_frame=self.adjustSize
-        )
+    def _on_mode_changed(self, index: int):
+        """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）。"""
+        self.tun_mode = index == 1
+        config = load_config()
+        config["tun_mode"] = self.tun_mode
+        save_config(config)
+
+    def _on_system_sleep(self):
+        """系统休眠：取消在途重连退避——盒盖期间触发重连只会在无人理会时弹授权框。"""
+        self._asleep = True
+        self.reconnect_manager.cancel()
+
+    def _on_system_wake(self):
+        """唤醒：处于"应连接"态（非手动断开、非认证失败）则立即重连。
+
+        两种情形：内核假死（按钮仍勾选）→ 先走后连 bounce；内核已在休眠期死亡
+        （按钮被收尾复位）→ 直接重连。TUN 断开走停止标记零弹窗，重连弹一次授权框
+        （用户刚开盖在场，时机合理）。
+        """
+        self._asleep = False
+        if self._manual_stop or self._auth_failed:
+            return
+        if not (self.username_input.text() and self.password_input.text()):
+            return
+        self.output_text.append("[BITZH Connect] 检测到系统从休眠唤醒，正在重新连接…\n")
+        if self.connect_button.isChecked():
+            # 完整走断开路径；worker 收尾（finished→复位）需要一拍，1s 后重连足够稳
+            self._wake_bounce = True
+            self.connect_button.setChecked(False)
+            QTimer.singleShot(1000, self._wake_reconnect)
+        else:
+            self.connect_button.setChecked(True)
+
+    def _wake_reconnect(self):
+        """bounce 第二拍（带一次性守卫，用户在这一拍内操作过则不强行重连）。"""
+        if getattr(self, "_wake_bounce", False):
+            self._wake_bounce = False
+            self.connect_button.setChecked(True)
 
     def closeEvent(self, event):
         handle_close_event(self, event, self.tray_icon)

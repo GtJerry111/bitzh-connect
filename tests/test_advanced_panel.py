@@ -91,6 +91,23 @@ def test_general_tab_comes_first(dialog):
     assert tab_widget.tabText(2) == "帮助"
 
 
+def test_help_tab_log_viewer_follows_main_window(qtbot, monkeypatch):
+    """帮助 tab 的日志查看器：打开时同步主窗口日志缓冲，之后实时跟随"""
+    monkeypatch.setattr("views.advanced_panel.get_launch_at_login", lambda: False)
+    monkeypatch.setattr("views.advanced_panel.set_launch_at_login", lambda enable: None)
+    from views.main_window import MainWindow
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.output_text.append("第一行日志\n")
+    dlg = AdvancedSettingsDialog(win)
+    qtbot.addWidget(dlg)
+    assert "第一行日志" in dlg.log_viewer.toPlainText()
+    win.output_text.append("第二行日志\n")
+    assert "第二行日志" in dlg.log_viewer.toPlainText()
+
+
 def test_hidden_cert_group_config_roundtrip(dialog):
     """证书组 UI 已隐藏，但配置键必须原样往返保留（不丢用户既有配置）"""
     base = dict(
@@ -159,6 +176,9 @@ def test_show_advanced_settings_wires_auto_reconnect_and_subtitle(
     assert captured["args"][-3] is True
     assert captured["args"][-2] == "system"
     assert captured["args"][-1] is True  # TUN 默认开启（产品默认形态）
+    # 对话框保存后：主窗口分段选择器与 tun_mode 同步（两个入口一个配置键）
+    assert win.tun_mode is False
+    assert win.mode_switch.currentIndex() == 0
     # 保存后写回 window 并联动重连开关
     assert win.auto_reconnect is False
     assert win.reconnect_manager._enabled is False
