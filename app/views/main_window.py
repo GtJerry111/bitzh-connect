@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
 
+        self._ready = False  # 启动宽限期标志：静默启动时 Dock 激活不弹主窗口
         self.worker = None
         self.version = VERSION
         self.load_settings()
@@ -136,6 +137,14 @@ class MainWindow(QMainWindow):
         from utils.sleep_wake import install_sleep_wake_hooks
 
         install_sleep_wake_hooks(self)
+
+        # Dock 激活兜底入口（仅 macOS）：托盘图标被拥挤菜单栏挤出时，
+        # 点 Dock 图标/Cmd-Tab 也能唤出主窗口。启动宽限期 1.5s（静默启动不弹窗）
+        if system() == "Darwin":
+            from utils.macos_utils import install_activation_hook
+
+            install_activation_hook(self)
+        QTimer.singleShot(1500, self._mark_ready)
 
         # B11：启动自动连接前先确认凭据存在，避免拉起一个注定失败的进程
         if self.connect_startup:
@@ -437,6 +446,23 @@ class MainWindow(QMainWindow):
         filled = bool(self.username_input.text() and self.password_input.text())
         self.connect_button.setEnabled(filled or self.connect_button.isChecked())
         self.connect_button.setToolTip("" if filled else "请输入用户名和密码")
+
+    def _mark_ready(self):
+        """启动宽限期结束：此后 Dock 激活/唤醒等事件才响应。"""
+        self._ready = True
+
+    def _on_app_activate(self):
+        """应用被激活（Dock 图标点击/Cmd-Tab 切换）：主窗口隐藏则唤出。
+
+        托盘图标被拥挤的菜单栏裁掉时，Dock 是打开主界面的兜底入口。
+        启动宽限期（静默启动）与退出流程中不响应。
+        """
+        if not getattr(self, "_ready", False) or getattr(self, "_quitting", False):
+            return
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
 
     def _on_mode_changed(self, index: int):
         """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）；

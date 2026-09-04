@@ -166,6 +166,18 @@ def test_wake_noop_when_manually_disconnected(window):
     assert "休眠唤醒" not in window.output_text.toPlainText()
 
 
+def test_app_activate_shows_hidden_window(window):
+    """Dock 激活兜底入口：主窗口隐藏时被唤出（托盘图标被拥挤菜单栏挤出时的
+    唯一入口）；启动宽限期（静默启动）与退出流程中不响应"""
+    window.hide()
+    window._ready = False  # 启动宽限期内：静默启动不得弹窗
+    window._on_app_activate()
+    assert not window.isVisible()
+    window._ready = True
+    window._on_app_activate()
+    assert window.isVisible()
+
+
 def test_return_pressed_triggers_connect(window, qtbot, monkeypatch):
     """凭据齐全时输入框回车直接发起连接（桌面表单惯例）；空凭据不触发"""
     from PySide6.QtCore import Qt

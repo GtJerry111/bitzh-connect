@@ -352,7 +352,7 @@ class AdvancedSettingsDialog(QDialog):
         phone.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 电话号可选中复制
         help_layout.addWidget(phone)
 
-        help_layout.addWidget(self._group_header("支持"))
+        # 支持：只有一个按钮，不再单独起分组标题（组标题是噪音）
         support_row = QHBoxLayout()
         support_row.setSpacing(8)
         update_btn = QPushButton("检查更新")
