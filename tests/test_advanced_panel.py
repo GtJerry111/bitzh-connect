@@ -134,6 +134,28 @@ def test_log_viewer_follows_main_window(qtbot, monkeypatch):
     assert "第二行日志" in dlg.log_viewer.toPlainText()
 
 
+def test_check_update_spinner_feedback(dialog, monkeypatch):
+    """检查更新：点击后转圈+按钮禁用（用户在等待时必须感知得到），结果到达停转恢复"""
+    from PySide6.QtCore import QObject, Signal
+
+    class FakeSignals(QObject):
+        update_available = Signal(str)
+        up_to_date = Signal()
+        error = Signal(str)
+
+    fake = FakeSignals()
+    monkeypatch.setattr("views.menu_utils.check_for_updates", lambda *a, **k: fake)
+    monkeypatch.setattr("views.busy_spinner.reduce_motion", lambda: False)
+
+    assert dialog.update_spinner.isHidden()
+    dialog.update_btn.click()
+    assert not dialog.update_spinner.isHidden()
+    assert not dialog.update_btn.isEnabled()
+    fake.up_to_date.emit()
+    assert dialog.update_spinner.isHidden()
+    assert dialog.update_btn.isEnabled()
+
+
 def test_help_tab_campus_support(dialog):
     """帮助 tab 含校园网支持：校内管理门户链接（需校园网环境提示）+ 网管中心电话"""
     from PySide6.QtWidgets import QLabel

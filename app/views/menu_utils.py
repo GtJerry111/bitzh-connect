@@ -24,6 +24,9 @@ def check_for_updates(parent, current_version, startup=False):
         parent: Parent widget for dialogs
         current_version: Current version string
         startup: Whether this check is happening at startup
+
+    Returns:
+        UpdateSignals——调用方可以追加连接自己的收尾逻辑（如停转等待指示器）。
     """
     signals = update_service.check_for_updates(current_version)
 
@@ -55,6 +58,7 @@ def check_for_updates(parent, current_version, startup=False):
     signals.update_available.connect(on_update_available)
     signals.up_to_date.connect(on_up_to_date)
     signals.error.connect(on_error)
+    return signals
 
 
 def show_advanced_settings(window):

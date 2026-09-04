@@ -26,9 +26,9 @@ from views.chevron import Chevron
 
 
 class _NavBar(QWidget):
-    """折叠条：chevron + 标题 + 右侧站点计数。整行可点。"""
+    """折叠条：chevron + 标题。整行可点（计数文案经真实使用反馈删除——噪音）。"""
 
-    def __init__(self, title: str, count_text: str, parent=None):
+    def __init__(self, title: str, parent=None):
         super().__init__(parent)
         self.setCursor(Qt.PointingHandCursor)
         # QSS :hover 要在纯 QWidget 上生效必须开 WA_StyledBackground
@@ -47,10 +47,6 @@ class _NavBar(QWidget):
         title_label.setFont(font)
         row.addWidget(title_label)
         row.addStretch()
-        count_label = QLabel(count_text)
-        count_label.setFont(theme.card_title_font())
-        count_label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
-        row.addWidget(count_label)
         self.refresh_theme()
 
     def refresh_theme(self):
@@ -65,13 +61,12 @@ class NavSection(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        total = sum(len(items) for _, items in NAV_GROUPS)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 4)
         layout.setSpacing(6)
 
-        self._bar = _NavBar("校内导航", f"{total} 个网站", self)
+        self._bar = _NavBar("校内导航", self)
         layout.addWidget(self._bar)
 
         self._panel = QWidget()

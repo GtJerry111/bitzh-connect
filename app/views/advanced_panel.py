@@ -352,12 +352,17 @@ class AdvancedSettingsDialog(QDialog):
         phone.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 电话号可选中复制
         help_layout.addWidget(phone)
 
-        # 支持：只有一个按钮，不再单独起分组标题（组标题是噪音）
+        # 支持：只有一个按钮，不再单独起分组标题（组标题是噪音）；
+        # 按钮旁小旋转弧指示检查中（用户在等待时必须感知得到）
+        from views.busy_spinner import BusySpinner
+
         support_row = QHBoxLayout()
         support_row.setSpacing(8)
-        update_btn = QPushButton("检查更新")
-        update_btn.clicked.connect(self._check_update)
-        support_row.addWidget(update_btn)
+        self.update_btn = QPushButton("检查更新")
+        self.update_btn.clicked.connect(self._check_update)
+        support_row.addWidget(self.update_btn)
+        self.update_spinner = BusySpinner(self, diameter=16)
+        support_row.addWidget(self.update_spinner)
         support_row.addStretch()
         help_layout.addLayout(support_row)
 
@@ -458,10 +463,21 @@ class AdvancedSettingsDialog(QDialog):
         QMessageBox.information(self, "复制日志", "日志已复制到剪贴板")
 
     def _check_update(self):
-        """帮助 tab 的检查更新（复用 menu_utils 的完整弹窗流程）。"""
+        """帮助 tab 的检查更新（复用 menu_utils 的完整弹窗流程）；
+        点击后转圈 + 按钮禁用，任一结果（有新版本/已最新/失败）停转恢复。"""
         from .menu_utils import check_for_updates  # 局部导入避免循环依赖
 
-        check_for_updates(self.window(), VERSION)
+        self.update_btn.setEnabled(False)
+        self.update_spinner.start()
+        signals = check_for_updates(self.window(), VERSION)
+
+        def _done(*_args):
+            self.update_spinner.stop()
+            self.update_btn.setEnabled(True)
+
+        signals.update_available.connect(_done)
+        signals.up_to_date.connect(_done)
+        signals.error.connect(_done)
 
     def toggle_dns_input(self):
         """Toggle DNS input field based on auto DNS checkbox"""
