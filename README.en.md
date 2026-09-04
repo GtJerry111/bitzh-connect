@@ -26,11 +26,16 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 
 ## Features
 
+- **TUN mode (global routing) on by default** — all traffic, including raw TCP like SSH, goes through the VPN; one-tap switch between proxy and TUN on the main window
+- **Live dashboard** — connection duration, upload/download rates and a 60-second real-time graph
+- **Campus navigation** — 10 frequently used sites grouped by campus, folded away until needed
+- **Auto-reconnect** — backoff retries plus automatic recovery after system sleep/wake
+- **BIT branding** — emblem-green palette, calligraphy watermark, light/dark/system appearance
 - Fast and green compared to **EasyConnect**.
 - Built with PySide6, easy to build and maintain.
 - Multi-platform support, with native optimization for the **macOS** version.
+- Credentials live in the system keychain, never on disk in plaintext.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
-- After a successful connection, the dashboard provides quick links to the e-library (电子图书馆) and the unified portal (统一门户).
 - Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
 
 ## Installation
