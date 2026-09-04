@@ -338,6 +338,20 @@ class AdvancedSettingsDialog(QDialog):
         about.setOpenExternalLinks(True)
         help_layout.addWidget(about)
 
+        # ---- 校园网支持（校内管理门户 + 网管中心电话）----
+        help_layout.addWidget(self._group_header("校园网支持"))
+        campus_link = QLabel(
+            f"<a href='http://10.7.0.103:9066/' style='color: {theme.semantic_color('accent')};"
+            f" text-decoration: none;'>校园网校内管理 ↗</a>"
+        )
+        campus_link.setOpenExternalLinks(True)
+        campus_link.setCursor(Qt.PointingHandCursor)
+        help_layout.addWidget(campus_link)
+        help_layout.addWidget(self._description("需连接校园网（或本 VPN）后访问"))
+        phone = QLabel("校园网络中心电话：(0756) 3835303")
+        phone.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 电话号可选中复制
+        help_layout.addWidget(phone)
+
         help_layout.addWidget(self._group_header("支持"))
         support_row = QHBoxLayout()
         support_row.setSpacing(8)

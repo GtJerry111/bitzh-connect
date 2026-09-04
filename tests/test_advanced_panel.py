@@ -134,6 +134,20 @@ def test_log_viewer_follows_main_window(qtbot, monkeypatch):
     assert "第二行日志" in dlg.log_viewer.toPlainText()
 
 
+def test_help_tab_campus_support(dialog):
+    """帮助 tab 含校园网支持：校内管理门户链接（需校园网环境提示）+ 网管中心电话"""
+    from PySide6.QtWidgets import QLabel
+
+    texts = [
+        w.text()
+        for w in dialog.findChildren(QLabel)
+        if w.text() and isinstance(w.text(), str)
+    ]
+    assert any("校园网校内管理" in t for t in texts)
+    assert any("0756" in t and "3835303" in t.replace(" ", "") for t in texts)
+    assert any("需连接校园网" in t for t in texts)
+
+
 def test_hidden_cert_group_config_roundtrip(dialog):
     """证书组 UI 已隐藏，但配置键必须原样往返保留（不丢用户既有配置）"""
     base = dict(
