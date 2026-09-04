@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QFrame,
+    QToolButton,
 )
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import Qt
@@ -181,26 +182,54 @@ class AdvancedSettingsDialog(QDialog):
             self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）")
         )
 
-        # ---- 高级 ----
-        network_layout.addWidget(self._group_header("高级"))
+        # ---- 高级（默认折叠，点小箭头展开；展开/收起随对话框高度平滑伸缩）----
+        self.advanced_toggle = QToolButton()
+        self.advanced_toggle.setText("高级")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setChecked(False)
+        self.advanced_toggle.setArrowType(Qt.RightArrow)
+        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.advanced_toggle.setCursor(Qt.PointingHandCursor)
+        toggle_font = self.advanced_toggle.font()
+        toggle_font.setPointSize(13)
+        toggle_font.setWeight(toggle_font.Weight.DemiBold)
+        self.advanced_toggle.setFont(toggle_font)
+        self.advanced_toggle.setStyleSheet(
+            "QToolButton { border: none; padding: 0; }"
+            f"QToolButton:hover {{ color: {theme.semantic_color('secondary_text')}; }}"
+        )
+        self.advanced_toggle.toggled.connect(self._toggle_advanced)
+        advanced_header = QHBoxLayout()
+        advanced_header.setContentsMargins(0, 10, 0, 4)
+        advanced_header.addWidget(self.advanced_toggle)
+        header_line = QFrame()
+        header_line.setFrameShape(QFrame.HLine)
+        header_line.setStyleSheet(f"color: {theme.semantic_color('separator')};")
+        advanced_header.addWidget(header_line, 1)
+        network_layout.addLayout(advanced_header)
+
+        self.advanced_area = QWidget()
+        advanced_layout = QVBoxLayout(self.advanced_area)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.setSpacing(8)
 
         self.keep_alive_switch = QCheckBox("定时保活")
-        network_layout.addWidget(self.keep_alive_switch)
-        network_layout.addWidget(
+        advanced_layout.addWidget(self.keep_alive_switch)
+        advanced_layout.addWidget(
             self._description("开启后，BITZH Connect 会定时发送心跳包以保持连接")
         )
 
         self.debug_dump_switch = QCheckBox("调试模式")
-        network_layout.addWidget(self.debug_dump_switch)
-        network_layout.addWidget(
+        advanced_layout.addWidget(self.debug_dump_switch)
+        advanced_layout.addWidget(
             self._description("开启后，BITZH Connect 会记录详细的调试信息到日志文件")
         )
 
         # 肯定句表述（原"禁用备用线路检测"勾选=禁用是双重否定）；存储时取反
         self.auto_multi_line_switch = QCheckBox("自动切换备用线路")
         self.auto_multi_line_switch.setChecked(True)
-        network_layout.addWidget(self.auto_multi_line_switch)
-        network_layout.addWidget(
+        advanced_layout.addWidget(self.auto_multi_line_switch)
+        advanced_layout.addWidget(
             self._description("当前线路不稳定时自动切换到备用线路")
         )
 
@@ -208,32 +237,31 @@ class AdvancedSettingsDialog(QDialog):
         if system() == "Windows":
             # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
             self.tun_mode_switch.setEnabled(False)
-        network_layout.addWidget(self.tun_mode_switch)
+        advanced_layout.addWidget(self.tun_mode_switch)
         tun_note = "所有流量（含 SSH 等裸 TCP）都走 VPN，默认开启；需要管理员授权；与 Clash TUN 模式互斥"
         if system() == "Windows":
             tun_note += "（本期仅 macOS/Linux）"
-        network_layout.addWidget(self._description(tun_note))
+        advanced_layout.addWidget(self._description(tun_note))
 
-        # ---- 运行日志（高级组末尾；打开时同步主窗口日志缓冲，存活期间实时跟随）----
+        # ---- 运行日志（打开时同步主窗口日志缓冲，存活期间实时跟随）----
         from PySide6.QtGui import QFontDatabase
         from PySide6.QtWidgets import QTextEdit
 
         self.log_viewer = QTextEdit()
         self.log_viewer.setReadOnly(True)
-        # 高度控制在小屏笔电可用范围内（13" 900pt 逻辑高，对话框总高须留余量）
         self.log_viewer.setMinimumHeight(120)
         self.log_viewer.setMaximumHeight(160)
         log_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         log_font.setPointSize(11)
         self.log_viewer.setFont(log_font)
-        network_layout.addWidget(self.log_viewer)
+        advanced_layout.addWidget(self.log_viewer)
         log_btn_row = QHBoxLayout()
         log_btn_row.addStretch()
         copy_log_btn = QPushButton("复制日志")
         copy_log_btn.clicked.connect(self._copy_log)
         log_btn_row.addWidget(copy_log_btn)
-        network_layout.addLayout(log_btn_row)
-        network_layout.addWidget(
+        advanced_layout.addLayout(log_btn_row)
+        advanced_layout.addWidget(
             self._description("复制后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
         )
         source = getattr(self.parent(), "output_text", None)
@@ -243,6 +271,9 @@ class AdvancedSettingsDialog(QDialog):
                 self.log_viewer.verticalScrollBar().maximum()
             )
             source.textChanged.connect(self._sync_log)
+
+        self.advanced_area.setVisible(False)  # 默认折叠
+        network_layout.addWidget(self.advanced_area)
 
         network_layout.addStretch()
 
@@ -377,6 +408,45 @@ class AdvancedSettingsDialog(QDialog):
     def toggle_dns_input(self):
         """Toggle DNS input field based on auto DNS checkbox"""
         self.dns_input.setEnabled(not self.auto_dns_switch.isChecked())
+
+    def _toggle_advanced(self, expanding: bool):
+        """高级区展开/收起：对话框高度即时贴合（tab 定高制），内容只做淡入/淡出。
+
+        不做区域高度动画：per-tab 定高下内容长高会撞固定高度；对话框即时贴合 +
+        内容淡入淡出，等效 macOS 系统设置的分组展开观感。
+        """
+        from PySide6.QtCore import QEasingCurve, QVariantAnimation
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+        from utils.motion_utils import reduce_motion
+
+        self.advanced_toggle.setArrowType(
+            Qt.DownArrow if expanding else Qt.RightArrow
+        )
+        if reduce_motion():
+            self.advanced_area.setVisible(expanding)
+            self._fit_to_tab(self._tabs.currentIndex())
+            return
+
+        effect = QGraphicsOpacityEffect(self.advanced_area)
+        self.advanced_area.setGraphicsEffect(effect)
+        anim = QVariantAnimation(self)
+        anim.setDuration(180)
+        anim.setStartValue(0.0 if expanding else 1.0)
+        anim.setEndValue(1.0 if expanding else 0.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(effect.setOpacity)
+
+        def _finish():
+            self.advanced_area.setGraphicsEffect(None)  # 常驻会关文字子像素渲染
+            if not expanding:
+                self.advanced_area.setVisible(False)
+
+        anim.finished.connect(_finish)
+        if expanding:
+            self.advanced_area.setVisible(True)
+        self._fit_to_tab(self._tabs.currentIndex())
+        anim.start(QVariantAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def get_settings(self):
         settings = {

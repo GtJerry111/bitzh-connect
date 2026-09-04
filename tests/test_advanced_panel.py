@@ -91,6 +91,20 @@ def test_general_tab_comes_first(dialog):
     assert tab_widget.tabText(2) == "帮助"
 
 
+def test_advanced_area_collapsed_by_default(dialog, monkeypatch):
+    """高级区默认折叠（网络 tab 保持清爽），点小箭头展开/收起"""
+    from PySide6.QtCore import Qt
+
+    assert dialog.advanced_area.isHidden()  # 默认折叠
+    assert dialog.advanced_toggle.arrowType() == Qt.RightArrow
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    dialog.advanced_toggle.setChecked(True)
+    assert not dialog.advanced_area.isHidden()
+    assert dialog.advanced_toggle.arrowType() == Qt.DownArrow
+    dialog.advanced_toggle.setChecked(False)
+    assert dialog.advanced_area.isHidden()
+
+
 def test_log_viewer_follows_main_window(qtbot, monkeypatch):
     """运行日志查看器（网络 tab → 高级组）：打开时同步主窗口日志缓冲，之后实时跟随"""
     monkeypatch.setattr("views.advanced_panel.get_launch_at_login", lambda: False)
