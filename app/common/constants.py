@@ -18,9 +18,28 @@ DEFAULT_SERVER = "112.91.150.228"
 DEFAULT_PORT = "443"
 DEFAULT_DNS = ""  # 留空即可：默认开启 auto_dns 从服务端获取
 
-# 校内资源入口（用户明确只需要这两个，不做自定义管理）
-# 注意：按钮文案不含 emoji——真机渲染为彩色 emoji，与单色描边胶囊的克制感冲突
-RESOURCES = [
-    ("电子图书馆", "http://elib.bitzh.edu.cn:8080/interlibSSO/main/main.jsp"),
-    ("统一门户", "https://s.bitzh.edu.cn"),
+# 校内网站导航（已连接态"校内导航"折叠条展开的分组网格）。
+# 结构：(组名, [(圆标单字, 短名, URL, tooltip 全称), ...])
+# 分组按校区（域名天然即 taxonomy：bitzh=珠海、bit.edu.cn=本部）；
+# 顺序按日常频率；圆标用单字——本 App 是纯排版语言，不做线条图标/彩色 emoji。
+NAV_GROUPS = [
+    ("珠海校区", [
+        ("门", "统一门户", "https://s.bitzh.edu.cn", "北理珠统一门户 · s.bitzh.edu.cn"),
+        ("教", "教务处", "https://jw.bitzh.edu.cn/", "北理珠教务处 · jw.bitzh.edu.cn"),
+        ("图", "电子图书馆", "http://elib.bitzh.edu.cn:8080/interlibSSO/main/main.jsp",
+         "电子图书馆 · elib.bitzh.edu.cn"),
+        ("珠", "珠海官网", "https://zh.bit.edu.cn/index.htm",
+         "北京理工大学（珠海）· zh.bit.edu.cn"),
+    ]),
+    ("校本部", [
+        ("课", "本硕博教学系统", "https://jxzxehall.bit.edu.cn/",
+         "北理工本硕博一体化教学系统 · jxzxehall.bit.edu.cn"),
+        ("学", "学生综合事务", "https://stu.bit.edu.cn/",
+         "北理工学生综合事务平台 · stu.bit.edu.cn"),
+        ("研", "研究生院", "https://grd.bit.edu.cn/", "北理工研究生院 · grd.bit.edu.cn"),
+        ("费", "校园收费平台", "https://easypay.info.bit.edu.cn/",
+         "北理工校园收费平台 · easypay.info.bit.edu.cn"),
+        ("W", "WebVPN", "https://webvpn.bit.edu.cn/", "北理工 WebVPN · webvpn.bit.edu.cn"),
+        ("官", "本部官网", "https://www.bit.edu.cn/", "北理工官网 · www.bit.edu.cn"),
+    ]),
 ]

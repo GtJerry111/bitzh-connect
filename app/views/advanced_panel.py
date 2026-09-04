@@ -25,42 +25,12 @@ from common.version import get_version
 from common.constants import APP_NAME, DEFAULT_SERVER, REPO_URL
 from common import resources
 from common import theme
+from views.chevron import Chevron
 
 VERSION = get_version()
 
 # 外观三态取值（与下拉框索引一一对应）
 _APPEARANCE_MODES = ["system", "light", "dark"]
-
-
-class _Chevron(QWidget):
-    """8px 细描边 chevron（1.5pt round cap）——QToolButton 的 ArrowType 又大又钝，
-    与细字重标题不匹配；自绘 + 旋转动画才有 macOS disclosure 的观感。"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(12, 12)
-        self._angle = 0.0  # 0=右（收起），90=下（展开）
-
-    def set_angle(self, deg: float):
-        self._angle = deg
-        self.update()
-
-    def paintEvent(self, event):
-        from PySide6.QtGui import QPen
-        from PySide6.QtCore import QPointF
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor(theme.semantic_color("secondary_text")))
-        pen.setWidthF(1.5)
-        pen.setCapStyle(Qt.RoundCap)
-        pen.setJoinStyle(Qt.RoundJoin)
-        painter.setPen(pen)
-        painter.translate(6, 6)
-        painter.rotate(self._angle)
-        painter.drawLine(QPointF(-1.6, -4.0), QPointF(2.4, 0.0))
-        painter.drawLine(QPointF(2.4, 0.0), QPointF(-1.6, 4.0))
-        painter.end()
 
 
 class DisclosureHeader(QWidget):
@@ -79,7 +49,7 @@ class DisclosureHeader(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 0, 0, 0)
         layout.setSpacing(8)
-        self._chevron = _Chevron(self)
+        self._chevron = Chevron(self)
         layout.addWidget(self._chevron)
         self._label = QLabel(text)
         font = self._label.font()

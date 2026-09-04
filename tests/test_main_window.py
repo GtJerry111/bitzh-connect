@@ -48,10 +48,10 @@ def test_area_animation_on_connect_disconnect(window, monkeypatch):
     assert window._res_visible is False
     window.status_panel.set_connected("10.0.43.17")
     assert not window.cred_area.isVisible()
-    assert window.resource_area.isVisible()
+    assert window.nav_area.isVisible()
     window.status_panel.set_disconnected()
     assert window.cred_area.isVisible()
-    assert not window.resource_area.isVisible()
+    assert not window.nav_area.isVisible()
 
 
 def test_area_visibility_idempotent(window, monkeypatch):

@@ -41,6 +41,8 @@ def load_config():
         "appearance": "system",
         # TUN 默认开启（全局路由是产品默认形态）；Windows 提权链路未验证，硬守卫强制关闭
         "tun_mode": True,
+        # 校内导航折叠条展开状态记忆（重启保持）
+        "nav_expanded": False,
     }
 
     for key in default_config.keys():

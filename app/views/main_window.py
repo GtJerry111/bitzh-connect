@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
         from common import theme
         from utils.credential_utils import load_credentials
         from utils.motion_utils import animated_height_toggle
-        from views.resource_section import ResourceSection
+        from views.nav_section import NavSection
         from views.status_panel import StatusPanel
 
         # 高度下限取未连接态内容自然高度（hero+凭据+按钮，统计行未连接不显示）；
@@ -169,9 +169,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status_panel)
 
         # 资源区（初始隐藏，连接成功展开）
-        self.resource_area = ResourceSection()
-        self.resource_area.setVisible(False)
-        layout.addWidget(self.resource_area)
+        self.nav_area = NavSection()
+        self.nav_area.setVisible(False)
+        layout.addWidget(self.nav_area)
 
         # 凭据区（容器化，连接成功收起）
         self.cred_area = QWidget()
@@ -319,7 +319,7 @@ class MainWindow(QMainWindow):
         # 深浅色切换时刷新样式（含水印透明度重绘）
         theme.on_scheme_changed(self._apply_theme_styles)
         theme.on_scheme_changed(self.status_panel.refresh_theme)
-        theme.on_scheme_changed(self.resource_area.refresh_theme)
+        theme.on_scheme_changed(self.nav_area.refresh_theme)
         theme.on_scheme_changed(container.update)
 
     def _connect_on_return(self):
@@ -342,7 +342,9 @@ class MainWindow(QMainWindow):
             fade=True,
         )
         self._animated_height_toggle(
-            self.resource_area, res_visible, max_height=64, on_frame=self.adjustSize,
+            self.nav_area, res_visible,
+            max_height=max(self.nav_area.sizeHint().height(), 1),
+            on_frame=self.adjustSize,
             fade=True,
         )
         self.centralWidget().set_motto_visible(not cred_visible)
