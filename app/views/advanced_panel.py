@@ -214,6 +214,36 @@ class AdvancedSettingsDialog(QDialog):
             tun_note += "（本期仅 macOS/Linux）"
         network_layout.addWidget(self._description(tun_note))
 
+        # ---- 运行日志（高级组末尾；打开时同步主窗口日志缓冲，存活期间实时跟随）----
+        from PySide6.QtGui import QFontDatabase
+        from PySide6.QtWidgets import QTextEdit
+
+        self.log_viewer = QTextEdit()
+        self.log_viewer.setReadOnly(True)
+        # 高度控制在小屏笔电可用范围内（13" 900pt 逻辑高，对话框总高须留余量）
+        self.log_viewer.setMinimumHeight(120)
+        self.log_viewer.setMaximumHeight(160)
+        log_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        log_font.setPointSize(11)
+        self.log_viewer.setFont(log_font)
+        network_layout.addWidget(self.log_viewer)
+        log_btn_row = QHBoxLayout()
+        log_btn_row.addStretch()
+        copy_log_btn = QPushButton("复制日志")
+        copy_log_btn.clicked.connect(self._copy_log)
+        log_btn_row.addWidget(copy_log_btn)
+        network_layout.addLayout(log_btn_row)
+        network_layout.addWidget(
+            self._description("复制后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
+        )
+        source = getattr(self.parent(), "output_text", None)
+        if source is not None:
+            self.log_viewer.setPlainText(source.toPlainText())
+            self.log_viewer.verticalScrollBar().setValue(
+                self.log_viewer.verticalScrollBar().maximum()
+            )
+            source.textChanged.connect(self._sync_log)
+
         network_layout.addStretch()
 
         # ================= 帮助 tab（原菜单栏"帮助"收编到这里） =================
@@ -241,37 +271,6 @@ class AdvancedSettingsDialog(QDialog):
         support_row.addWidget(update_btn)
         support_row.addStretch()
         help_layout.addLayout(support_row)
-
-        # 运行日志（主窗口不再陈列日志区，收编到这里查看；实时跟随）
-        help_layout.addWidget(self._group_header("运行日志"))
-        from PySide6.QtGui import QFontDatabase
-        from PySide6.QtWidgets import QTextEdit
-
-        self.log_viewer = QTextEdit()
-        self.log_viewer.setReadOnly(True)
-        self.log_viewer.setMinimumHeight(180)
-        self.log_viewer.setMaximumHeight(240)
-        log_font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        log_font.setPointSize(11)
-        self.log_viewer.setFont(log_font)
-        help_layout.addWidget(self.log_viewer)
-        log_btn_row = QHBoxLayout()
-        log_btn_row.addStretch()
-        copy_log_btn = QPushButton("复制日志")
-        copy_log_btn.clicked.connect(self._copy_log)
-        log_btn_row.addWidget(copy_log_btn)
-        help_layout.addLayout(log_btn_row)
-        help_layout.addWidget(
-            self._description("复制后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
-        )
-        # 打开时同步一次主窗口日志缓冲；对话框存活期间实时跟随 + 自动滚到底部
-        source = getattr(self.parent(), "output_text", None)
-        if source is not None:
-            self.log_viewer.setPlainText(source.toPlainText())
-            self.log_viewer.verticalScrollBar().setValue(
-                self.log_viewer.verticalScrollBar().maximum()
-            )
-            source.textChanged.connect(self._sync_log)
 
         help_layout.addStretch()
 

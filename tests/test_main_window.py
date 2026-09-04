@@ -101,16 +101,26 @@ def test_mode_switch_click_persists(window, qtbot):
     assert load_config()["tun_mode"] is False
 
 
-def test_mode_switch_locked_while_connected(window, monkeypatch):
-    """连接中锁定模式开关（连接参数下个周期再调）"""
+def test_mode_switch_bounces_when_connected(window, monkeypatch):
+    """已连接时切换模式：先断后连，新模式立即生效（不是禁用/下个周期再说）"""
     fired = []
-    monkeypatch.setattr(window, "start_connection", lambda: fired.append(True))
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    delayed = []
+    monkeypatch.setattr(
+        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
+    )
     window.username_input.setText("2024000001")
     window.password_input.setText("secret")
-    window.connect_button.setChecked(True)
-    assert not window.mode_switch.isEnabled()
-    window.connect_button.setChecked(False)
-    assert window.mode_switch.isEnabled()
+    window.connect_button.setChecked(True)  # 模拟已连接（start 已 mock）
+    fired.clear()
+
+    window.mode_switch._set_current(0)  # 切到代理模式
+    assert window.tun_mode is False
+    assert fired == ["stop"]  # 先完整断开
+    delayed[0]()  # 1s 后重连
+    assert fired == ["stop", "start"]
+    assert window.connect_button.isChecked() is True
 
 
 def test_sleep_cancels_pending_reconnect(window):

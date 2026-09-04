@@ -91,8 +91,8 @@ def test_general_tab_comes_first(dialog):
     assert tab_widget.tabText(2) == "帮助"
 
 
-def test_help_tab_log_viewer_follows_main_window(qtbot, monkeypatch):
-    """帮助 tab 的日志查看器：打开时同步主窗口日志缓冲，之后实时跟随"""
+def test_log_viewer_follows_main_window(qtbot, monkeypatch):
+    """运行日志查看器（网络 tab → 高级组）：打开时同步主窗口日志缓冲，之后实时跟随"""
     monkeypatch.setattr("views.advanced_panel.get_launch_at_login", lambda: False)
     monkeypatch.setattr("views.advanced_panel.set_launch_at_login", lambda enable: None)
     from views.main_window import MainWindow

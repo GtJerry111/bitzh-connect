@@ -219,19 +219,6 @@ class MainWindow(QMainWindow):
         opt_row.addStretch()
         cred_layout.addLayout(opt_row)
 
-        # 连接模式分段选择（代理 | TUN 全局路由）——主界面直达，不必翻高级设置；
-        # 随凭据区一起收起（连接参数在连接后锁定）
-        from views.mode_switch import SegmentedModeSwitch
-
-        self.mode_switch = SegmentedModeSwitch()
-        self.mode_switch.setCurrentIndex(1 if self.tun_mode else 0)
-        self.mode_switch.currentChanged.connect(self._on_mode_changed)
-        if system() == "Windows":
-            # 与高级设置同款 honest 置灰（提权链路未验证）
-            self.mode_switch.setEnabled(False)
-            self.mode_switch.setToolTip("本期 TUN 仅支持 macOS/Linux")
-        cred_layout.addWidget(self.mode_switch)
-
         layout.addWidget(self.cred_area)
 
         # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）；
@@ -276,12 +263,20 @@ class MainWindow(QMainWindow):
                 self.connect_button.isChecked()
             )
         )
-        # 模式开关同样锁定（连接中不允许改连接参数，下个连接周期再调）
-        self.connect_button.toggled.connect(
-            lambda checked: self.mode_switch.setDisabled(
-                self.connect_button.isChecked()
-            )
-        )
+
+        # 连接模式分段选择（代理 | TUN 全局路由）——常驻连接按钮上方，两态可见：
+        # 已连接时切换 = 先断后连立即生效（见 _on_mode_changed）
+        from views.mode_switch import SegmentedModeSwitch
+
+        self.mode_switch = SegmentedModeSwitch()
+        self.mode_switch.setCurrentIndex(1 if self.tun_mode else 0)
+        self.mode_switch.currentChanged.connect(self._on_mode_changed)
+        if system() == "Windows":
+            # 与高级设置同款 honest 置灰（提权链路未验证）
+            self.mode_switch.setEnabled(False)
+            self.mode_switch.setToolTip("本期 TUN 仅支持 macOS/Linux")
+        layout.addWidget(self.mode_switch)
+
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         btn_row.addWidget(self.connect_button)
@@ -442,11 +437,27 @@ class MainWindow(QMainWindow):
         self.connect_button.setToolTip("" if filled else "请输入用户名和密码")
 
     def _on_mode_changed(self, index: int):
-        """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）。"""
+        """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）；
+        已连接则 bounce 重连让新模式立即生效（TUN 断开零弹窗；切回 TUN 弹一次授权）。"""
         self.tun_mode = index == 1
         config = load_config()
         config["tun_mode"] = self.tun_mode
         save_config(config)
+        if self.connect_button.isChecked():
+            self.output_text.append("[BITZH Connect] 正在切换连接模式，重新连接…\n")
+            self._bounce_connection()
+
+    def _bounce_connection(self):
+        """先断后连：worker 收尾（finished→复位）需要一拍，1s 后重连足够稳。"""
+        self._bounce_pending = True
+        self.connect_button.setChecked(False)
+        QTimer.singleShot(1000, self._bounce_reconnect)
+
+    def _bounce_reconnect(self):
+        """bounce 第二拍（一次性守卫：这一拍内用户操作过则不强行重连）。"""
+        if getattr(self, "_bounce_pending", False):
+            self._bounce_pending = False
+            self.connect_button.setChecked(True)
 
     def _on_system_sleep(self):
         """系统休眠：取消在途重连退避——盒盖期间触发重连只会在无人理会时弹授权框。"""
@@ -467,17 +478,8 @@ class MainWindow(QMainWindow):
             return
         self.output_text.append("[BITZH Connect] 检测到系统从休眠唤醒，正在重新连接…\n")
         if self.connect_button.isChecked():
-            # 完整走断开路径；worker 收尾（finished→复位）需要一拍，1s 后重连足够稳
-            self._wake_bounce = True
-            self.connect_button.setChecked(False)
-            QTimer.singleShot(1000, self._wake_reconnect)
+            self._bounce_connection()
         else:
-            self.connect_button.setChecked(True)
-
-    def _wake_reconnect(self):
-        """bounce 第二拍（带一次性守卫，用户在这一拍内操作过则不强行重连）。"""
-        if getattr(self, "_wake_bounce", False):
-            self._wake_bounce = False
             self.connect_button.setChecked(True)
 
     def closeEvent(self, event):
