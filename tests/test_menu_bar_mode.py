@@ -121,3 +121,59 @@ def test_reinit_tray_disconnects_stale_sync(window):
     reinit_tray(window)
     reinit_tray(window)
     assert window.connect_button.receivers(sig) == before
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_show_panel_positions_under_icon(window, monkeypatch):
+    """面板顶部钉在图标下缘（reduce-motion 直出路径，无动画干扰）。
+
+    图标坐标取自 offscreen 屏幕（800x800）内部，避免触发 panel_geometry
+    的屏幕边缘夹紧——否则测试失败是夹紧所致而非定位 bug。
+    """
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    from PySide6.QtCore import QRect
+
+    fake_item = type("FakeItem", (), {"icon_global_rect": lambda self: QRect(400, 0, 24, 22)})()
+    window.set_menu_bar_mode(True)
+    # 形态切换链会 reinit_tray → teardown 旧 _mac_status_item 并置 None；
+    # 故 fake 必须在切换之后注入，否则 show_panel 拿不到图标坐标
+    window._mac_status_item = fake_item
+    window.show_panel()
+    # QRect.bottom() 是闭区间：高 22 的图标底边是 21（与 panel_geometry 的
+    # icon.bottom()+4 口径一致，见 tests/test_panel_geometry.py）
+    assert window.frameGeometry().top() == 21 + 4
+    assert abs(window.frameGeometry().center().x() - (400 + 12)) <= 2
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_hide_panel_immediate_under_reduce_motion(window, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    window.set_menu_bar_mode(True)
+    window.show_panel()
+    window.hide_panel()
+    assert not window.isVisible()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_content_resize_keeps_top_anchored(window, monkeypatch):
+    """内容高度变化（凭据区收放→adjustSize）后顶边位置不变。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    window.set_menu_bar_mode(True)
+    window.show_panel()
+    top_before = window.frameGeometry().top()
+    window._on_content_resize()
+    assert window.frameGeometry().top() == top_before
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_hides_on_window_deactivate(window, monkeypatch):
+    """失焦手动收起（Tool 形态无 Popup 自隐）：窗口失活事件 → 面板隐藏。"""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QGuiApplication
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    window.set_menu_bar_mode(True)
+    window.show_panel()
+    assert window.isVisible()
+    QGuiApplication.sendEvent(window, QEvent(QEvent.WindowDeactivate))
+    assert not window.isVisible()

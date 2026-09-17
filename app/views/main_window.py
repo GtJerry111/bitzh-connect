@@ -356,13 +356,13 @@ class MainWindow(QMainWindow):
         self._cred_visible = cred_visible
         self._res_visible = res_visible
         self._animated_height_toggle(
-            self.cred_area, cred_visible, max_height=140, on_frame=self.adjustSize,
+            self.cred_area, cred_visible, max_height=140, on_frame=self._on_content_resize,
             fade=True,
         )
         self._animated_height_toggle(
             self.nav_area, res_visible,
             max_height=max(self.nav_area.sizeHint().height(), 1),
-            on_frame=self.adjustSize,
+            on_frame=self._on_content_resize,
             fade=True,
         )
         self.centralWidget().set_motto_visible(not cred_visible)
@@ -578,13 +578,104 @@ class MainWindow(QMainWindow):
             self.show_panel()
 
     def show_panel(self, animated: bool = True):
-        """展开面板（Task 7 补定位与动画；当前直接显示）。"""
+        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。"""
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
+
+        self._anchor_panel()
+        animated = animated and not reduce_motion()
+        if not animated:
+            self.show()
+            self._activate_panel()
+            return
+        self.setWindowOpacity(0.0)
+        target = self.pos()
+        self.move(target.x(), target.y() - 12)
         self.show()
-        self.raise_()
-        self.activateWindow()
+        anim_pos = QPropertyAnimation(self, b"pos", self)
+        anim_pos.setDuration(ANIMATION_DURATION_MS)
+        anim_pos.setStartValue(self.pos())
+        anim_pos.setEndValue(target)
+        anim_pos.setEasingCurve(QEasingCurve.OutCubic)
+        anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
+        anim_opacity.setDuration(ANIMATION_DURATION_MS)
+        anim_opacity.setStartValue(0.0)
+        anim_opacity.setEndValue(1.0)
+        anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
+        self._panel_anims = (anim_pos, anim_opacity)  # 防 GC
+        anim_pos.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        anim_opacity.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        self._activate_panel()
 
     def hide_panel(self):
-        self.hide()
+        """收起面板（Esc/再点图标）：淡出 + 上移 8px 后隐藏；reduce-motion 直出。"""
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
+
+        if reduce_motion() or not self.isVisible():
+            self.hide()
+            return
+        anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
+        anim_opacity.setDuration(ANIMATION_DURATION_MS)
+        anim_opacity.setStartValue(1.0)
+        anim_opacity.setEndValue(0.0)
+        anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
+
+        def _finish():
+            self.hide()
+            self.setWindowOpacity(1.0)  # 复位：下次 show 不带残留透明度
+
+        anim_opacity.finished.connect(_finish)
+        self._panel_hide_anim = anim_opacity
+        anim_opacity.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    def _activate_panel(self):
+        """Accessory 策略下抢键盘焦点（用户名/密码输入框依赖）。"""
+        from platform import system
+
+        from PySide6.QtWidgets import QApplication
+
+        self.raise_()
+        self.activateWindow()
+        # 仅真实 cocoa 平台调 NSApp（offscreen 测试下调用会无意义地抢开发机焦点）
+        if system() == "Darwin" and QApplication.platformName() == "cocoa":
+            try:
+                import ctypes
+
+                import objc
+
+                nsapp = objc.lookUpClass("NSApplication").sharedApplication()
+                nsapp.activateIgnoringOtherApps_(True)
+                # Tool 窗口需显式 makeKey 才能真正拿到键盘焦点（Task 1 spike 实测）
+                view = objc.objc_object(
+                    c_void_p=ctypes.c_void_p(int(self.winId()))
+                )
+                view.window().makeKeyAndOrderFront_(None)
+            except Exception:
+                pass
+
+    def _anchor_panel(self):
+        """面板定位：状态栏图标下缘居中；图标失效退化屏幕右上角。"""
+        from PySide6.QtWidgets import QApplication
+        from utils.panel_geometry import panel_geometry
+
+        # 窗口可能从未显示过，self.size() 会是陈旧值——先按内容尺寸兜底（幂等）
+        self.adjustSize()
+        item = getattr(self, "_mac_status_item", None)
+        icon_rect = item.icon_global_rect() if item is not None else None
+        screen = None
+        if icon_rect is not None:
+            screen = QApplication.screenAt(icon_rect.center())
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        geo = panel_geometry(icon_rect, screen.availableGeometry(), self.size())
+        self.move(geo.topLeft())
+
+    def _on_content_resize(self):
+        """内容高度变化（凭据区/资源区收放）：adjustSize 后面板顶边钉住不动。"""
+        self.adjustSize()
+        if self._panel_mode and self.isVisible():
+            self._anchor_panel()
 
     def _on_mode_changed(self, index: int):
         """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）；
