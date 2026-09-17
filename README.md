@@ -34,6 +34,7 @@ BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的�
 - 与 **EasyConnect** 相比更快速、更轻量
 - 基于 PySide6，易于构建，方便初学者参与维护
 - 跨平台支持，对 **macOS** 版本进行了原生适配和优化
+- macOS 双形态：浮动小窗口 / 菜单栏面板（点击状态栏图标展开，毛玻璃质感），随时切换
 - 密码存系统钥匙串，不明文落盘
 - 可与 Clash、远程桌面、SSH 等应用协同工作（参见[与其他应用协同工作](#与其他应用协同工作)章节）
 - 支持自定义服务器地址/DNS/HTTP/SOCKS5 代理端口、定时保活等 ZJU Connect 常用的参数（如果有需要额外添加的参数，请提交 issue/PR）

@@ -34,6 +34,7 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 - Fast and green compared to **EasyConnect**.
 - Built with PySide6, easy to build and maintain.
 - Multi-platform support, with native optimization for the **macOS** version.
+- Dual macOS modes: floating window / menu bar panel (click status icon to expand, vibrancy background), switchable anytime
 - Credentials live in the system keychain, never on disk in plaintext.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
 - Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
