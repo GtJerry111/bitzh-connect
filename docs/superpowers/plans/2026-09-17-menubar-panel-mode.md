@@ -1073,12 +1073,16 @@ def test_show_panel_positions_under_icon(window, monkeypatch):
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     from PySide6.QtCore import QRect
 
-    fake_item = type("FakeItem", (), {"icon_global_rect": lambda self: QRect(400, 0, 24, 22)})()
-    window._mac_status_item = fake_item
+    icon = QRect(400, 0, 24, 22)
+    # 先切形态再注入 fake：set_menu_bar_mode 内部 reinit_tray 会 teardown 并清空
+    # _mac_status_item，先注入会被清掉、且 fake 无 teardown 会 AttributeError
     window.set_menu_bar_mode(True)
+    fake_item = type("FakeItem", (), {"icon_global_rect": lambda self: icon})()
+    window._mac_status_item = fake_item
     window.show_panel()
-    assert window.frameGeometry().top() == 22 + 4
-    assert abs(window.frameGeometry().center().x() - (400 + 12)) <= 2
+    # QRect.bottom() 闭区间：QRect(400,0,24,22).bottom() == 21
+    assert window.frameGeometry().top() == icon.bottom() + 4
+    assert abs(window.frameGeometry().center().x() - icon.center().x()) <= 2
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
