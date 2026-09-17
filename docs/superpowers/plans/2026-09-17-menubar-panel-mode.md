@@ -712,9 +712,12 @@ git commit -m "feat: NSVisualEffectView 毛玻璃背景安装/移除/深浅色�
 
 **Files:**
 - Modify: `app/views/main_window.py`
+- Modify: `app/utils/tray_utils.py`（仅新增 `reinit_tray`；原生路由部分留 Task 8）
 - Test: `tests/test_menu_bar_mode.py`
 
 动画（show_panel/hide_panel 的位移淡入）在 Task 7，本任务先把形态切换的骨架立起来。
+
+> **修订（执行前发现跨任务依赖）：** `set_menu_bar_mode` 调用 `reinit_tray`，但原计划把 `reinit_tray` 定义在 Task 8——Task 6 会 import 失败、测试全红。故 `reinit_tray` 前移到本任务（先拆后建、幂等；`_mac_status_item` 用 `getattr` 容错，Task 8 接上原生路由后自动生效）。Task 8 只保留 `build_tray_menu` 拆分与 NSStatusItem 路由。
 
 - [ ] **Step 1: 写失败测试（追加到 tests/test_menu_bar_mode.py）**
 
@@ -942,6 +945,30 @@ Expected: FAIL —— `AttributeError: 'MainWindow' object has no attribute 'set
         self.hide()
 ```
 
+⑤ `app/utils/tray_utils.py`：新增 `reinit_tray`（`set_menu_bar_mode` 依赖它；Task 8 的原生路由接上后自动生效）：
+
+```python
+def reinit_tray(window):
+    """形态切换时重建托盘（先拆后建，幂等）。
+
+    Task 6 只处理 QSystemTrayIcon；Task 8 起 `_mac_status_item` 存在时先 teardown
+    原生状态栏项。用 getattr 容错，使本函数在两个阶段都可用。
+    """
+    item = getattr(window, "_mac_status_item", None)
+    if item is not None:
+        item.teardown()
+        window._mac_status_item = None
+    old_tray = getattr(window, "tray_icon", None)
+    if old_tray is not None:
+        try:
+            old_tray.hide()
+            old_tray.deleteLater()
+        except RuntimeError:
+            pass
+        window.tray_icon = None
+    window.tray_icon = init_tray_icon(window)
+```
+
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `.venv/bin/python -m pytest tests/test_menu_bar_mode.py tests/test_main_window.py -v`
@@ -952,8 +979,8 @@ Expected: 全部 passed（注意 test_open_panel_dispatch_floating 在非 macOS 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/views/main_window.py tests/test_menu_bar_mode.py
-git commit -m "feat: 主窗口菜单栏面板形态骨架——set_menu_bar_mode/open_panel/toggle_panel，Esc 收起，Dock 联动"
+git add app/views/main_window.py app/utils/tray_utils.py tests/test_menu_bar_mode.py
+git commit -m "feat: 主窗口菜单栏面板形态骨架——set_menu_bar_mode/open_panel/toggle_panel，Esc 收起，Dock 联动，reinit_tray"
 ```
 
 ---
@@ -1255,7 +1282,7 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     tray_icon.activated.connect(lambda reason: tray_icon_activated(reason, window))
 ```
 
-② `init_tray_icon` 加 macOS 面板路由，并新增 `reinit_tray`（运行时切换）：
+② `init_tray_icon` 加 macOS 面板路由（`reinit_tray` 已在 Task 6 加入，本任务无需再定义；它会在原生路由接上后自动 teardown/重建状态栏项）：
 
 ```python
 def init_tray_icon(window):
@@ -1293,24 +1320,8 @@ def init_tray_icon(window):
     create_tray_menu(window, tray_icon)
     tray_icon.show()
     return tray_icon
-
-
-def reinit_tray(window):
-    """形态切换时重建托盘/状态栏项（先拆后建，幂等）。"""
-    item = getattr(window, "_mac_status_item", None)
-    if item is not None:
-        item.teardown()
-        window._mac_status_item = None
-    old_tray = getattr(window, "tray_icon", None)
-    if old_tray is not None:
-        try:
-            old_tray.hide()
-            old_tray.deleteLater()
-        except RuntimeError:
-            pass
-        window.tray_icon = None
-    window.tray_icon = init_tray_icon(window)
 ```
+（`reinit_tray` 见 Task 6 ⑤，本任务不再重复定义。）
 
 ③ `quit_app` 加状态栏项清理（`window.stop_connection()` 之后即可）：
 
