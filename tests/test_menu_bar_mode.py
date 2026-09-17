@@ -104,3 +104,20 @@ def test_hide_panel_esc_shortcut_registered(window):
     assert any(
         s.key().toString() == "Esc" for s in window.findChildren(type(window._esc_shortcut))
     ) or window._esc_shortcut is not None
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_reinit_tray_disconnects_stale_sync(window):
+    """形态切换重建托盘必须先撤销旧 QAction 的同步连接。
+
+    否则旧 QMenu/QAction 随旧托盘销毁后，陈旧 lambda 仍挂在长寿的
+    connect_button.toggled 上，每次连接开关都命中已删除 C++ 对象（RuntimeError）。
+    用信号接收者数量守恒来验证（PySide6 QObject.receivers 接受 SIGNAL 字符串）。
+    """
+    from utils.tray_utils import reinit_tray
+
+    sig = "2toggled(bool)"
+    before = window.connect_button.receivers(sig)
+    reinit_tray(window)
+    reinit_tray(window)
+    assert window.connect_button.receivers(sig) == before

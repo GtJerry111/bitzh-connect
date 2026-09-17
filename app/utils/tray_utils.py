@@ -8,6 +8,14 @@ from common import resources
 
 def create_tray_menu(window: QMainWindow, tray_icon):
     """Create and set up the system tray menu"""
+    # 形态切换会重建托盘：旧 QMenu/QAction 随旧托盘销毁，但同步 lambda 挂在
+    # 长寿的 connect_button 上；不先撤销，陈旧 lambda 会命中已删除的 QAction。
+    old_sync = getattr(window, "_tray_connect_sync", None)
+    if old_sync is not None:
+        try:
+            window.connect_button.toggled.disconnect(old_sync)
+        except (RuntimeError, TypeError):
+            pass
     menu = QMenu()
     show_action = menu.addAction("打开面板")
     show_action.triggered.connect(window.show)
@@ -19,9 +27,10 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     )
     # 同步托盘勾选与按钮实时状态（读 isChecked 而非 toggled 参数）：
     # start_connection 凭据校验早退已在前面槽位复位按钮/托盘，用参数会重新勾选
-    window.connect_button.toggled.connect(
-        lambda checked: connect_action.setChecked(window.connect_button.isChecked())
-    )
+    # 命名保存以便重建时断开
+    sync = lambda checked: connect_action.setChecked(window.connect_button.isChecked())
+    window.connect_button.toggled.connect(sync)
+    window._tray_connect_sync = sync
     # 挂到 window 上：断连收尾（按钮 toggled 被 QSignalBlocker 屏蔽）时手动同步勾选态
     window.tray_connect_action = connect_action
     menu.addAction(connect_action)
