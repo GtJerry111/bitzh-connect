@@ -475,6 +475,7 @@ def _load_template_nsimage():
     nsdata = NSData.dataWithBytes_length_(bytes(ba), len(ba))
     nsimage = objc.lookUpClass("NSImage").alloc().initWithData_(nsdata)
     nsimage.setTemplate_(True)
+    nsimage.setSize_((18.0, 18.0))  # 44px 素材直接进菜单栏会过大；Task 1 spike 实测 18pt 合适
     return nsimage
 
 
