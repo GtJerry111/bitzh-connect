@@ -83,6 +83,27 @@ def quit_app(window, tray_icon):
     QTimer.singleShot(1500, QApplication.quit)
 
 
+def reinit_tray(window):
+    """形态切换时重建托盘（先拆后建，幂等）。
+
+    Task 6 只处理 QSystemTrayIcon；Task 8 起 `_mac_status_item` 存在时先 teardown
+    原生状态栏项。用 getattr 容错，使本函数在两个阶段都可用。
+    """
+    item = getattr(window, "_mac_status_item", None)
+    if item is not None:
+        item.teardown()
+        window._mac_status_item = None
+    old_tray = getattr(window, "tray_icon", None)
+    if old_tray is not None:
+        try:
+            old_tray.hide()
+            old_tray.deleteLater()
+        except RuntimeError:
+            pass
+        window.tray_icon = None
+    window.tray_icon = init_tray_icon(window)
+
+
 def init_tray_icon(window):
     """Initialize system tray icon and menu"""
     tray_icon = QSystemTrayIcon(window)

@@ -98,6 +98,11 @@ class WatermarkContainer(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        # 形态标志须在任何事件/方法可触及之前就位：event() 覆盖层会在
+        # __init__ 期间（setWindowTitle 等）收到事件，晚赋值会 AttributeError。
+        # 真正的形态应用（_apply_panel_chrome）留到 setup_ui 之后（依赖 exit_button）。
+        self._panel_mode = False
+        self._esc_shortcut = None
         self.setWindowTitle(APP_NAME)
 
         self._ready = False  # 启动宽限期标志：静默启动时 Dock 激活不弹主窗口
@@ -131,6 +136,10 @@ class MainWindow(QMainWindow):
         )
         if cleanup_residue_proxy(self):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
+        # 菜单栏面板形态（macOS）：flags/毛玻璃/锚定；须在托盘初始化之前
+        # （托盘按形态路由 NSStatusItem / QSystemTrayIcon）
+        if self.menu_bar_mode:
+            self._apply_panel_chrome(True)
         self.tray_icon = init_tray_icon(self)
 
         # 休眠/唤醒联动（仅 macOS 实装）：休眠抑制重连，唤醒立即重连
@@ -459,10 +468,123 @@ class MainWindow(QMainWindow):
         """
         if not getattr(self, "_ready", False) or getattr(self, "_quitting", False):
             return
-        if not self.isVisible():
+        self.open_panel()
+
+    # ---- 菜单栏面板形态（macOS 专属） ----
+
+    def set_menu_bar_mode(self, enabled: bool):
+        """切换浮动窗口 ↔ 菜单栏面板形态（幂等；运行时切换即时生效）。"""
+        from platform import system
+
+        if system() != "Darwin":
+            return
+        enabled = bool(enabled)
+        if enabled == self._panel_mode:
+            return
+        self.menu_bar_mode = enabled
+        # setWindowFlags 会隐式 hide——记录切换前可见性，切换后按原样恢复
+        # （启动初始化路径窗口本不可见，不得因模式应用而提前弹出）
+        was_visible = self.isVisible()
+        self._apply_panel_chrome(enabled)
+        # 托盘随形态路由（面板↔原生状态栏项，浮动↔QSystemTrayIcon）
+        from utils.tray_utils import reinit_tray
+
+        reinit_tray(self)
+        from utils.macos_utils import hide_dock_icon
+
+        # 面板形态强制 Accessory（Dock 图标无意义）；切回浮动恢复用户设置
+        hide_dock_icon(True if enabled else self.hide_dock_icon)
+        if was_visible:
+            # 仅恢复切换前可见性，不走 show_panel：show_panel 是"打开面板"入口
+            # （Task 7 起带锚定/动画），模式切换只是还原窗口，不应让 open_panel
+            # 的调用方多观测到一次展开
             self.show()
+
+    def event(self, e):
+        """面板失焦自动收起。
+
+        Tool 形态没有 Qt.Popup 的自隐行为（Task 1 实测 Popup 在 Accessory 下
+        show() 即自隐，不可用），改为手动接窗口失活；IME 候选窗不触发本事件，
+        故中文输入时不会误关（Task 1 真机确认）。
+        """
+        if (
+            self._panel_mode
+            and e.type() == QEvent.WindowDeactivate
+            and self.isVisible()
+        ):
+            self.hide_panel()
+        return super().event(e)
+
+    def _apply_panel_chrome(self, enabled: bool):
+        """窗口外壳切换：flags / 透明底 / 毛玻璃 / 退出按钮 / Esc / 圆角样式。"""
+        self._panel_mode = enabled
+        if enabled:
+            # Tool 形态（非 Popup）：Accessory 策略下 Popup show() 即自隐、无法输入
+            self.setWindowFlags(
+                Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+            )
+            self.setAttribute(Qt.WA_TranslucentBackground, True)
+            self.setFixedWidth(360)
+            self.exit_button.hide()
+            from utils.macos_vibrancy import install_vibrancy, update_vibrancy_appearance
+
+            self.winId()  # 真实化 NSWindow（winId 即创建），不 show——启动路径窗口须保持隐藏
+            install_vibrancy(self)
+            theme_cb = lambda: update_vibrancy_appearance(self)
+            from common import theme
+
+            theme.on_scheme_changed(theme_cb)
+            self._vibrancy_theme_cb = theme_cb
+            # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
+            from PySide6.QtGui import QShortcut, QKeySequence
+
+            self._esc_shortcut = QShortcut(QKeySequence("Esc"), self)
+            self._esc_shortcut.setContext(Qt.WindowShortcut)
+            self._esc_shortcut.activated.connect(self.hide_panel)
+            # 圆角视觉：central widget 圆角样式与毛玻璃圆角一致（10px）
+            self.centralWidget().setStyleSheet(
+                "WatermarkContainer { border-radius: 10px; }"
+            )
+        else:
+            if self._esc_shortcut is not None:
+                self._esc_shortcut.setEnabled(False)
+                self._esc_shortcut.deleteLater()
+                self._esc_shortcut = None
+            from utils.macos_vibrancy import remove_vibrancy
+
+            remove_vibrancy(self)
+            self.centralWidget().setStyleSheet("")
+            self.setAttribute(Qt.WA_TranslucentBackground, False)
+            self.setMinimumWidth(360)
+            self.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
+            self.setWindowFlags(Qt.Window)
+            self.exit_button.show()
+            # 不主动 show：可见性由调用方（set_menu_bar_mode 的 was_visible）恢复
+
+    def open_panel(self):
+        """托盘/菜单/Dock 的统一"打开主界面"入口，按形态分发。"""
+        if self._panel_mode:
+            self.show_panel()
+        else:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+    def toggle_panel(self):
+        """状态栏图标左键：展开 ↔ 收起。"""
+        if self.isVisible():
+            self.hide_panel()
+        else:
+            self.show_panel()
+
+    def show_panel(self, animated: bool = True):
+        """展开面板（Task 7 补定位与动画；当前直接显示）。"""
+        self.show()
         self.raise_()
         self.activateWindow()
+
+    def hide_panel(self):
+        self.hide()
 
     def _on_mode_changed(self, index: int):
         """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）；
