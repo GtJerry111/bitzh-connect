@@ -577,14 +577,47 @@ class MainWindow(QMainWindow):
         else:
             self.show_panel()
 
+    def _stop_panel_anims(self):
+        """停掉在途展开动画（可打断性用）。DeleteWhenStopped 后 wrapper 可能失效，须 isValid。"""
+        from shiboken6 import isValid
+
+        anims = getattr(self, "_panel_anims", None)
+        self._panel_anims = None
+        for anim in anims or ():
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
+    def _stop_panel_hide_anim(self):
+        """停掉在途收起动画（可打断性用）。"""
+        from shiboken6 import isValid
+
+        anim = getattr(self, "_panel_hide_anim", None)
+        self._panel_hide_anim = None
+        if anim is not None:
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
     def show_panel(self, animated: bool = True):
-        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。"""
+        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。
+
+        可打断：停掉在途收起动画并翻“世代号”，陈旧 finished 不得隐藏刚展开的面板
+        （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。
+        """
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
+        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
+        self._stop_panel_hide_anim()
         self._anchor_panel()
         animated = animated and not reduce_motion()
         if not animated:
+            self.setWindowOpacity(1.0)
             self.show()
             self._activate_panel()
             return
@@ -608,12 +641,16 @@ class MainWindow(QMainWindow):
         self._activate_panel()
 
     def hide_panel(self):
-        """收起面板（Esc/再点图标）：淡出 + 上移 8px 后隐藏；reduce-motion 直出。"""
+        """收起面板（Esc/再点图标）：淡出后隐藏；reduce-motion/不可见时直出。"""
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
+        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
+        gen = self._panel_anim_gen
+        self._stop_panel_anims()
         if reduce_motion() or not self.isVisible():
             self.hide()
+            self.setWindowOpacity(1.0)
             return
         anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
         anim_opacity.setDuration(ANIMATION_DURATION_MS)
@@ -622,6 +659,8 @@ class MainWindow(QMainWindow):
         anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
 
         def _finish():
+            if getattr(self, "_panel_anim_gen", 0) != gen:
+                return  # 期间又 show/hide 过：陈旧回调不得决定终态
             self.hide()
             self.setWindowOpacity(1.0)  # 复位：下次 show 不带残留透明度
 

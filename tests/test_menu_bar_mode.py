@@ -177,3 +177,18 @@ def test_panel_hides_on_window_deactivate(window, monkeypatch):
     assert window.isVisible()
     QGuiApplication.sendEvent(window, QEvent(QEvent.WindowDeactivate))
     assert not window.isVisible()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_show_panel_cancels_pending_hide(window, monkeypatch):
+    """展开须使在途收起动画失效：陈旧 finished 不得隐藏刚展开的面板
+    （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: False)
+    window.set_menu_bar_mode(True)
+    window.show_panel(animated=False)
+    assert window.isVisible()
+    window.hide_panel()
+    assert window._panel_hide_anim is not None  # 在途收起动画
+    window.show_panel(animated=False)
+    assert window.isVisible()
+    assert window._panel_hide_anim is None  # 已被 show 停掉/清空，陈旧回调失效
