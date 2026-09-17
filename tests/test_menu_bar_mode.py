@@ -81,9 +81,11 @@ def test_set_menu_bar_mode_idempotent(window):
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
 def test_open_panel_dispatch(window, monkeypatch):
+    # 先切形态再打 spy：set_menu_bar_mode 自身也会调用 show_panel 恢复可见性，
+    # 先打 spy 会把那次调用一并记入，且零参 spy 与 show_panel(animated=) 不兼容
+    window.set_menu_bar_mode(True)
     calls = []
     monkeypatch.setattr(window, "show_panel", lambda: calls.append("panel"))
-    window.set_menu_bar_mode(True)
     window.open_panel()
     assert calls == ["panel"]
 

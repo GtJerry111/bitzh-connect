@@ -495,10 +495,10 @@ class MainWindow(QMainWindow):
         # 面板形态强制 Accessory（Dock 图标无意义）；切回浮动恢复用户设置
         hide_dock_icon(True if enabled else self.hide_dock_icon)
         if was_visible:
-            # 仅恢复切换前可见性，不走 show_panel：show_panel 是"打开面板"入口
-            # （Task 7 起带锚定/动画），模式切换只是还原窗口，不应让 open_panel
-            # 的调用方多观测到一次展开
-            self.show()
+            if enabled:
+                self.show_panel(animated=False)
+            else:
+                self.show()
 
     def event(self, e):
         """面板失焦自动收起。
