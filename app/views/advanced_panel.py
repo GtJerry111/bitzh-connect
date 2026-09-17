@@ -647,7 +647,7 @@ class AdvancedSettingsDialog(QDialog):
         set_launch_at_login(enable=self.startup_switch.isChecked())
 
         if system() == "Darwin" and self.parent() is not None:
-            effective_hide = self.get_settings()["hide_dock_icon"]
+            effective_hide = settings["hide_dock_icon"]
             self.parent().hide_dock_icon = effective_hide
             # 面板模式下 Dock 恒隐藏；否则按用户偏好
             hide_dock_icon(True if self.menu_bar_mode_switch.isChecked() else effective_hide)

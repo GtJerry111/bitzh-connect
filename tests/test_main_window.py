@@ -178,6 +178,16 @@ def test_app_activate_shows_hidden_window(window):
     assert window.isVisible()
 
 
+def test_app_activate_noop_when_window_visible(window, monkeypatch):
+    """窗口已可见时激活不得再 show/raise（否则抢设置对话框焦点、面板形态重放开场动画）。"""
+    calls = []
+    monkeypatch.setattr(window, "open_panel", lambda: calls.append("open"))
+    window._ready = True
+    assert window.isVisible()
+    window._on_app_activate()
+    assert calls == []
+
+
 def test_return_pressed_triggers_connect(window, qtbot, monkeypatch):
     """凭据齐全时输入框回车直接发起连接（桌面表单惯例）；空凭据不触发"""
     from PySide6.QtCore import Qt

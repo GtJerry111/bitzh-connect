@@ -332,3 +332,28 @@ def test_disable_panel_restores_hide_dock_preference(qtbot):
     assert dialog.hide_dock_icon_switch.isChecked() is False  # 还原
     assert dialog.get_settings()["hide_dock_icon"] is False
     w.reconnect_manager.cancel()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_effective_dock_policy_follows_panel_mode(qtbot, monkeypatch):
+    """面板模式开启时 Dock 恒隐藏；关闭后按用户原偏好（panel_mode or hide_dock_icon）。"""
+    calls = []
+    monkeypatch.setattr("views.advanced_panel.hide_dock_icon", lambda hide=True: calls.append(hide))
+    monkeypatch.setattr("views.advanced_panel.save_config", lambda *a, **k: None)
+    monkeypatch.setattr("views.advanced_panel.set_launch_at_login", lambda *a, **k: None)
+    from views.main_window import MainWindow
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.hide_dock_icon = False
+    dialog = AdvancedSettingsDialog(w)
+    dialog.menu_bar_mode_switch.setChecked(True)
+    dialog.accept()
+    assert calls and calls[-1] is True  # 面板开启 → 强制隐藏
+    calls.clear()
+    dialog2 = AdvancedSettingsDialog(w)
+    dialog2.menu_bar_mode_switch.setChecked(False)
+    dialog2.accept()
+    assert calls and calls[-1] is False  # 原偏好 False → 恢复显示
+    w.reconnect_manager.cancel()
