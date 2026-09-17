@@ -243,6 +243,40 @@ def test_close_event_panel_mode_hides(qtbot, monkeypatch):
     w.reconnect_manager.cancel()
 
 
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_settings_dialog_has_panel_switch(qtbot):
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dialog = AdvancedSettingsDialog(w)
+    assert hasattr(dialog, "menu_bar_mode_switch")
+    w.reconnect_manager.cancel()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_switch_forces_hide_dock(qtbot):
+    """勾选菜单栏面板 → 隐藏 Dock 自动勾上且禁用（面板形态 Dock 无意义）。"""
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dialog = AdvancedSettingsDialog(w)
+    dialog.menu_bar_mode_switch.setChecked(True)
+    assert dialog.hide_dock_icon_switch.isChecked()
+    assert not dialog.hide_dock_icon_switch.isEnabled()
+    settings = dialog.get_settings()
+    assert settings["menu_bar_mode"] is True
+    assert settings["hide_dock_icon"] is True
+    dialog.menu_bar_mode_switch.setChecked(False)
+    assert dialog.hide_dock_icon_switch.isEnabled()
+    w.reconnect_manager.cancel()
+
+
 def test_quit_helpers_tolerate_no_tray_icon(qtbot, monkeypatch):
     """面板模式原生状态栏项路径 tray_icon 为 None（托盘职责在 _mac_status_item）：
     handle_close_event/quit_app 不得触碰 None。shiboken6.isValid(None) 实为 True，

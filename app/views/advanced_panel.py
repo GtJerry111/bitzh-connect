@@ -191,6 +191,16 @@ class AdvancedSettingsDialog(QDialog):
                 self._description("隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角")
             )
 
+            self.menu_bar_mode_switch = QCheckBox("菜单栏面板模式")
+            general_layout.addWidget(self.menu_bar_mode_switch)
+            general_layout.addWidget(
+                self._description(
+                    "开启后主窗口吸附在菜单栏：点击状态栏图标展开/收起，"
+                    "点面板外或按 Esc 自动收起；Dock 图标将始终隐藏"
+                )
+            )
+            self.menu_bar_mode_switch.toggled.connect(self._on_panel_mode_toggled)
+
         general_layout.addStretch()
 
         # ================= 网络 tab =================
@@ -483,6 +493,14 @@ class AdvancedSettingsDialog(QDialog):
         """Toggle DNS input field based on auto DNS checkbox"""
         self.dns_input.setEnabled(not self.auto_dns_switch.isChecked())
 
+    def _on_panel_mode_toggled(self, checked: bool):
+        """面板模式强制隐藏 Dock（Accessory 无 Dock 图标），勾选态跟随并锁定。"""
+        if system() != "Darwin":
+            return
+        if checked:
+            self.hide_dock_icon_switch.setChecked(True)
+        self.hide_dock_icon_switch.setEnabled(not checked)
+
     def _toggle_advanced(self, expanding: bool):
         """高级区展开/收起：对话框高度即时贴合（tab 定高制），内容只做淡入/淡出。
 
@@ -545,7 +563,13 @@ class AdvancedSettingsDialog(QDialog):
         }
 
         if system() == "Darwin":
-            settings["hide_dock_icon"] = self.hide_dock_icon_switch.isChecked()
+            settings["menu_bar_mode"] = self.menu_bar_mode_switch.isChecked()
+            # 面板模式强制隐藏 Dock（联动开关已锁定，这里再兜底一次）
+            settings["hide_dock_icon"] = (
+                True
+                if settings["menu_bar_mode"]
+                else self.hide_dock_icon_switch.isChecked()
+            )
 
         return settings
 
@@ -570,6 +594,7 @@ class AdvancedSettingsDialog(QDialog):
         auto_reconnect=True,
         appearance="system",
         tun_mode=False,
+        menu_bar_mode=False,
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -582,6 +607,8 @@ class AdvancedSettingsDialog(QDialog):
         self.check_update_switch.setChecked(check_update)
         if system() == "Darwin":
             self.hide_dock_icon_switch.setChecked(hide_dock_icon)
+            self.menu_bar_mode_switch.setChecked(menu_bar_mode)
+            self._on_panel_mode_toggled(menu_bar_mode)  # 恢复联动锁定态
         self.keep_alive_switch.setChecked(keep_alive)
         self.debug_dump_switch.setChecked(debug_dump)
         self.auto_multi_line_switch.setChecked(not disable_multi_line)
