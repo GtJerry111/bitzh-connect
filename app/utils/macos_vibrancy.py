@@ -37,6 +37,8 @@ def install_vibrancy(window) -> bool:
     # 非 cocoa 平台 winId 不是 NSView 指针（offscreen 下为 1），桥接会段错误
     if system() != "Darwin" or QApplication.platformName() != "cocoa":
         return False
+    if getattr(window, "_vibrancy_view", None) is not None:
+        return True  # 已安装：避免重复 addSubview 造成叠层 + 旧 view 失控
     try:
         import objc
 

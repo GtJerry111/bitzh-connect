@@ -466,10 +466,13 @@ class MainWindow(QMainWindow):
 
         托盘图标被拥挤的菜单栏裁掉时，Dock 是打开主界面的兜底入口。
         启动宽限期（静默启动）与退出流程中不响应。
+        仅窗口隐藏时动作：已可见时再 show/raise/activate 会抢设置对话框焦点，
+        且面板形态下会经 activation 通知重入 show_panel 重放开场动画。
         """
         if not getattr(self, "_ready", False) or getattr(self, "_quitting", False):
             return
-        self.open_panel()
+        if not self.isVisible():
+            self.open_panel()
 
     # ---- 菜单栏面板形态（macOS 专属） ----
 
@@ -527,15 +530,12 @@ class MainWindow(QMainWindow):
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setFixedWidth(360)
             self.exit_button.hide()
-            from utils.macos_vibrancy import install_vibrancy, update_vibrancy_appearance
+            from utils.macos_vibrancy import install_vibrancy
+            from common import theme
 
             self.winId()  # 真实化 NSWindow（winId 即创建），不 show——启动路径窗口须保持隐藏
             install_vibrancy(self)
-            theme_cb = lambda: update_vibrancy_appearance(self)
-            from common import theme
-
-            theme.on_scheme_changed(theme_cb)
-            self._vibrancy_theme_cb = theme_cb
+            theme.on_scheme_changed(self._update_vibrancy)  # 绑定方法可去重，避免每次切换累积 lambda
             # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
             from PySide6.QtGui import QShortcut, QKeySequence
 
@@ -561,6 +561,12 @@ class MainWindow(QMainWindow):
             self.setWindowFlags(Qt.Window)
             self.exit_button.show()
             # 不主动 show：可见性由调用方（set_menu_bar_mode 的 was_visible）恢复
+
+    def _update_vibrancy(self):
+        """深浅色切换：同步毛玻璃外观（绑定方法注册，theme 按身份去重）。"""
+        from utils.macos_vibrancy import update_vibrancy_appearance
+
+        update_vibrancy_appearance(self)
 
     def open_panel(self):
         """托盘/菜单/Dock 的统一"打开主界面"入口，按形态分发。"""
@@ -648,6 +654,7 @@ class MainWindow(QMainWindow):
 
         self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
         gen = self._panel_anim_gen
+        self._stop_panel_hide_anim()
         self._stop_panel_anims()
         if reduce_motion() or not self.isVisible():
             self.hide()
@@ -655,7 +662,7 @@ class MainWindow(QMainWindow):
             return
         anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
         anim_opacity.setDuration(ANIMATION_DURATION_MS)
-        anim_opacity.setStartValue(1.0)
+        anim_opacity.setStartValue(self.windowOpacity())  # 从当前不透明度接续（可打断）
         anim_opacity.setEndValue(0.0)
         anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
 
@@ -764,6 +771,9 @@ class MainWindow(QMainWindow):
             self.connect_button.setChecked(True)
 
     def closeEvent(self, event):
+        if getattr(self, "_quitting", False):
+            event.accept()
+            return
         if self._panel_mode:
             # 面板无"关闭"概念：收起即隐藏，进程由状态栏项驻留
             self.hide()

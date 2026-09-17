@@ -17,6 +17,10 @@ def test_tray_connect_action_label(qtbot):
         def raise_(self):
             pass
 
+        def open_panel(self):
+            self.show()
+            self.raise_()
+
         def quit_app(self):
             pass
 

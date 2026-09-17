@@ -17,14 +17,8 @@ def build_tray_menu(window: QMainWindow) -> QMenu:
             pass
     menu = QMenu()
     show_action = menu.addAction("打开面板")
-    # 打开入口统一走 open_panel（按形态分发 show_panel / show+raise）；对未实现
-    # 该接口的轻量调用方（测试替身）回退旧的 show/raise 行为
-    open_panel = getattr(window, "open_panel", None)
-    if open_panel is not None:
-        show_action.triggered.connect(open_panel)
-    else:
-        show_action.triggered.connect(window.show)
-        show_action.triggered.connect(window.raise_)
+    # 打开入口统一走 open_panel（按形态分发 show_panel / show+raise）
+    show_action.triggered.connect(window.open_panel)
     connect_action = QAction("VPN 连接", menu)
     connect_action.setCheckable(True)
     connect_action.triggered.connect(
@@ -145,7 +139,9 @@ def init_tray_icon(window):
         if item is not None:
             window._mac_status_item = item
             return None
-        # 桥接失败：回落浮动托盘路径（menu_bar_mode 配置不强行改写，
+        # 桥接失败：丢弃为原生路径构建的菜单，避免 _tray_menu 指向孤儿菜单
+        window._tray_menu = None
+        # 回落浮动托盘路径（menu_bar_mode 配置不强行改写，
         # 窗口外壳已由 set_menu_bar_mode 决定，托盘只是入口之一）
 
     tray_icon = QSystemTrayIcon(window)

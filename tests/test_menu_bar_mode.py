@@ -29,7 +29,7 @@ def test_menu_bar_mode_loaded_to_window(qtbot):
 
     w = MainWindow()
     qtbot.addWidget(w)
-    assert w.menu_bar_mode is True
+    assert w.menu_bar_mode is (system() == "Darwin")  # 非 Darwin 强制 False
     w.reconnect_manager.cancel()
 
 
@@ -57,7 +57,7 @@ def test_enter_panel_mode(window):
     assert flags & Qt.WindowStaysOnTopHint
     assert window.testAttribute(Qt.WA_TranslucentBackground)
     assert not window.exit_button.isVisible()
-    assert window.settings_button.isVisible() or True  # 设置按钮保留（可见性随布局）
+    assert not window.settings_button.isHidden()  # 设置按钮保留（仅退出按钮收起）
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
@@ -101,9 +101,8 @@ def test_open_panel_dispatch_floating(window, monkeypatch):
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
 def test_hide_panel_esc_shortcut_registered(window):
     window.set_menu_bar_mode(True)
-    assert any(
-        s.key().toString() == "Esc" for s in window.findChildren(type(window._esc_shortcut))
-    ) or window._esc_shortcut is not None
+    assert window._esc_shortcut is not None
+    assert window._esc_shortcut.key().toString() == "Esc"
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
@@ -271,7 +270,8 @@ def test_panel_switch_forces_hide_dock(qtbot):
     assert not dialog.hide_dock_icon_switch.isEnabled()
     settings = dialog.get_settings()
     assert settings["menu_bar_mode"] is True
-    assert settings["hide_dock_icon"] is True
+    # 强制的是 UI 勾选态；持久化保留用户原偏好（取消面板模式时还原，见 I2 回归测试）
+    assert settings["hide_dock_icon"] is False
     dialog.menu_bar_mode_switch.setChecked(False)
     assert dialog.hide_dock_icon_switch.isEnabled()
     w.reconnect_manager.cancel()
@@ -296,3 +296,39 @@ def test_quit_helpers_tolerate_no_tray_icon(qtbot, monkeypatch):
     w.tray_icon = None  # 浮动形态下 closeEvent → handle_close_event(None) → quit_app(None)
     w.closeEvent(QCloseEvent())
     assert getattr(w, "_quitting", False) is True
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_mode_startup_does_not_show(qtbot):
+    """面板模式启动不得闪窗（main.py 面板模式不 show；构造只 winId 真实化）。"""
+    from utils.config_utils import load_config, save_config
+
+    config = load_config()
+    config["menu_bar_mode"] = True
+    save_config(config)
+
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    assert not w.isVisible()
+    w.reconnect_manager.cancel()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_disable_panel_restores_hide_dock_preference(qtbot):
+    """取消面板模式须还原用户原本的隐藏 Dock 偏好（不被强制 True 覆盖）。"""
+    from views.main_window import MainWindow
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    dialog = AdvancedSettingsDialog(w)
+    assert dialog.get_settings()["hide_dock_icon"] is False  # 用户原偏好
+    dialog.menu_bar_mode_switch.setChecked(True)
+    assert dialog.get_settings()["hide_dock_icon"] is False  # 面板开启保留原偏好
+    assert dialog.hide_dock_icon_switch.isChecked() and not dialog.hide_dock_icon_switch.isEnabled()
+    dialog.menu_bar_mode_switch.setChecked(False)
+    assert dialog.hide_dock_icon_switch.isChecked() is False  # 还原
+    assert dialog.get_settings()["hide_dock_icon"] is False
+    w.reconnect_manager.cancel()

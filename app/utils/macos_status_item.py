@@ -159,7 +159,7 @@ def create(on_toggle, on_context_menu):
         item = (
             objc.lookUpClass("NSStatusBar")
             .systemStatusBar()
-            .statusItemWithLength_(-1.0)  # NSSquareStatusItemLength
+            .statusItemWithLength_(-1.0)  # NSVariableStatusItemLength（-1.0；勿改成 -2）
         )
         try:
             btn = item.button()

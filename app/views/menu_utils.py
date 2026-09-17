@@ -122,4 +122,4 @@ def show_advanced_settings(window):
         if server_changed:
             window.status_panel.set_server_text(window.server_address)
         if system() == "Darwin":
-            hide_dock_icon(window.hide_dock_icon)
+            hide_dock_icon(True if window.menu_bar_mode else window.hide_dock_icon)

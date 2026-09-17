@@ -43,6 +43,6 @@ if __name__ == "__main__":
         window.show()
 
     if system() == "Darwin":
-        hide_dock_icon(window.hide_dock_icon)
+        hide_dock_icon(True if window.menu_bar_mode else window.hide_dock_icon)
 
     app.exec()
