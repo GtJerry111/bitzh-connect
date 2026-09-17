@@ -793,6 +793,23 @@ def test_hide_panel_esc_shortcut_registered(window):
     assert any(
         s.key().toString() == "Esc" for s in window.findChildren(type(window._esc_shortcut))
     ) or window._esc_shortcut is not None
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_reinit_tray_disconnects_stale_sync(window):
+    """形态切换重建托盘必须先撤销旧 QAction 的同步连接。
+
+    否则旧 QMenu/QAction 随旧托盘销毁后，陈旧 lambda 仍挂在长寿的
+    connect_button.toggled 上，每次连接开关都命中已删除 C++ 对象（RuntimeError）。
+    用信号接收者数量守恒来验证（PySide6 QObject.receivers 接受 SIGNAL 字符串）。
+    """
+    from utils.tray_utils import reinit_tray
+
+    sig = "2toggled(bool)"
+    before = window.connect_button.receivers(sig)
+    reinit_tray(window)
+    reinit_tray(window)
+    assert window.connect_button.receivers(sig) == before
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -959,7 +976,45 @@ Expected: FAIL —— `AttributeError: 'MainWindow' object has no attribute 'set
         self.hide()
 ```
 
-⑤ `app/utils/tray_utils.py`：新增 `reinit_tray`（`set_menu_bar_mode` 依赖它；Task 8 的原生路由接上后自动生效）：
+⑤ `app/utils/tray_utils.py`：新增 `reinit_tray`（`set_menu_bar_mode` 依赖它；Task 8 的原生路由接上后自动生效）。
+
+**同时修 `create_tray_menu` 的陈旧连接（Task 6 review Critical，实测复现）：** 每次重建托盘都会在长寿的 `connect_button.toggled` 上新挂一个同步 lambda；旧 `QMenu`/`QAction` 随旧托盘销毁后，陈旧 lambda 仍被触发 → `RuntimeError: Internal C++ object (QAction) already deleted`。修法：同步槽命名化 + 重建前精确断开。
+
+```python
+def create_tray_menu(window: QMainWindow, tray_icon):
+    """Create and set up the system tray menu"""
+    # 形态切换会重建托盘：旧 QMenu/QAction 随旧托盘销毁，但同步 lambda 挂在
+    # 长寿的 connect_button 上；不先撤销，陈旧 lambda 会命中已删除的 QAction。
+    old_sync = getattr(window, "_tray_connect_sync", None)
+    if old_sync is not None:
+        try:
+            window.connect_button.toggled.disconnect(old_sync)
+        except (RuntimeError, TypeError):
+            pass
+    menu = QMenu()
+    show_action = menu.addAction("打开面板")
+    show_action.triggered.connect(window.show)
+    show_action.triggered.connect(window.raise_)
+    connect_action = QAction("VPN 连接", menu)
+    connect_action.setCheckable(True)
+    connect_action.triggered.connect(
+        lambda checked: window.connect_button.setChecked(checked)
+    )
+    # 同步托盘勾选与按钮实时状态（读 isChecked 而非 toggled 参数）；命名保存以便重建时断开
+    sync = lambda checked: connect_action.setChecked(window.connect_button.isChecked())
+    window.connect_button.toggled.connect(sync)
+    window._tray_connect_sync = sync
+    # 挂到 window 上：断连收尾（按钮 toggled 被 QSignalBlocker 屏蔽）时手动同步勾选态
+    window.tray_connect_action = connect_action
+    menu.addAction(connect_action)
+    quit_action = menu.addAction("退出")
+    quit_action.triggered.connect(window.quit_app)
+
+    tray_icon.setContextMenu(menu)
+    tray_icon.activated.connect(lambda reason: tray_icon_activated(reason, window))
+```
+
+（其余 ⑤ 的 `reinit_tray` 代码不变：）
 
 ```python
 def reinit_tray(window):
@@ -1269,6 +1324,13 @@ from PySide6.QtGui import QCursor
 
 def build_tray_menu(window: QMainWindow) -> QMenu:
     """构建托盘/状态栏菜单（打开面板 / VPN 连接 / 退出；两形态共用）。"""
+    # 重建时先撤销旧同步槽（否则陈旧 lambda 命中已销毁 QAction，见 Task 6 ⑤）
+    old_sync = getattr(window, "_tray_connect_sync", None)
+    if old_sync is not None:
+        try:
+            window.connect_button.toggled.disconnect(old_sync)
+        except (RuntimeError, TypeError):
+            pass
     menu = QMenu()
     show_action = menu.addAction("打开面板")
     show_action.triggered.connect(window.open_panel)
@@ -1279,9 +1341,9 @@ def build_tray_menu(window: QMainWindow) -> QMenu:
     )
     # 同步托盘勾选与按钮实时状态（读 isChecked 而非 toggled 参数）：
     # start_connection 凭据校验早退已在前面槽位复位按钮/托盘，用参数会重新勾选
-    window.connect_button.toggled.connect(
-        lambda checked: connect_action.setChecked(window.connect_button.isChecked())
-    )
+    sync = lambda checked: connect_action.setChecked(window.connect_button.isChecked())
+    window.connect_button.toggled.connect(sync)
+    window._tray_connect_sync = sync
     # 挂到 window 上：断连收尾（按钮 toggled 被 QSignalBlocker 屏蔽）时手动同步勾选态
     window.tray_connect_action = connect_action
     menu.addAction(connect_action)
