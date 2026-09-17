@@ -70,10 +70,14 @@ def _load_template_nsimage():
     from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 
     img = QImage(":/icons/menu-icon.png")
+    if img.isNull():
+        # qrc 未注册等异常：显式失败，避免走到 nil NSImage 靠 AttributeError 兜底
+        raise RuntimeError("菜单栏图标素材加载失败（qrc 未注册？）")
     ba = QByteArray()
     buf = QBuffer(ba)
     buf.open(QIODevice.WriteOnly)
-    img.save(buf, "PNG")
+    if not img.save(buf, "PNG"):
+        raise RuntimeError("菜单栏图标 PNG 编码失败")
     nsdata = NSData.dataWithBytes_length_(bytes(ba), len(ba))
     nsimage = objc.lookUpClass("NSImage").alloc().initWithData_(nsdata)
     nsimage.setTemplate_(True)
@@ -89,14 +93,27 @@ def _native_available() -> bool:
     """
     from PySide6.QtWidgets import QApplication
 
+    # 无 QApplication 实例时 platformName() 返回 Qt 编译期默认平台（macOS 为 "cocoa"），
+    # 而非 QT_QPA_PLATFORM 指定的 offscreen——此时若放行会在裸进程冒烟中触碰原生 AppKit。
+    if QApplication.instance() is None:
+        return False
     return QApplication.platformName() == "cocoa"
 
 
-def create(on_toggle, on_context_menu):
-    """创建状态栏项；非 macOS、非 cocoa 平台或任何桥接失败返回 None（调用方回退托盘）。"""
-    if system() != "Darwin" or not _native_available():
-        return None
-    try:
+_TARGET_CLASS = None
+
+
+def _target_class():
+    """惰性缓存 ObjC target 类（全进程只定义一次）。
+
+    pyobjc 不允许同名 ObjC 类二次定义（实测 pyobjc 12.1：
+    `objc.error: _Target is overriding existing Objective-C class`）。若像初版那样
+    把 class 定义在 create() 内，本进程第二次 create()（Task 8 reinit_tray 运行时
+    切换形态）会抛错并被 except 吞成 None，状态栏项静默降级为托盘图标。
+    惰性创建同时保证非 cocoa 平台不 import Foundation（守卫生效）。
+    """
+    global _TARGET_CLASS
+    if _TARGET_CLASS is None:
         import objc
         from Foundation import NSObject
 
@@ -109,6 +126,15 @@ def create(on_toggle, on_context_menu):
                 self._menu = menu
                 return self
 
+            # Python 名只有一个下划线，pyobjc 会推导成单参 selector `initWithCallbacks:`，
+            # 与两参签名冲突（pyobjc 12.1 定义类时抛 BadPrototypeError）。显式声明
+            # 双参 selector `initWithCallbacks:menu:`，保留 brief 的调用形式。
+            initWithCallbacks_ = objc.selector(
+                initWithCallbacks_,
+                selector=b"initWithCallbacks:menu:",
+                signature=b"@@:@@",
+            )
+
             def onClick_(self, sender):
                 nsapp = objc.lookUpClass("NSApplication").sharedApplication()
                 if nsapp.currentEvent().type() == _NSEVENT_TYPE_RIGHT_MOUSE_UP:
@@ -118,17 +144,33 @@ def create(on_toggle, on_context_menu):
 
             onClick_ = objc.selector(onClick_, signature=b"v@:@")
 
-        target = _Target.alloc().initWithCallbacks_(on_toggle, on_context_menu)
+        _TARGET_CLASS = _Target
+    return _TARGET_CLASS
+
+
+def create(on_toggle, on_context_menu):
+    """创建状态栏项；非 macOS、非 cocoa 平台或任何桥接失败返回 None（调用方回退托盘）。"""
+    if system() != "Darwin" or not _native_available():
+        return None
+    try:
+        import objc
+
+        target = _target_class().alloc().initWithCallbacks_(on_toggle, on_context_menu)
         item = (
             objc.lookUpClass("NSStatusBar")
             .systemStatusBar()
             .statusItemWithLength_(-1.0)  # NSSquareStatusItemLength
         )
-        btn = item.button()
-        btn.setImage_(_load_template_nsimage())
-        btn.setTarget_(target)
-        btn.setAction_("onClick:")
-        btn.sendActionOn_(_SEND_ACTION_MASK)
+        try:
+            btn = item.button()
+            btn.setImage_(_load_template_nsimage())
+            btn.setTarget_(target)
+            btn.setAction_("onClick:")
+            btn.sendActionOn_(_SEND_ACTION_MASK)
+        except Exception:
+            # 素材/按钮桥接失败：撤掉已建的裸状态栏项，避免留下不可移除的空图标
+            objc.lookUpClass("NSStatusBar").systemStatusBar().removeStatusItem_(item)
+            return None
         return MacStatusItem(item, target)
     except Exception:
         return None
