@@ -22,6 +22,12 @@
 2. Qt.Popup 与中文输入法候选窗是否冲突（候选窗弹出不得误关面板）
 3. `NSStatusItem.button.window` 坐标从 Cocoa 到 Qt 屏幕坐标系的转换正确性
 
+**测试环境隔离（预检实测发现，已与用户对齐）：**
+- 本项目测试固定 `QT_QPA_PLATFORM=offscreen`（tests/conftest.py）。实测 offscreen 下 `winId()` 返回 `1`，`objc.objc_object(c_void_p=winId).window()` 直接 **SIGSEGV（退出码 139）**——`install_vibrancy` 若无守卫会杀死整个 pytest 进程。
+- 实测 offscreen 下 `NSStatusBar.statusItemWithLength_` **仍会真实创建状态栏项**：测试会在开发机真实菜单栏留下图标，且测试不调用 `quit_app` 无 teardown，多个 panel 测试会累积污染。
+- 统一守卫：`QApplication.platformName() == "cocoa"` 才执行原生桥接。非 cocoa 时 `macos_status_item.create()` 返回 None（调用方回退 QSystemTrayIcon）、`install_vibrancy()` 返回 False、`_activate_panel` 跳过 NSApp 调用。测试保持 offscreen 完全无原生副作用；原生路径由 Task 1 spike + Task 10 真机清单覆盖（与 plan 对 pyobjc 薄壳的既有立场一致）。
+- Task 8 原 `test_tray_icon_none_in_panel_mode` 断言 `tray_icon is None` 与自身 docstring/Step 4 所述的"offscreen 桥接失败回退托盘"自相矛盾，已改为按平台分支断言（见 Task 8）。
+
 ---
 
 ## 文件结构
@@ -75,9 +81,10 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 
 NSApplicationActivationPolicyAccessory = 1
-NSEventTypeRightMouseUp = 3
-# NSEventMaskFromType: mask = 1 << type（LeftMouseUp=2, RightMouseUp=3）
-EVENT_MASK = (1 << 2) | (1 << 3)
+# pyobjc 实测枚举：LeftMouseUp=2、RightMouseDown=3、RightMouseUp=4
+NSEventTypeRightMouseUp = 4
+# NSEventMaskFromType: mask = 1 << type（LeftMouseUp=2 → 4, RightMouseUp=4 → 16）
+EVENT_MASK = (1 << 2) | (1 << 4)
 
 
 class _Target(NSObject):
@@ -383,17 +390,18 @@ git commit -m "feat: 面板定位纯函数（图标下缘居中 + 屏幕夹紧 +
 区分左右键，并经 button.window 拿到图标精确屏幕坐标。
 
 桥接模式与 utils/sleep_wake.py 一致（NSObject target-action，防 GC 挂自身）。
-仅 macOS 可用；任何一步失败 create() 返回 None，调用方回退 QSystemTrayIcon。
+仅 macOS 真实 cocoa 平台可用；非 cocoa（offscreen 测试）或任何一步失败
+create() 返回 None，调用方回退 QSystemTrayIcon。
 """
 from platform import system
 
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QImage
 
-# NSEventTypeRightMouseUp（左键为 2，仅右键需要区分）
-_NSEVENT_TYPE_RIGHT_MOUSE_UP = 3
-# NSEventMaskFromType(t) = 1 << t：LeftMouseUp=2、RightMouseUp=3 → 4|16
-_SEND_ACTION_MASK = (1 << 2) | (1 << 3)
+# NSEventTypeRightMouseUp（pyobjc 实测：LeftMouseUp=2、RightMouseDown=3、RightMouseUp=4）
+_NSEVENT_TYPE_RIGHT_MOUSE_UP = 4
+# NSEventMaskFromType(t) = 1 << t：LeftMouseUp=2、RightMouseUp=4 → 4|16
+_SEND_ACTION_MASK = (1 << 2) | (1 << 4)
 
 
 class MacStatusItem:
@@ -455,9 +463,20 @@ def _load_template_nsimage():
     return nsimage
 
 
+def _native_available() -> bool:
+    """仅真实 cocoa 平台可安全桥接 NSStatusItem。
+
+    offscreen（测试环境，conftest 强制）下 NSStatusBar 仍能创建真实状态栏项，
+    会在开发机真实菜单栏留下图标且无 teardown；必须守卫掉。
+    """
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.platformName() == "cocoa"
+
+
 def create(on_toggle, on_context_menu):
-    """创建状态栏项；非 macOS 或任何桥接失败返回 None（调用方回退托盘）。"""
-    if system() != "Darwin":
+    """创建状态栏项；非 macOS、非 cocoa 平台或任何桥接失败返回 None（调用方回退托盘）。"""
+    if system() != "Darwin" or not _native_available():
         return None
     try:
         import objc
@@ -529,8 +548,11 @@ git commit -m "feat: macOS 原生状态栏项 MacStatusItem（左键展开面板
 深浅色跟随 App 主题设置（set_appearance 三态），而非只跟系统——用户 App 内
 强制浅色/深色时质感与文字颜色不打架。
 
-桥接模式与 utils/sleep_wake.py 一致；仅 macOS；失败安静降级（面板退化为
-透明底窗口，由 Qt 侧圆角样式兜底）。
+桥接模式与 utils/sleep_wake.py 一致；仅 macOS 真实 cocoa 平台；失败安静降级
+（面板退化为透明底窗口，由 Qt 侧圆角样式兜底）。
+
+平台守卫必需：offscreen（测试环境）下 winId() 返回 1，拿它构造 NSView 再取
+window() 会 SIGSEGV，必须挡在桥接之前。
 """
 from platform import system
 
@@ -552,7 +574,10 @@ def _nsview_of(window):
 
 def install_vibrancy(window) -> bool:
     """为窗口安装毛玻璃背景（幂等）。返回是否成功。"""
-    if system() != "Darwin":
+    from PySide6.QtWidgets import QApplication
+
+    # 非 cocoa 平台 winId 不是 NSView 指针（offscreen 下为 1），桥接会段错误
+    if system() != "Darwin" or QApplication.platformName() != "cocoa":
         return False
     try:
         import objc
@@ -862,16 +887,20 @@ git commit -m "feat: 主窗口菜单栏面板形态骨架——set_menu_bar_mode
 ```python
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
 def test_show_panel_positions_under_icon(window, monkeypatch):
-    """面板顶部钉在图标下缘（reduce-motion 直出路径，无动画干扰）。"""
+    """面板顶部钉在图标下缘（reduce-motion 直出路径，无动画干扰）。
+
+    图标坐标取自 offscreen 屏幕（800x800）内部，避免触发 panel_geometry
+    的屏幕边缘夹紧——否则测试失败是夹紧所致而非定位 bug。
+    """
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     from PySide6.QtCore import QRect
 
-    fake_item = type("FakeItem", (), {"icon_global_rect": lambda self: QRect(900, 0, 24, 22)})()
+    fake_item = type("FakeItem", (), {"icon_global_rect": lambda self: QRect(400, 0, 24, 22)})()
     window._mac_status_item = fake_item
     window.set_menu_bar_mode(True)
     window.show_panel()
     assert window.frameGeometry().top() == 22 + 4
-    assert abs(window.frameGeometry().center().x() - (900 + 12)) <= 2
+    assert abs(window.frameGeometry().center().x() - (400 + 12)) <= 2
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
@@ -960,9 +989,12 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
         """Accessory 策略下抢键盘焦点（用户名/密码输入框依赖）。"""
         from platform import system
 
+        from PySide6.QtWidgets import QApplication
+
         self.raise_()
         self.activateWindow()
-        if system() == "Darwin":
+        # 仅真实 cocoa 平台调 NSApp（offscreen 测试下调用会无意义地抢开发机焦点）
+        if system() == "Darwin" and QApplication.platformName() == "cocoa":
             try:
                 import objc
 
@@ -1028,9 +1060,12 @@ git commit -m "feat: 面板展开/收起动画（下滑淡入 250ms）与图标�
 
 ```python
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
-def test_tray_icon_none_in_panel_mode(qtbot):
-    """面板模式构造：不创建 QSystemTrayIcon（走 NSStatusItem 路由），
-    但桥接在 offscreen/CI 不可用，_mac_status_item 允许为 None 静默降级。"""
+def test_tray_routing_in_panel_mode(qtbot):
+    """面板模式托盘路由按平台分支：
+    - cocoa（真机）：走原生 NSStatusItem，不建 QSystemTrayIcon；
+    - 非 cocoa（offscreen 测试）：原生被守卫关闭，回退 QSystemTrayIcon。
+    两条路径都不得创建残留原生状态栏项。"""
+    from PySide6.QtWidgets import QApplication
     from utils.config_utils import load_config, save_config
 
     config = load_config()
@@ -1041,11 +1076,16 @@ def test_tray_icon_none_in_panel_mode(qtbot):
 
     w = MainWindow()
     qtbot.addWidget(w)
-    assert w.tray_icon is None
-    assert hasattr(w, "_mac_status_item")
+    if QApplication.platformName() == "cocoa":
+        assert w._mac_status_item is not None
+        assert w.tray_icon is None
+    else:
+        assert w._mac_status_item is None
+        assert w.tray_icon is not None
     w.reconnect_manager.cancel()
 
 
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
 def test_close_event_panel_mode_hides(qtbot, monkeypatch):
     """面板模式 closeEvent = 收起（不退出）。"""
     from utils.config_utils import load_config, save_config
@@ -1215,7 +1255,7 @@ def reinit_tray(window):
 - [ ] **Step 4: 跑测试确认通过 + 全量回归**
 
 Run: `.venv/bin/python -m pytest tests/ -x -q`
-Expected: 全部 passed。特别确认 `test_main_window.py`、`test_connection_flow.py`（托盘相关）无回归——默认 `menu_bar_mode=False`，旧路径不受影响；offscreen 下 NSStatusItem 桥接 `create()` 返回 None 时回退到 QSystemTrayIcon（`test_tray_icon_none_in_panel_mode` 在 CI/macOS offscreen 下若桥接意外成功，`tray_icon is None` 与 `_mac_status_item` 存在均成立，测试断言兼容两种结果）。
+Expected: 全部 passed。特别确认 `test_main_window.py`、`test_connection_flow.py`（托盘相关）无回归——默认 `menu_bar_mode=False`，旧路径不受影响。offscreen 测试环境下 `create()` 因平台守卫返回 None → 回退 QSystemTrayIcon，`test_tray_routing_in_panel_mode` 走非 cocoa 分支断言（`_mac_status_item is None` + `tray_icon is not None`）；真实 cocoa 分支由 Task 10 真机清单覆盖。
 
 - [ ] **Step 5: Commit**
 
