@@ -394,6 +394,7 @@ git commit -m "feat: 面板定位纯函数（图标下缘居中 + 屏幕夹紧 +
 本模块是 pyobjc 薄壳（offscreen 测试环境无法实例化真状态栏项），**逻辑已在 Task 1 spike 验证**，本任务只做工程化封装，不配单测，手动验证在 Task 8 集成后进行。
 
 > **评审修订（Task 4 review Important）：** 初版把 ObjC target 类定义在 `create()` 函数内。实测 pyobjc 12.1 不允许同名 ObjC 类二次定义（`objc.error: _Target is overriding existing Objective-C class`），而 Task 8 的 `reinit_tray` 每次形态切换都会重新 `create()`——第二次起会被 `except` 吞成 `None`，状态栏项静默降级为托盘。已改为模块级惰性缓存 `_target_class()`（全进程只定义一次，且非 cocoa 平台不 import Foundation）。同时 `_load_template_nsimage` 增加素材/编码显式失败，`create()` 在按钮桥接失败时撤掉已建的裸状态栏项。
+> 修复过程中另发现两处、一并修掉：① `initWithCallbacks_` 单下划线两参在 pyobjc 12.1 会抛 `BadPrototypeError`（类定义即失败，原生路径全死），已显式声明 `initWithCallbacks:menu:` 双参 selector；② 无 QApplication 实例时 `QApplication.platformName()` 恒返回编译期默认 `"cocoa"`（即使设了 `QT_QPA_PLATFORM=offscreen`），裸进程冒烟会漏过守卫，`_native_available()` 已加 `QApplication.instance() is None → False`。真 cocoa 下连续 `create()`×2 + teardown 实测通过。
 
 - [ ] **Step 1: 实现**
 
@@ -490,9 +491,13 @@ def _native_available() -> bool:
 
     offscreen（测试环境，conftest 强制）下 NSStatusBar 仍能创建真实状态栏项，
     会在开发机真实菜单栏留下图标且无 teardown；必须守卫掉。
+    注意：无 QApplication 实例时 platformName() 返回 Qt 编译期默认平台
+    （macOS 为 "cocoa"），而非 QT_QPA_PLATFORM 指定的 offscreen——必须同时要求实例存在。
     """
     from PySide6.QtWidgets import QApplication
 
+    if QApplication.instance() is None:
+        return False
     return QApplication.platformName() == "cocoa"
 
 
@@ -521,6 +526,15 @@ def _target_class():
                 self._toggle = toggle
                 self._menu = menu
                 return self
+
+            # Python 名只有一个下划线，pyobjc 会推导成单参 selector `initWithCallbacks:`，
+            # 与两参签名冲突（pyobjc 12.1 定义类时抛 BadPrototypeError，原生路径全死）。
+            # 显式声明双参 selector `initWithCallbacks:menu:`，保留调用形式。
+            initWithCallbacks_ = objc.selector(
+                initWithCallbacks_,
+                selector=b"initWithCallbacks:menu:",
+                signature=b"@@:@@",
+            )
 
             def onClick_(self, sender):
                 nsapp = objc.lookUpClass("NSApplication").sharedApplication()
