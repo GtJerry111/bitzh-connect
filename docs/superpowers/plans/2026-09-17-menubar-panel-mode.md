@@ -770,9 +770,11 @@ def test_set_menu_bar_mode_idempotent(window):
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
 def test_open_panel_dispatch(window, monkeypatch):
+    # 先切形态再打 spy：set_menu_bar_mode 自身也会调用 show_panel 恢复可见性，
+    # 先打 spy 会把那次调用一并记入，且零参 spy 与 show_panel(animated=) 不兼容
+    window.set_menu_bar_mode(True)
     calls = []
     monkeypatch.setattr(window, "show_panel", lambda: calls.append("panel"))
-    window.set_menu_bar_mode(True)
     window.open_panel()
     assert calls == ["panel"]
 
@@ -802,13 +804,25 @@ Expected: FAIL —— `AttributeError: 'MainWindow' object has no attribute 'set
 
 `app/views/main_window.py`：
 
-① `__init__` 中，`self.tray_icon = init_tray_icon(self)` 之前的位置（`load_settings` 已读出 `menu_bar_mode`），加形态初始化（注意：`load_settings` 在 `setup_ui` 之前调用，`exit_button` 等控件在 `setup_ui` 里创建，所以模式应用放在 `setup_ui` 之后、`init_tray_icon` 之前）：
+① `__init__` 分两处加形态初始化：
+
+(a) **标志位必须紧跟 `super().__init__()`（不能晚）**：`event()` 覆写层在 `__init__` 期间（`setWindowTitle` 等）就会收到事件，晚赋值会 `AttributeError`。
+
+```python
+    def __init__(self):
+        super().__init__()
+        # 形态标志须在任何事件/方法可触及之前就位：event() 覆写层会在
+        # __init__ 期间（setWindowTitle 等）收到事件，晚赋值会 AttributeError。
+        self._panel_mode = False
+        self._esc_shortcut = None
+        self.setWindowTitle(APP_NAME)
+```
+
+(b) **模式应用放在 `setup_ui` 之后、`self.tray_icon = init_tray_icon(self)` 之前**（`load_settings` 已读出 `menu_bar_mode`；`exit_button` 等控件在 `setup_ui` 里创建）：
 
 ```python
         # 菜单栏面板形态（macOS）：flags/毛玻璃/锚定；须在托盘初始化之前
         # （托盘按形态路由 NSStatusItem / QSystemTrayIcon）
-        self._panel_mode = False
-        self._esc_shortcut = None
         if self.menu_bar_mode:
             self._apply_panel_chrome(True)
 ```
