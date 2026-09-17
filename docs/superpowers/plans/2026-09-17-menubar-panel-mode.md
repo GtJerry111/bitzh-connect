@@ -1698,8 +1698,16 @@ Run: `.venv/bin/python app/main.py`
 - [ ] TUN 连接弹授权框后行为可接受（面板失焦收起，授权流程正常）
 - [ ] 深浅色切换（含 App 内强制）：毛玻璃质感与文字颜色同步
 - [ ] 退出（右键菜单）：状态栏图标移除，无残留进程
-- [ ] 取消勾选回到浮动模式：标题栏/Dock/托盘全部恢复
+- [ ] 取消勾选回到浮动模式：标题栏/Dock/托盘全部恢复，且"隐藏 Dock 图标"还原为勾选面板前的原偏好（I2）
 - [ ] 刘海屏/外接显示器（如有条件）：图标被挤出时退化到屏幕右上角
+
+**最终评审补充的真机必验项（Task 10 执行时追加）：**
+- [ ] **重启后仍是面板模式**：启动无任何窗口闪现、状态栏图标存在、首次左键可用（I3）
+- [ ] **应用非活跃时右键状态栏图标**：Qt `QMenu.exec_` 能弹出、三项可点、`QCursor.pos()` 定位正确（spike 只验证了 print，这是最可能翻车处；失败则 exec_ 前先 `activateIgnoringOtherApps_` 或改原生 NSMenu）
+- [ ] 首次点图标开面板时，开场动画不因 activation 通知重入而重放/闪烁（I1 相关）
+- [ ] 面板内点"设置"：对话框 parent 是已隐藏的 Tool 窗口，确认可见可交互、关闭后状态不乱
+- [ ] 形态切换瞬间（浮动可见 → 勾选保存）无闪黑；取消勾选后最小尺寸等完整恢复
+- [ ] 毛玻璃 + 10px 圆角确实裁到内容（QSS 只有 border-radius 无 background，四角水印可能溢出）
 
 - [ ] **Step 4: README 特性行**
 
@@ -1739,3 +1747,20 @@ git commit -m "docs: README 特性列表补充 macOS 菜单栏面板形态"
 **已知取舍（真机验证兜底）：** 失焦收起走 `WindowDeactivate → hide_panel()`（会播放收起动画）；TUN 授权弹窗期间面板失焦收起（可接受，见 Task 10 清单）。
 
 **自查修正记录：** `set_menu_bar_mode`/`_apply_panel_chrome` 初版无条件 `show()`——启动初始化路径（`__init__` 内应用已持久化的面板模式）会提前弹窗，违反"面板模式启动等点击"的约定。已修正为 `winId()` 真实化 NSWindow 不显示，可见性由 `was_visible` 按切换前状态恢复。
+
+---
+
+## 最终整分支评审（2026-09-17）与修复
+
+评审范围 `9c3ef34..8d9119f`（28 commits）。结论 **With fixes**：无 Critical，3 项 Important，若干 Minor。
+
+**合并阻塞项（已修，commit `2697588`；修复清单见 `.superpowers/sdd/final-fix-spec.md`）：**
+1. **I1** `_on_app_activate` 丢了 `isVisible()` 守卫——浮动形态下每次应用激活都抢焦点（设置对话框被压在下面）。已恢复"仅隐藏时 open_panel"。
+2. **I2** 开启面板模式会把强制的 `hide_dock_icon=True` 持久化，取消面板不还原用户原偏好。改为：`hide_dock_icon` 恒为**用户原偏好**，面板模式下有效 Dock 策略 = `menu_bar_mode or hide_dock_icon`（dialog 暂存原值、`menu_utils`/`main.py` 统一按此式施加）。
+3. **I3** 面板模式启动路径无测试。已补 `test_panel_mode_startup_does_not_show` + 真机清单项。
+
+**同轮顺手修的 Minor：** m1 theme 回调改绑定方法（去累积）、m2 vibrancy 加幂等守卫、m6 桥接失败清 `_tray_menu`、m8 删 `getattr(window,"open_panel")` 生产分支并给 FakeWindow 补 `open_panel`、m9 面板 `closeEvent` 补 `_quitting` 快路径、m10 hide 起始 opacity 取当前值并停在途 hide、m11/m12 测试断言收紧、m13 注释修正 `NSVariableStatusItemLength`。
+
+**复审（`2697588`）Approved**，仅剩 coverage/polish；随后 `12150c7` 补两条锁定测试（I1 可见即 no-op、Dock 策略随面板模式）并 DRY `accept`。全量 **173 passed**。
+
+**明确延后（不阻塞合并，真机兜底）：** Task 3 几何 1px/负原点/超窄屏；`macos_status_item` `onClick_` 无兜底与 `teardown` 不清 `_target`；`_apply_panel_chrome(False)` 硬编码 `Qt.Window` 而非还原进入前 flags；`_panel_mode` 先于 `setWindowFlags` 的重入；`tray_icon_activated` 双击路由；原生失败静默（缺日志）；`_on_content_resize` 每帧重复原生取坐标。
