@@ -1117,6 +1117,21 @@ def test_panel_hides_on_window_deactivate(window, monkeypatch):
     assert window.isVisible()
     QGuiApplication.sendEvent(window, QEvent(QEvent.WindowDeactivate))
     assert not window.isVisible()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_show_panel_cancels_pending_hide(window, monkeypatch):
+    """展开须使在途收起动画失效：陈旧 finished 不得隐藏刚展开的面板
+    （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: False)
+    window.set_menu_bar_mode(True)
+    window.show_panel(animated=False)
+    assert window.isVisible()
+    window.hide_panel()
+    assert window._panel_hide_anim is not None  # 在途收起动画
+    window.show_panel(animated=False)
+    assert window.isVisible()
+    assert window._panel_hide_anim is None  # 已被 show 停掉/清空，陈旧回调失效
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -1129,14 +1144,47 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
 `app/views/main_window.py`：删除 Task 6 的占位方法，替换为：
 
 ```python
+    def _stop_panel_anims(self):
+        """停掉在途展开动画（可打断性用）。DeleteWhenStopped 后 wrapper 可能失效，须 isValid。"""
+        from shiboken6 import isValid
+
+        anims = getattr(self, "_panel_anims", None)
+        self._panel_anims = None
+        for anim in anims or ():
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
+    def _stop_panel_hide_anim(self):
+        """停掉在途收起动画（可打断性用）。"""
+        from shiboken6 import isValid
+
+        anim = getattr(self, "_panel_hide_anim", None)
+        self._panel_hide_anim = None
+        if anim is not None:
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
     def show_panel(self, animated: bool = True):
-        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。"""
+        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。
+
+        可打断：停掉在途收起动画并翻“世代号”，陈旧 finished 不得隐藏刚展开的面板
+        （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。
+        """
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
+        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
+        self._stop_panel_hide_anim()
         self._anchor_panel()
         animated = animated and not reduce_motion()
         if not animated:
+            self.setWindowOpacity(1.0)
             self.show()
             self._activate_panel()
             return
@@ -1160,12 +1208,16 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
         self._activate_panel()
 
     def hide_panel(self):
-        """收起面板（Esc/再点图标）：淡出 + 上移 8px 后隐藏；reduce-motion 直出。"""
+        """收起面板（Esc/再点图标）：淡出后隐藏；reduce-motion/不可见时直出。"""
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
+        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
+        gen = self._panel_anim_gen
+        self._stop_panel_anims()
         if reduce_motion() or not self.isVisible():
             self.hide()
+            self.setWindowOpacity(1.0)
             return
         anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
         anim_opacity.setDuration(ANIMATION_DURATION_MS)
@@ -1174,6 +1226,8 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
         anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
 
         def _finish():
+            if getattr(self, "_panel_anim_gen", 0) != gen:
+                return  # 期间又 show/hide 过：陈旧回调不得决定终态
             self.hide()
             self.setWindowOpacity(1.0)  # 复位：下次 show 不带残留透明度
 
