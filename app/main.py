@@ -39,7 +39,7 @@ if __name__ == "__main__":
     elif system() == "Linux":
         app.setWindowIcon(QIcon(":/icons/icon.png"))
 
-    if not window.silent_mode:
+    if not window.silent_mode and not window.menu_bar_mode:
         window.show()
 
     if system() == "Darwin":

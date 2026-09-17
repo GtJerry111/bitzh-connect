@@ -1,15 +1,14 @@
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMainWindow
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QCursor
 from PySide6.QtCore import QTimer
 from shiboken6 import isValid
 from platform import system
 from common import resources
 
 
-def create_tray_menu(window: QMainWindow, tray_icon):
-    """Create and set up the system tray menu"""
-    # 形态切换会重建托盘：旧 QMenu/QAction 随旧托盘销毁，但同步 lambda 挂在
-    # 长寿的 connect_button 上；不先撤销，陈旧 lambda 会命中已删除的 QAction。
+def build_tray_menu(window: QMainWindow) -> QMenu:
+    """构建托盘/状态栏菜单（打开面板 / VPN 连接 / 退出；两形态共用）。"""
+    # 重建时先撤销旧同步槽（否则陈旧 lambda 命中已销毁 QAction，见 Task 6 ⑤）
     old_sync = getattr(window, "_tray_connect_sync", None)
     if old_sync is not None:
         try:
@@ -18,8 +17,14 @@ def create_tray_menu(window: QMainWindow, tray_icon):
             pass
     menu = QMenu()
     show_action = menu.addAction("打开面板")
-    show_action.triggered.connect(window.show)
-    show_action.triggered.connect(window.raise_)
+    # 打开入口统一走 open_panel（按形态分发 show_panel / show+raise）；对未实现
+    # 该接口的轻量调用方（测试替身）回退旧的 show/raise 行为
+    open_panel = getattr(window, "open_panel", None)
+    if open_panel is not None:
+        show_action.triggered.connect(open_panel)
+    else:
+        show_action.triggered.connect(window.show)
+        show_action.triggered.connect(window.raise_)
     connect_action = QAction("VPN 连接", menu)
     connect_action.setCheckable(True)
     connect_action.triggered.connect(
@@ -27,7 +32,6 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     )
     # 同步托盘勾选与按钮实时状态（读 isChecked 而非 toggled 参数）：
     # start_connection 凭据校验早退已在前面槽位复位按钮/托盘，用参数会重新勾选
-    # 命名保存以便重建时断开
     sync = lambda checked: connect_action.setChecked(window.connect_button.isChecked())
     window.connect_button.toggled.connect(sync)
     window._tray_connect_sync = sync
@@ -36,8 +40,12 @@ def create_tray_menu(window: QMainWindow, tray_icon):
     menu.addAction(connect_action)
     quit_action = menu.addAction("退出")
     quit_action.triggered.connect(window.quit_app)
+    return menu
 
-    tray_icon.setContextMenu(menu)
+
+def create_tray_menu(window: QMainWindow, tray_icon):
+    """QSystemTrayIcon 路径：挂 context menu + 双击唤出（Win/Linux）。"""
+    tray_icon.setContextMenu(build_tray_menu(window))
     tray_icon.activated.connect(lambda reason: tray_icon_activated(reason, window))
 
 
@@ -56,9 +64,12 @@ def handle_close_event(window, event, tray_icon):
         event.accept()
         return
     try:
-        # isValid 前置短路：C++ 对象已销毁时根本不触碰它；
+        # None 前置短路：面板模式原生状态栏项路径 tray_icon 为 None（托盘职责在
+        # _mac_status_item）；isValid 前置短路已销毁的 C++ 对象；
         # RuntimeError 兜底 isValid 与 isVisible 之间的删除竞态
-        tray_visible = isValid(tray_icon) and tray_icon.isVisible()
+        tray_visible = (
+            tray_icon is not None and isValid(tray_icon) and tray_icon.isVisible()
+        )
     except RuntimeError:
         tray_visible = False  # 托盘 C++ 对象已销毁（退出竞态）
     if tray_visible:
@@ -74,6 +85,10 @@ def quit_app(window, tray_icon):
         return
     window._quitting = True
     window.stop_connection()
+    mac_item = getattr(window, "_mac_status_item", None)
+    if mac_item is not None:
+        mac_item.teardown()
+        window._mac_status_item = None
     window.hide()
     # 关键：worker 线程必须死在 QApplication 销毁之前——QThread 析构时线程仍在跑
     # 会 qFatal（真实崩溃栈：QThreadWrapper::~QThreadWrapper 于解释器收尾期）。
@@ -87,7 +102,9 @@ def quit_app(window, tray_icon):
             # 不杀则 teardown 必崩——两害相权取强杀）
             worker.terminate()
             worker.wait(500)
-    if isValid(tray_icon):
+    # None 守卫：面板模式原生状态栏项路径 tray_icon 为 None
+    # （shiboken6.isValid(None) 实为 True，只靠 isValid 会 AttributeError）
+    if tray_icon is not None and isValid(tray_icon):
         tray_icon.deleteLater()
     QTimer.singleShot(1500, QApplication.quit)
 
@@ -114,7 +131,23 @@ def reinit_tray(window):
 
 
 def init_tray_icon(window):
-    """Initialize system tray icon and menu"""
+    """初始化托盘/状态栏项。macOS 面板模式走原生 NSStatusItem（左键展开
+    面板、右键菜单）；桥接失败静默回退 QSystemTrayIcon。返回托盘对象
+    （面板模式且桥接成功时为 None，托盘职责由 window._mac_status_item 承担）。"""
+    if system() == "Darwin" and getattr(window, "menu_bar_mode", False):
+        from utils.macos_status_item import create
+
+        window._tray_menu = build_tray_menu(window)
+        item = create(
+            on_toggle=window.toggle_panel,
+            on_context_menu=lambda: window._tray_menu.exec_(QCursor.pos()),
+        )
+        if item is not None:
+            window._mac_status_item = item
+            return None
+        # 桥接失败：回落浮动托盘路径（menu_bar_mode 配置不强行改写，
+        # 窗口外壳已由 set_menu_bar_mode 决定，托盘只是入口之一）
+
     tray_icon = QSystemTrayIcon(window)
 
     # Set icon based on platform

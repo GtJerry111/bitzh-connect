@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         # （托盘按形态路由 NSStatusItem / QSystemTrayIcon）
         if self.menu_bar_mode:
             self._apply_panel_chrome(True)
+        self._mac_status_item = None
         self.tray_icon = init_tray_icon(self)
 
         # 休眠/唤醒联动（仅 macOS 实装）：休眠抑制重连，唤醒立即重连
@@ -763,6 +764,11 @@ class MainWindow(QMainWindow):
             self.connect_button.setChecked(True)
 
     def closeEvent(self, event):
+        if self._panel_mode:
+            # 面板无"关闭"概念：收起即隐藏，进程由状态栏项驻留
+            self.hide()
+            event.ignore()
+            return
         handle_close_event(self, event, self.tray_icon)
 
     def quit_app(self):

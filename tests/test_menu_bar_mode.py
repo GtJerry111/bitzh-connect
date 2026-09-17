@@ -192,3 +192,73 @@ def test_show_panel_cancels_pending_hide(window, monkeypatch):
     window.show_panel(animated=False)
     assert window.isVisible()
     assert window._panel_hide_anim is None  # 已被 show 停掉/清空，陈旧回调失效
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_tray_routing_in_panel_mode(qtbot):
+    """面板模式托盘路由按平台分支：
+    - cocoa（真机）：走原生 NSStatusItem，不建 QSystemTrayIcon；
+    - 非 cocoa（offscreen 测试）：原生被守卫关闭，回退 QSystemTrayIcon。
+    两条路径都不得创建残留原生状态栏项。"""
+    from PySide6.QtWidgets import QApplication
+    from utils.config_utils import load_config, save_config
+
+    config = load_config()
+    config["menu_bar_mode"] = True
+    save_config(config)
+
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    if QApplication.platformName() == "cocoa":
+        assert w._mac_status_item is not None
+        assert w.tray_icon is None
+    else:
+        assert w._mac_status_item is None
+        assert w.tray_icon is not None
+    w.reconnect_manager.cancel()
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_close_event_panel_mode_hides(qtbot, monkeypatch):
+    """面板模式 closeEvent = 收起（不退出）。"""
+    from utils.config_utils import load_config, save_config
+
+    config = load_config()
+    config["menu_bar_mode"] = True
+    save_config(config)
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.show()
+    from PySide6.QtGui import QCloseEvent
+
+    w.closeEvent(QCloseEvent())
+    assert not w.isVisible()
+    assert not getattr(w, "_quitting", False)
+    w.reconnect_manager.cancel()
+
+
+def test_quit_helpers_tolerate_no_tray_icon(qtbot, monkeypatch):
+    """面板模式原生状态栏项路径 tray_icon 为 None（托盘职责在 _mac_status_item）：
+    handle_close_event/quit_app 不得触碰 None。shiboken6.isValid(None) 实为 True，
+    只靠 isValid 会 AttributeError（真实 cocoa 面板模式下退出即崩）。"""
+    from PySide6.QtGui import QCloseEvent
+
+    class FakeTimer:
+        @staticmethod
+        def singleShot(*args):
+            pass  # 拦截延迟 quit，避免遗留定时器
+
+    monkeypatch.setattr("utils.tray_utils.QTimer", FakeTimer)
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    w.tray_icon = None  # 浮动形态下 closeEvent → handle_close_event(None) → quit_app(None)
+    w.closeEvent(QCloseEvent())
+    assert getattr(w, "_quitting", False) is True
