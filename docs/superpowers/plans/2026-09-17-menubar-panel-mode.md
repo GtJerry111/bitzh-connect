@@ -1313,6 +1313,10 @@ git commit -m "feat: 面板展开/收起动画（下滑淡入 250ms）与图标�
 - Modify: `app/main.py`
 - Test: `tests/test_menu_bar_mode.py`
 
+> **执行修订（Task 8 实施时发现）：**
+> 1. **`shiboken6.isValid(None)` 实测为 True**（非计划初版假设的 False）：面板模式 `tray_icon=None` 时，`quit_app` 会走到 `None.deleteLater()`、`handle_close_event` 会走到 `None.isVisible()`，真机 cocoa 退出即崩。两处均补显式 `tray_icon is not None` 前置守卫（见 Step 3 ③），并补 1 条回归测试。
+> 2. **`show_action` 直接 `connect(window.open_panel)` 会打挂 `tests/test_misc_fixes.py` 的 FakeWindow 替身**（只实现 show/raise_，且不在本任务允许改动文件内）。改为 `getattr(window, "open_panel", None)` 分支：真实 MainWindow 语义不变，旧替身回退 show/raise。（若最终评审认为生产代码不应为测试替身开口，改为给 FakeWindow 补 `open_panel` 并恢复直接 connect。）
+
 - [ ] **Step 1: 写失败测试（追加）**
 
 ```python
@@ -1391,7 +1395,14 @@ def build_tray_menu(window: QMainWindow) -> QMenu:
             pass
     menu = QMenu()
     show_action = menu.addAction("打开面板")
-    show_action.triggered.connect(window.open_panel)
+    # 统一走 open_panel（按形态分发 show_panel / show+raise）。对未实现该接口的
+    # 轻量调用方（tests/test_misc_fixes.py 的 FakeWindow 替身）回退旧 show/raise。
+    open_panel = getattr(window, "open_panel", None)
+    if open_panel is not None:
+        show_action.triggered.connect(open_panel)
+    else:
+        show_action.triggered.connect(window.show)
+        show_action.triggered.connect(window.raise_)
     connect_action = QAction("VPN 连接", menu)
     connect_action.setCheckable(True)
     connect_action.triggered.connect(
@@ -1468,7 +1479,9 @@ def init_tray_icon(window):
     window.hide()
 ```
 
-`quit_app` 原有 `if isValid(tray_icon):` 行对 `tray_icon=None` 安全（`shiboken6.isValid(None)` 返回 False），无需改。
+`quit_app` 原有 `if isValid(tray_icon):` 行**必须补显式 None 守卫**：面板模式原生路径 `tray_icon` 为 `None`，而实测 `shiboken6.isValid(None)` 返回 **True**（不是计划初版假设的 False），会走到 `None.deleteLater()` → AttributeError（真机 cocoa 退出即崩）。改为 `if tray_icon is not None and isValid(tray_icon):`。
+
+`handle_close_event` 同理：`tray_visible = isValid(tray_icon) and tray_icon.isVisible()` 在 `tray_icon=None` 时 `None.isVisible()` 抛 AttributeError（不是 RuntimeError，兜不住）。改为 `tray_icon is not None and isValid(tray_icon) and tray_icon.isVisible()`。
 
 `app/views/main_window.py`：
 
