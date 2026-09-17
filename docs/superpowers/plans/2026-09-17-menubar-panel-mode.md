@@ -4,7 +4,7 @@
 
 **Goal:** macOS 上为 BITZH Connect 增加第二种窗口形态——吸附状态栏、点击图标展开的菜单栏面板，与现有浮动小窗口形态可随时切换。
 
-**Architecture:** macOS 路径用 pyobjc 原生 `NSStatusItem` 替换 `QSystemTrayIcon`（左键展开/收起、右键弹 Qt 菜单、精确坐标），面板本体是复用现有全部 UI 的无边框 Qt 窗口（`FramelessWindowHint | Popup`），背后垫 `NSVisualEffectView` 毛玻璃。Win/Linux 路径一行不动。新增配置键 `menu_bar_mode`，设置对话框"通用"tab 提供开关，运行时切换即时生效。
+**Architecture:** macOS 路径用 pyobjc 原生 `NSStatusItem` 替换 `QSystemTrayIcon`（左键展开/收起、右键弹 Qt 菜单、精确坐标），面板本体是复用现有全部 UI 的无边框 Qt 窗口（`FramelessWindowHint | Tool | WindowStaysOnTopHint`，Task 1 实测 Popup 在 Accessory 下不可用），背后垫 `NSVisualEffectView` 毛玻璃。Win/Linux 路径一行不动。新增配置键 `menu_bar_mode`，设置对话框"通用"tab 提供开关，运行时切换即时生效。
 
 **Tech Stack:** PySide6 6.11+ / pyobjc (AppKit) / pytest + pytest-qt（offscreen）
 
@@ -14,13 +14,13 @@
 - 固定 360 宽，高度内容驱动，顶部钉在菜单栏下缘，不可拖动
 - 展开/收起动画：下滑 + 淡入 250ms OutCubic（复用 motion_utils 规范，reduce-motion 直出）
 - 面板模式隐藏底部"退出"按钮（右键菜单已有退出），"设置"按钮保留
-- 失焦自动收起（Qt.Popup 自带）+ Esc 收起
+- 失焦自动收起（Tool 窗口手动监听 `WindowDeactivate`；Task 1 实测 Popup 不可用）+ Esc 收起
 - 面板模式强制隐藏 Dock 图标（Accessory 策略），切回浮动模式恢复原设置
 
-**关键风险（Task 1 Spike 先行验证）：**
-1. Accessory 激活策略下 Popup 窗口能否稳定拿到键盘焦点（面板里有用户名/密码输入框）——`NSApp.activateIgnoringOtherApps` 是否够用
-2. Qt.Popup 与中文输入法候选窗是否冲突（候选窗弹出不得误关面板）
-3. `NSStatusItem.button.window` 坐标从 Cocoa 到 Qt 屏幕坐标系的转换正确性
+**关键风险（Task 1 Spike 已实测验证，结论见下）：**
+1. ✅ Accessory 激活策略下的键盘焦点：`Qt.Popup` **不可用**——show() 后立即自隐（面板根本握不住焦点，中英文都无法输入）；改用 `Qt.Tool | WindowStaysOnTopHint` + `NSApp.activateIgnoringOtherApps_(True)` + 原生 `makeKeyAndOrderFront_`，实测 activeWin=True、focusWidget=QLineEdit。
+2. ✅ 中文输入法候选窗：Tool 形态下候选窗弹出面板不误关（用户真机确认）。
+3. ✅ `NSStatusItem.button.window` 坐标从 Cocoa 到 Qt 屏幕坐标系的转换正确（面板居中贴图标下缘）。
 
 **测试环境隔离（预检实测发现，已与用户对齐）：**
 - 本项目测试固定 `QT_QPA_PLATFORM=offscreen`（tests/conftest.py）。实测 offscreen 下 `winId()` 返回 `1`，`objc.objc_object(c_void_p=winId).window()` 直接 **SIGSEGV（退出码 139）**——`install_vibrancy` 若无守卫会杀死整个 pytest 进程。
@@ -58,7 +58,9 @@
 **Files:**
 - Create: `scripts/menu_bar_spike.py`
 
-- [ ] **Step 1: 编写 spike 脚本**
+- [x] **Step 1: 编写 spike 脚本**
+
+> ✅ 已完成并定案：定稿脚本见仓库 `scripts/menu_bar_spike.py`（commit `73fc027`）。原计划下方的 `Qt.Popup` 雏形在真机实测中被证伪（Accessory 激活策略下 show() 即自隐、面板握不住焦点、中英文都无法输入），最终脚本改为 `Tool | WindowStaysOnTopHint` + 真 qrc 图标 + 手动 `WindowDeactivate` 收起 + `SIGINT` 复位。**实现一律以仓库脚本为准**，下方保留原雏形仅作历史记录。
 
 ```python
 """菜单栏面板形态 Spike：验证三个技术风险点（一次性脚本，验证后保留作诊断）。
@@ -174,18 +176,20 @@ _item.button().sendActionOn_(EVENT_MASK)
 sys.exit(app.exec())
 ```
 
-- [ ] **Step 2: 运行并按清单验证**
+- [x] **Step 2: 运行并按清单验证**（用户真机确认 5/5 通过）
 
 Run: `.venv/bin/python scripts/menu_bar_spike.py`
 Expected: 清单 5 项全部通过，终端无 Objective-C 异常栈。
 
-- [ ] **Step 3: 记录结论并决策**
+- [x] **Step 3: 记录结论并决策**
 
-- 若清单 3/4 通过 → 面板窗口 flags 定为 `Qt.FramelessWindowHint | Qt.Popup`（计划默认路线）。
-- 若 Popup 与输入法冲突 → 降级为 `Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint`，并自行实现失焦收起（监听 `QApplication.applicationStateChanged` + 窗口 deactivated）。**后续 Task 中所有 `Qt.Popup` 出现处同步替换**。
-- 结论以评论形式追加在脚本 docstring 末尾。
+**实际结论（Plan 默认路线被证伪，采用降级路线）：**
+- 面板窗口 flags 定案 **`Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint`**。原因：`Qt.Popup` 在 Accessory 激活策略下 `show()` 后立即 `visible=False`（应用非活跃 → popup 失活自隐），键盘焦点从未拿到，中英文输入均失败——不是"Popup 与输入法冲突"，而是 Popup 根本不可用。
+- 失焦收起改为手动实现：面板 `event()` 里接 `QEvent.WindowDeactivate → hide()`（IME 候选窗弹出不触发面板失活，已真机确认不误关）。
+- 在 `show_panel` 激活路径里加原生 `makeKeyAndOrderFront_`（`NSApp.activateIgnoringOtherApps_(True)` 之外）。
+- 结论已写入 `scripts/menu_bar_spike.py` docstring 末尾；**本计划后续所有 `Qt.Popup` 出现处（Task 6/7/8 及 Self-Review）均已同步替换为 Tool 方案。**
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/menu_bar_spike.py
@@ -676,7 +680,10 @@ def test_enter_panel_mode(window):
     window.set_menu_bar_mode(True)
     flags = window.windowFlags()
     assert flags & Qt.FramelessWindowHint
-    assert flags & Qt.Popup
+    # 窗口类型须精确等于 Tool（Qt.Tool 与 Qt.Popup 共享 Window 位，
+    # 直接 flags & Qt.Popup 会误判为真，必须用 WindowType_Mask 取类型）
+    assert (flags & Qt.WindowType_Mask) == Qt.Tool
+    assert flags & Qt.WindowStaysOnTopHint
     assert window.testAttribute(Qt.WA_TranslucentBackground)
     assert not window.exit_button.isVisible()
     assert window.settings_button.isVisible() or True  # 设置按钮保留（可见性随布局）
@@ -779,11 +786,29 @@ Expected: FAIL —— `AttributeError: 'MainWindow' object has no attribute 'set
             else:
                 self.show()
 
+    def event(self, e):
+        """面板失焦自动收起。
+
+        Tool 形态没有 Qt.Popup 的自隐行为（Task 1 实测 Popup 在 Accessory 下
+        show() 即自隐，不可用），改为手动接窗口失活；IME 候选窗不触发本事件，
+        故中文输入时不会误关（Task 1 真机确认）。
+        """
+        if (
+            self._panel_mode
+            and e.type() == QEvent.WindowDeactivate
+            and self.isVisible()
+        ):
+            self.hide_panel()
+        return super().event(e)
+
     def _apply_panel_chrome(self, enabled: bool):
         """窗口外壳切换：flags / 透明底 / 毛玻璃 / 退出按钮 / Esc / 圆角样式。"""
         self._panel_mode = enabled
         if enabled:
-            self.setWindowFlags(Qt.FramelessWindowHint | Qt.Popup)
+            # Tool 形态（非 Popup）：Accessory 策略下 Popup show() 即自隐、无法输入
+            self.setWindowFlags(
+                Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
+            )
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setFixedWidth(360)
             self.exit_button.hide()
@@ -921,6 +946,20 @@ def test_content_resize_keeps_top_anchored(window, monkeypatch):
     top_before = window.frameGeometry().top()
     window._on_content_resize()
     assert window.frameGeometry().top() == top_before
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_hides_on_window_deactivate(window, monkeypatch):
+    """失焦手动收起（Tool 形态无 Popup 自隐）：窗口失活事件 → 面板隐藏。"""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QGuiApplication
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    window.set_menu_bar_mode(True)
+    window.show_panel()
+    assert window.isVisible()
+    QGuiApplication.sendEvent(window, QEvent(QEvent.WindowDeactivate))
+    assert not window.isVisible()
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -996,10 +1035,17 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
         # 仅真实 cocoa 平台调 NSApp（offscreen 测试下调用会无意义地抢开发机焦点）
         if system() == "Darwin" and QApplication.platformName() == "cocoa":
             try:
+                import ctypes
+
                 import objc
 
-                objc.lookUpClass("NSApplication").sharedApplication() \
-                    .activateIgnoringOtherApps_(True)
+                nsapp = objc.lookUpClass("NSApplication").sharedApplication()
+                nsapp.activateIgnoringOtherApps_(True)
+                # Tool 窗口需显式 makeKey 才能真正拿到键盘焦点（Task 1 spike 实测）
+                view = objc.objc_object(
+                    c_void_p=ctypes.c_void_p(int(self.winId()))
+                )
+                view.window().makeKeyAndOrderFront_(None)
             except Exception:
                 pass
 
@@ -1467,7 +1513,7 @@ git commit -m "docs: README 特性列表补充 macOS 菜单栏面板形态"
 - 左键展开/右键菜单 → Task 4 + Task 8 ✅
 - 毛玻璃/圆角/360 宽/无箭头 → Task 5 + Task 6 ✅
 - 下滑淡入动画 + 顶边锚定 → Task 7 ✅
-- 失焦/Esc 收起 → Qt.Popup 自带 + Task 6 Esc ✅
+- 失焦/Esc 收起 → Task 6 手动 `WindowDeactivate` + Esc ✅
 - 退出按钮隐藏/设置保留 → Task 6 `_apply_panel_chrome` ✅
 - 形态切换 + 持久化 + Dock 联动 → Task 2/6/8/9 ✅
 - Win/Linux 不受影响 → Task 2 非 Darwin 强制 False + 托盘路由守卫 ✅
@@ -1475,6 +1521,6 @@ git commit -m "docs: README 特性列表补充 macOS 菜单栏面板形态"
 
 **类型一致性：** `MacStatusItem.icon_global_rect()` 返回 `QRect | None`，`panel_geometry(icon_rect, ...)` 接受 None ✅；`_mac_status_item` 在 `__init__`、`reinit_tray`、`quit_app`、`show_panel`/`_anchor_panel` 各处命名一致 ✅；`open_panel`/`toggle_panel`/`show_panel`/`hide_panel` 签名前后一致 ✅。
 
-**已知取舍（真机验证兜底）：** Qt.Popup 自带失焦收起不经过 `hide_panel`（无收起动画，系统行为，可接受）；TUN 授权弹窗期间面板失焦收起（可接受，见 Task 10 清单）。
+**已知取舍（真机验证兜底）：** 失焦收起走 `WindowDeactivate → hide_panel()`（会播放收起动画）；TUN 授权弹窗期间面板失焦收起（可接受，见 Task 10 清单）。
 
 **自查修正记录：** `set_menu_bar_mode`/`_apply_panel_chrome` 初版无条件 `show()`——启动初始化路径（`__init__` 内应用已持久化的面板模式）会提前弹窗，违反"面板模式启动等点击"的约定。已修正为 `winId()` 真实化 NSWindow 不显示，可见性由 `was_visible` 按切换前状态恢复。
