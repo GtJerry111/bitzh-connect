@@ -43,6 +43,8 @@ def load_config():
         "tun_mode": True,
         # 校内导航折叠条展开状态记忆（重启保持）
         "nav_expanded": False,
+        # macOS 菜单栏面板形态：True=点击状态栏图标展开面板；False=浮动小窗口
+        "menu_bar_mode": False,
     }
 
     for key in default_config.keys():
@@ -79,6 +81,10 @@ def load_settings(self):
     self.auto_reconnect = config["auto_reconnect"]
     self.appearance = config["appearance"]
     self.tun_mode = config["tun_mode"]
+    self.menu_bar_mode = config["menu_bar_mode"]
+    if system() != "Darwin":
+        # 菜单栏面板是 macOS 专属形态：其他平台读到脏配置也强制关闭
+        self.menu_bar_mode = False
     if system() == "Windows":
         # 与 connection_utils 的硬守卫同款策略：Windows 平台 TUN 强制关闭，
         # 防止脏配置/默认值让 Windows 用户每次连接都撞"本期暂不支持"
