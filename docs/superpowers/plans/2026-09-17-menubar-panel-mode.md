@@ -1127,7 +1127,7 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
 ```python
     def show_panel(self, animated: bool = True):
         """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。"""
-        from PySide6.QtCore import QPropertyAnimation
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
         self._anchor_panel()
@@ -1157,7 +1157,7 @@ Expected: FAIL（占位实现无定位/无 `_on_content_resize`）。
 
     def hide_panel(self):
         """收起面板（Esc/再点图标）：淡出 + 上移 8px 后隐藏；reduce-motion 直出。"""
-        from PySide6.QtCore import QPropertyAnimation
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
         from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
 
         if reduce_motion() or not self.isVisible():
