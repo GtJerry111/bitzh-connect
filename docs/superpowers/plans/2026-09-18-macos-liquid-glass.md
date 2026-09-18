@@ -215,22 +215,30 @@ if __name__ == "__main__":
 
 注意 spike 里的窗口只是 Tool 无边框，内容颜色写死浅色样本——深浅色切换只验证**玻璃质感**跟随（setAppearance_），文字颜色不变属预期（主代码里文字由 theme 体系管）。
 
-- [ ] **Step 2: 用户真机运行并按清单验收**
+- [x] **Step 2: 用户真机运行并按清单验收**
 
 Run: `.venv/bin/python scripts/glass_spike.py --style regular`
 Run: `.venv/bin/python scripts/glass_spike.py --style clear`
 Expected: 清单 8 条逐条确认；**记录 regular/clear 选定结果**。
 
-- [ ] **Step 3: 回填结论到本 plan**
+- [x] **Step 3: 回填结论到本 plan**
 
 在 Task 1 末尾回填：选定 style、验收异常项（若有）及其处置。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/glass_spike.py docs/superpowers/plans/2026-09-18-macos-liquid-glass.md
 git commit -m "test: 液态玻璃 spike——NSGlassEffectView 垫层真机验证（regular/clear 对比）"
 ```
+
+**== Task 1 结论（2026-09-18 真机验收）==**
+- 选定 style：**regular（`_GLASS_STYLE = 0`）**。clear 档过于通透，弃用。
+- 用户真机逐条验收，未报告异常项；玻璃折射/边缘高光肉眼可见，z-order 正确（不盖 Qt 控件）。
+- 偏离记录（真机运行必需，脚本与 plan 代码块已同步；commit be8bca7/57e282f/b62df34）：
+  - `objc.lookUpClass` 未知类抛错而非返回 None → 可用性检测改 `try/except`。
+  - 多屏下 Qt 默认把窗口放到副屏 → 显式居中主屏；补 `signal(SIGINT, SIG_DFL)` 复位（Cocoa runloop 吞 SIGINT）；`QApplication(sys.argv[:1])` 去 Qt `--style` 告警。
+  - `Qt.Tool` 窗口从终端启动时 `NSApp.activateIgnoringOtherApps_` 会触发 Space 切换把窗口藏到不可见 Space → 改用原生 `orderFrontRegardless()`。
 
 ---
 
