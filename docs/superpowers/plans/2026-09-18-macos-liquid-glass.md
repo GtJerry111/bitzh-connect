@@ -194,11 +194,18 @@ def main():
     win.raise_()
     win.activateWindow()
     ok = install_glass(win, _STYLE[args.style])
-    print(f"glass installed: {ok}, style={args.style}")
+    print(f"glass installed: {ok}, style={args.style}", flush=True)
     if args.appearance != "system":
         set_glass_appearance(win, args.appearance == "dark")
-    objc.lookUpClass("NSApplication").sharedApplication() \
-        .activateIgnoringOtherApps_(True)
+    # Tool 窗口从终端启动时可能被放到不可见 Space：orderFrontRegardless 强制在
+    # 当前空间前台显示（NSApp.activateIgnoringOtherApps_ 反而触发 Space 切换藏起窗口）
+    try:
+        import ctypes
+
+        view = objc.objc_object(c_void_p=ctypes.c_void_p(int(win.winId())))
+        view.window().orderFrontRegardless()
+    except Exception as e:
+        print(f"orderFrontRegardless failed: {e}", flush=True)
     return app.exec()
 
 
