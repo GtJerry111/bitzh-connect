@@ -154,6 +154,25 @@ def test_detach_qt_tray_sync_clears_action(window):
     assert window._tray_connect_sync is None
 
 
+def test_quit_helpers_tolerate_no_tray_icon(window, monkeypatch):
+    """原生状态栏项路径 tray_icon 为 None：关窗/退出必须容忍。
+
+    shiboken6.isValid(None) 实为 True，若 None 守卫写错会在退出路径抛
+    AttributeError 直接崩溃（历史 F1）。此处真实触发 closeEvent 验证。
+    """
+    from PySide6.QtGui import QCloseEvent
+
+    class FakeTimer:
+        @staticmethod
+        def singleShot(*args):
+            pass  # 拦截延迟 quit，避免遗留定时器
+
+    monkeypatch.setattr("utils.tray_utils.QTimer", FakeTimer)
+    window.tray_icon = None  # 原生状态栏项路径：托盘职责在 _mac_status_item
+    window.closeEvent(QCloseEvent())
+    assert getattr(window, "_quitting", False) is True
+
+
 @pytest.mark.skipif(system() != "Darwin", reason="原生状态栏项仅 macOS")
 def test_panel_tray_passes_native_menu_spec(qtbot, monkeypatch):
     """Darwin 下 init_tray_icon 恒尝试原生状态栏项（不再依赖 menu_bar_mode 配置），
