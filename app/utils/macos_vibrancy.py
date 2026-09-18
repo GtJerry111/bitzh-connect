@@ -1,10 +1,15 @@
 # app/utils/macos_vibrancy.py
 """NSVisualEffectView 毛玻璃背景（菜单栏面板形态专属）。
 
-原理：面板窗口 WA_TranslucentBackground 透明化后，在其 NSWindow contentView
-最底层垫一块 NSVisualEffectView（popover 材质），Qt 内容直接"浮"在毛玻璃上。
+原理：面板窗口 WA_TranslucentBackground 透明化后，垫一块 NSVisualEffectView
+（popover 材质），Qt 内容直接"浮"在毛玻璃上。
 深浅色跟随 App 主题设置（set_appearance 三态），而非只跟系统——用户 App 内
 强制浅色/深色时质感与文字颜色不打架。
+
+z-order 关键：Qt 顶层窗口的 NSWindow contentView **就是** QNSView 本身，Qt 内容
+画在该视图自己的图层里。若把 effect 作为 contentView 的 subview 添加，subview 恒
+画在父视图自身内容之上 → 毛玻璃会盖住全部 Qt 控件。正确做法是加到 contentView 的
+父视图（NSNextStepFrame/NSThemeFrame）里、用 NSWindowBelow 定位在 contentView 之下。
 
 桥接模式与 utils/sleep_wake.py 一致；仅 macOS 真实 cocoa 平台；失败安静降级
 （面板退化为透明底窗口，由 Qt 侧圆角样式兜底）。
@@ -44,9 +49,13 @@ def install_vibrancy(window) -> bool:
 
         view = _nsview_of(window)
         ns_window = view.window()
-        content = ns_window.contentView()
+        content = ns_window.contentView()  # 即 QNSView，Qt 内容画在它自己的图层
+        host = content.superview()  # NSNextStepFrame / NSThemeFrame
+        if host is None:
+            return False  # 拿不到 content 的父视图就无法垫在其下方（宁可不安也不盖内容）
         effect_cls = objc.lookUpClass("NSVisualEffectView")
-        effect = effect_cls.alloc().initWithFrame_(content.bounds())
+        # frame 取 content 在其父视图坐标系中的位置，与 content 完全重合
+        effect = effect_cls.alloc().initWithFrame_(content.frame())
         effect.setAutoresizingMask_(_AUTORESIZE)
         effect.setMaterial_(_NS_VISUAL_EFFECT_MATERIAL_POPOVER)
         effect.setBlendingMode_(_NS_VISUAL_EFFECT_BLENDING_BEHIND_WINDOW)
@@ -54,7 +63,8 @@ def install_vibrancy(window) -> bool:
         effect.setWantsLayer_(True)
         effect.layer().setCornerRadius_(_CORNER_RADIUS)
         effect.layer().setMasksToBounds_(True)
-        content.addSubview_positioned_relativeTo_(effect, _NS_WINDOW_BELOW, None)
+        # 关键：置于 host 中、contentView 之下（不能加到 contentView 里，否则盖住内容）
+        host.addSubview_positioned_relativeTo_(effect, _NS_WINDOW_BELOW, content)
         # 防 GC + 供移除/更新时查找
         window._vibrancy_view = effect
         update_vibrancy_appearance(window)
