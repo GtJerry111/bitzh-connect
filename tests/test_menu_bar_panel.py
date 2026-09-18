@@ -122,3 +122,12 @@ def test_show_panel_anchors_on_screen(panel, qtbot, monkeypatch):
     geo = QApplication.primaryScreen().availableGeometry()
     assert geo.contains(panel.geometry().topLeft())
     panel.hide_panel()
+
+
+def test_mode_row_fallback_toggles_mode(panel, main, monkeypatch):
+    """原生菜单不可用（offscreen 抛 RuntimeError）→ 点击直接切换模式。"""
+    old = main.tun_mode
+    panel._on_mode_row()
+    assert main.tun_mode == (not old)
+    panel._on_mode_row()
+    assert main.tun_mode == old
