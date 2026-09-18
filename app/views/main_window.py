@@ -31,6 +31,11 @@ VERSION = get_version()
 # 深色模式下浅灰笔画对比天然偏高，压低不透明度保持"水印"克制
 _WATERMARK_OPACITY = {"light": 0.60, "dark": 0.14}
 
+# 面板展开/收起动效（grilling 定稿"慢开快收"）：展开 220ms 下滑 8px+淡入；收起 160ms 淡出
+_PANEL_SHOW_DURATION_MS = 220
+_PANEL_HIDE_DURATION_MS = 160
+_PANEL_SLIDE_PX = 8
+
 
 class WatermarkContainer(QWidget):
     """中央容器：在内容层之下绘制校训竖排书法水印（右侧垂直居中）。
@@ -626,13 +631,13 @@ class MainWindow(QMainWindow):
                 pass
 
     def show_panel(self, animated: bool = True):
-        """展开面板：定位到状态栏图标下缘，下滑 12px + 淡入（250ms OutCubic）。
+        """展开面板：定位到状态栏图标下缘，下滑 8px + 淡入（220ms OutCubic）。
 
         可打断：停掉在途收起动画并翻“世代号”，陈旧 finished 不得隐藏刚展开的面板
         （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。
         """
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
-        from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
+        from utils.motion_utils import reduce_motion
 
         self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
         self._stop_panel_hide_anim()
@@ -645,15 +650,15 @@ class MainWindow(QMainWindow):
             return
         self.setWindowOpacity(0.0)
         target = self.pos()
-        self.move(target.x(), target.y() - 12)
+        self.move(target.x(), target.y() - _PANEL_SLIDE_PX)
         self.show()
         anim_pos = QPropertyAnimation(self, b"pos", self)
-        anim_pos.setDuration(ANIMATION_DURATION_MS)
+        anim_pos.setDuration(_PANEL_SHOW_DURATION_MS)
         anim_pos.setStartValue(self.pos())
         anim_pos.setEndValue(target)
         anim_pos.setEasingCurve(QEasingCurve.OutCubic)
         anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
-        anim_opacity.setDuration(ANIMATION_DURATION_MS)
+        anim_opacity.setDuration(_PANEL_SHOW_DURATION_MS)
         anim_opacity.setStartValue(0.0)
         anim_opacity.setEndValue(1.0)
         anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
@@ -665,7 +670,7 @@ class MainWindow(QMainWindow):
     def hide_panel(self):
         """收起面板（Esc/再点图标）：淡出后隐藏；reduce-motion/不可见时直出。"""
         from PySide6.QtCore import QEasingCurve, QPropertyAnimation
-        from utils.motion_utils import ANIMATION_DURATION_MS, reduce_motion
+        from utils.motion_utils import reduce_motion
 
         self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
         gen = self._panel_anim_gen
@@ -676,7 +681,7 @@ class MainWindow(QMainWindow):
             self.setWindowOpacity(1.0)
             return
         anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
-        anim_opacity.setDuration(ANIMATION_DURATION_MS)
+        anim_opacity.setDuration(_PANEL_HIDE_DURATION_MS)
         anim_opacity.setStartValue(self.windowOpacity())  # 从当前不透明度接续（可打断）
         anim_opacity.setEndValue(0.0)
         anim_opacity.setEasingCurve(QEasingCurve.OutCubic)

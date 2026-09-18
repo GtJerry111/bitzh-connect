@@ -511,3 +511,32 @@ def test_backdrop_update_dispatches_both(window, monkeypatch):
     )
     window._update_backdrop()
     assert updated == ["g", "v"]
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_show_panel_animation_params(window, monkeypatch):
+    """展开动效定稿：下滑 8px + 淡入，220ms OutCubic（"慢开快收"的开）。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: False)
+    window.set_menu_bar_mode(True)
+    window.show_panel()
+    anim_pos, anim_opacity = window._panel_anims
+    assert anim_pos.duration() == 220
+    # 下滑 8px：起点在终点上方 8px
+    assert anim_pos.startValue().y() == anim_pos.endValue().y() - 8
+    assert anim_pos.startValue().x() == anim_pos.endValue().x()
+    assert anim_opacity.duration() == 220
+    assert anim_opacity.startValue() == 0.0
+    assert anim_opacity.endValue() == 1.0
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_hide_panel_animation_params(window, monkeypatch):
+    """收起动效定稿：160ms 淡出（比展开快，收起要利落）。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: False)
+    window.set_menu_bar_mode(True)
+    window.show_panel(animated=False)
+    window.hide_panel()
+    anim = window._panel_hide_anim
+    assert anim is not None
+    assert anim.duration() == 160
+    assert anim.endValue() == 0.0
