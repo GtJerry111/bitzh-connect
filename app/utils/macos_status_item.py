@@ -1,10 +1,14 @@
 # app/utils/macos_status_item.py
-"""macOS 原生状态栏项（NSStatusItem）：左键展开/收起面板，右键弹 Qt 菜单。
+"""macOS 原生状态栏项（NSStatusItem）：左键展开/收起面板，右键弹原生 NSMenu。
 
 为什么不用 QSystemTrayIcon：macOS 上给它设了 contextMenu 后，单击图标只会
 弹菜单，收不到左键 activated 信号——"点击图标直接展开面板"做不到；
 且 geometry() 在图标被刘海挤出时不可靠。pyobjc 直连 NSStatusItem 可精确
 区分左右键，并经 button.window 拿到图标精确屏幕坐标。
+
+右键菜单用**原生 NSMenu**（而非 Qt QMenu）：macOS 26+ 会由系统自动给原生
+菜单套用液态玻璃质感，Qt 自绘菜单拿不到。菜单项由 menu_spec 声明式描述，
+勾选态在弹出前从回调现取（原生菜单不像 Qt 那样自动联动）。
 
 桥接模式与 utils/sleep_wake.py 一致（NSObject target-action，防 GC 挂自身）。
 仅 macOS 真实 cocoa 平台可用；非 cocoa（offscreen 测试）或任何一步失败
@@ -118,44 +122,93 @@ def _target_class():
         from Foundation import NSObject
 
         class _Target(NSObject):
-            def initWithCallbacks_(self, toggle, menu):
+            def initWithCallbacks_(self, toggle, menu_spec):
                 self = self.init()
                 if self is None:
                     return None
                 self._toggle = toggle
-                self._menu = menu
+                self._menu_spec = menu_spec  # 声明式菜单项列表
+                self._menu = None
+                self._item = None
                 return self
 
             # Python 名只有一个下划线，pyobjc 会推导成单参 selector `initWithCallbacks:`，
             # 与两参签名冲突（pyobjc 12.1 定义类时抛 BadPrototypeError）。显式声明
-            # 双参 selector `initWithCallbacks:menu:`，保留 brief 的调用形式。
+            # 双参 selector `initWithCallbacks:menuSpec:`。
             initWithCallbacks_ = objc.selector(
                 initWithCallbacks_,
-                selector=b"initWithCallbacks:menu:",
+                selector=b"initWithCallbacks:menuSpec:",
                 signature=b"@@:@@",
             )
 
             def onClick_(self, sender):
                 nsapp = objc.lookUpClass("NSApplication").sharedApplication()
                 if nsapp.currentEvent().type() == _NSEVENT_TYPE_RIGHT_MOUSE_UP:
-                    self._menu()
+                    self._popup_menu()
                 else:
                     self._toggle()
 
             onClick_ = objc.selector(onClick_, signature=b"v@:@")
 
+            def onMenuItem_(self, sender):
+                # 统一分发：靠 tag 回到 menu_spec 下标，避免为每项定义 selector
+                entry = self._menu_spec[sender.tag()]
+                action = entry.get("action")
+                if action is not None:
+                    action()
+
+            onMenuItem_ = objc.selector(onMenuItem_, signature=b"v@:@")
+
+            def _popup_menu(self):
+                if self._menu is None:
+                    return
+                # 勾选态在弹出前现取（原生菜单不像 Qt 那样自动联动按钮状态）
+                for entry in self._menu_spec:
+                    is_checked = entry.get("is_checked")
+                    menu_item = entry.get("_item")
+                    if is_checked is not None and menu_item is not None:
+                        try:
+                            menu_item.setState_(1 if is_checked() else 0)
+                        except Exception:
+                            pass
+                self._item.popUpStatusItemMenu_(self._menu)
+
         _TARGET_CLASS = _Target
     return _TARGET_CLASS
 
 
-def create(on_toggle, on_context_menu):
-    """创建状态栏项；非 macOS、非 cocoa 平台或任何桥接失败返回 None（调用方回退托盘）。"""
+def _build_native_menu(target):
+    """menu_spec → 原生 NSMenu（系统据此在 macOS 26+ 自动套用液态玻璃）。"""
+    from AppKit import NSMenu, NSMenuItem
+
+    menu = NSMenu.alloc().init()
+    for idx, entry in enumerate(target._menu_spec):
+        if entry.get("separator"):
+            menu.addItem_(NSMenuItem.separatorItem())
+            continue
+        item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            entry["title"], b"onMenuItem:", b""
+        )
+        item.setTarget_(target)
+        item.setTag_(idx)
+        menu.addItem_(item)
+        entry["_item"] = item  # 弹出前同步勾选态用
+    return menu
+
+
+def create(on_toggle, menu_spec):
+    """创建状态栏项；非 macOS、非 cocoa 平台或任何桥接失败返回 None（调用方回退托盘）。
+
+    menu_spec：右键菜单声明，元素为
+    {"title": str, "action": callable, "is_checked": callable | None}
+    或 {"separator": True}。
+    """
     if system() != "Darwin" or not _native_available():
         return None
     try:
         import objc
 
-        target = _target_class().alloc().initWithCallbacks_(on_toggle, on_context_menu)
+        target = _target_class().alloc().initWithCallbacks_(on_toggle, menu_spec)
         item = (
             objc.lookUpClass("NSStatusBar")
             .systemStatusBar()
@@ -167,8 +220,10 @@ def create(on_toggle, on_context_menu):
             btn.setTarget_(target)
             btn.setAction_("onClick:")
             btn.sendActionOn_(_SEND_ACTION_MASK)
+            target._item = item
+            target._menu = _build_native_menu(target)
         except Exception:
-            # 素材/按钮桥接失败：撤掉已建的裸状态栏项，避免留下不可移除的空图标
+            # 素材/按钮/菜单桥接失败：撤掉已建的裸状态栏项，避免留下不可移除的空图标
             objc.lookUpClass("NSStatusBar").systemStatusBar().removeStatusItem_(item)
             return None
         return MacStatusItem(item, target)

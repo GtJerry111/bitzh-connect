@@ -545,6 +545,10 @@ class MainWindow(QMainWindow):
 
             self.winId()  # 真实化 NSWindow（winId 即创建），不 show——启动路径窗口须保持隐藏
             self._install_backdrop()
+            # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
+            from utils.macos_panel_shape import round_panel_window
+
+            round_panel_window(self)
             theme.on_scheme_changed(self._update_backdrop)  # 绑定方法可去重，避免每次切换累积 lambda
             # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
             from PySide6.QtGui import QShortcut, QKeySequence
@@ -563,9 +567,11 @@ class MainWindow(QMainWindow):
                 self._esc_shortcut = None
             from utils.macos_glass import remove_glass
             from utils.macos_vibrancy import remove_vibrancy
+            from utils.macos_panel_shape import restore_window_shape
 
             remove_glass(self)
             remove_vibrancy(self)  # 同会话只会装过一种，另一侧安静返回（防御性双拆）
+            restore_window_shape(self)  # 还原窗口 frame，避免浮动窗口四角被裁
             self.centralWidget().setStyleSheet("")
             self.setAttribute(Qt.WA_TranslucentBackground, False)
             self.setMinimumWidth(360)

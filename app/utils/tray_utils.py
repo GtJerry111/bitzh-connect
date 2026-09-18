@@ -1,20 +1,31 @@
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QApplication, QMainWindow
-from PySide6.QtGui import QIcon, QAction, QCursor
+from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QTimer
 from shiboken6 import isValid
 from platform import system
 from common import resources
 
 
-def build_tray_menu(window: QMainWindow) -> QMenu:
-    """构建托盘/状态栏菜单（打开面板 / VPN 连接 / 退出；两形态共用）。"""
-    # 重建时先撤销旧同步槽（否则陈旧 lambda 命中已销毁 QAction，见 Task 6 ⑤）
+def _detach_qt_tray_sync(window):
+    """撤销旧的 QAction 勾选同步槽并清空引用（重建 Qt 菜单 / 切原生菜单前调用）。
+
+    否则陈旧 lambda 仍挂在长寿的 connect_button.toggled 上，命中已销毁 QAction
+    会 RuntimeError（见 Task 6 ⑤）。原生 NSMenu 不建 QAction，故置 None。
+    """
     old_sync = getattr(window, "_tray_connect_sync", None)
     if old_sync is not None:
         try:
             window.connect_button.toggled.disconnect(old_sync)
         except (RuntimeError, TypeError):
             pass
+        window._tray_connect_sync = None
+    window.tray_connect_action = None
+
+
+def build_tray_menu(window: QMainWindow) -> QMenu:
+    """构建 Qt 托盘菜单（打开面板 / VPN 连接 / 退出；浮动形态 QSystemTrayIcon 用）。"""
+    # 重建时先撤销旧同步槽（否则陈旧 lambda 命中已销毁 QAction，见 Task 6 ⑤）
+    _detach_qt_tray_sync(window)
     menu = QMenu()
     show_action = menu.addAction("打开面板")
     # 打开入口统一走 open_panel（按形态分发 show_panel / show+raise）
@@ -137,16 +148,22 @@ def init_tray_icon(window):
     if system() == "Darwin" and getattr(window, "menu_bar_mode", False):
         from utils.macos_status_item import create
 
-        window._tray_menu = build_tray_menu(window)
-        item = create(
-            on_toggle=window.toggle_panel,
-            on_context_menu=lambda: window._tray_menu.exec_(QCursor.pos()),
-        )
+        # 原生 NSMenu：macOS 26+ 由系统自动给右键菜单套液态玻璃（Qt QMenu 拿不到）
+        menu_spec = [
+            {"title": "打开面板", "action": window.open_panel},
+            {
+                "title": "VPN 连接",
+                "action": window.connect_button.toggle,
+                "is_checked": window.connect_button.isChecked,
+            },
+            {"separator": True},
+            {"title": "退出", "action": window.quit_app},
+        ]
+        _detach_qt_tray_sync(window)  # 原生菜单不建 QAction：清掉旧同步防陈旧 lambda
+        item = create(on_toggle=window.toggle_panel, menu_spec=menu_spec)
         if item is not None:
             window._mac_status_item = item
             return None
-        # 桥接失败：丢弃为原生路径构建的菜单，避免 _tray_menu 指向孤儿菜单
-        window._tray_menu = None
         # 回落浮动托盘路径（menu_bar_mode 配置不强行改写，
         # 窗口外壳已由 set_menu_bar_mode 决定，托盘只是入口之一）
 

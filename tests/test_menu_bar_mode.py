@@ -569,3 +569,81 @@ def test_hide_panel_animation_params(window, monkeypatch):
     assert anim is not None
     assert anim.duration() == 160
     assert anim.endValue() == 0.0
+
+
+# ---- 面板窗口圆角阴影（utils/macos_panel_shape.py）+ 原生右键菜单 ----
+
+
+def test_round_panel_window_noop_offscreen(window):
+    """offscreen（非 cocoa）不触碰原生窗口：安静返回 False / 无异常。"""
+    from utils.macos_panel_shape import restore_window_shape, round_panel_window
+
+    assert round_panel_window(window) is False
+    restore_window_shape(window)  # 未圆角过：安静返回
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_mode_rounds_and_restores_frame(window, monkeypatch):
+    """进面板给窗口 frame 套圆角（修四角方形阴影残角），切回浮动还原。"""
+    import utils.macos_panel_shape as shape
+
+    calls = []
+    monkeypatch.setattr(
+        shape, "round_panel_window", lambda w: calls.append("round") or True
+    )
+    monkeypatch.setattr(
+        shape, "restore_window_shape", lambda w: calls.append("restore")
+    )
+    window.set_menu_bar_mode(True)
+    window.set_menu_bar_mode(False)
+    assert calls == ["round", "restore"]
+
+
+def test_native_status_item_disabled_offscreen():
+    """非 cocoa / 非 macOS：原生状态栏项不创建（返回 None），调用方回退托盘。"""
+    from utils.macos_status_item import create
+
+    assert create(on_toggle=lambda: None, menu_spec=[]) is None
+
+
+def test_detach_qt_tray_sync_clears_action(window):
+    """切原生菜单前清掉旧 QAction 与同步槽，防陈旧 lambda 命中已销毁对象。"""
+    from utils.tray_utils import _detach_qt_tray_sync, build_tray_menu
+
+    build_tray_menu(window)
+    assert window.tray_connect_action is not None
+    _detach_qt_tray_sync(window)
+    assert window.tray_connect_action is None
+    assert window._tray_connect_sync is None
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_tray_passes_native_menu_spec(qtbot, monkeypatch):
+    """面板形态把声明式 menu_spec（含勾选回调）交给原生状态栏项。"""
+    import utils.macos_status_item as msi
+    from utils.config_utils import load_config, save_config
+
+    captured = {}
+
+    def fake_create(on_toggle, menu_spec):
+        captured["on_toggle"] = on_toggle
+        captured["spec"] = menu_spec
+        return object()
+
+    monkeypatch.setattr(msi, "create", fake_create)
+    config = load_config()
+    config["menu_bar_mode"] = True
+    save_config(config)
+
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    titles = [e["title"] for e in captured["spec"] if "title" in e]
+    assert titles == ["打开面板", "VPN 连接", "退出"]
+    connect_entry = captured["spec"][1]
+    assert callable(connect_entry["action"])
+    assert callable(connect_entry["is_checked"])
+    assert w._mac_status_item is not None
+    assert w.tray_icon is None
+    w.reconnect_manager.cancel()

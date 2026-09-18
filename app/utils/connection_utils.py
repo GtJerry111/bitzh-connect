@@ -30,8 +30,10 @@ def _reset_connect_ui(window, status_detail: str):
         window.password_input.setEnabled(True)
         del blocker
         # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
-        if hasattr(window, "tray_connect_action"):
-            window.tray_connect_action.setChecked(False)
+        # （原生菜单形态下为 None：勾选态在弹出前现取，无需复位）
+        tray_action = getattr(window, "tray_connect_action", None)
+        if tray_action is not None:
+            tray_action.setChecked(False)
 
 
 def handle_output(window, text):
@@ -112,8 +114,10 @@ def handle_connection_finished(window, exit_code):
         window.password_input.setEnabled(True)
         del blocker
         # 按钮 toggled 被屏蔽，托盘"VPN 连接"勾选态不会自动联动，需手动复位
-        if hasattr(window, "tray_connect_action"):
-            window.tray_connect_action.setChecked(False)
+        # （原生菜单形态下为 None：勾选态在弹出前现取，无需复位）
+        tray_action = getattr(window, "tray_connect_action", None)
+        if tray_action is not None:
+            tray_action.setChecked(False)
 
     window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
 
