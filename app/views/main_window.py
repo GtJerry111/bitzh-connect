@@ -402,7 +402,7 @@ class MainWindow(QMainWindow):
             return
         self._cred_visible = cred_visible
         self._res_visible = res_visible
-        # 卡片容器承担显隐动画（max_height 含卡片上下 padding 24）
+        # 卡片容器承担显隐动画（max_height 含卡片上下 padding 18，上限含余量）
         self._animated_height_toggle(
             self.cred_card, cred_visible, max_height=164, on_frame=self._on_content_resize,
             fade=True,
@@ -554,6 +554,12 @@ class MainWindow(QMainWindow):
         仅窗口隐藏时动作：已可见时再 show/raise/activate 会抢设置对话框焦点。
         """
         if not getattr(self, "_ready", False) or getattr(self, "_quitting", False):
+            return
+        # 快捷面板可见时不得连带拉起主窗口：面板 _activate 会抢焦点
+        # （activateIgnoringOtherApps_），系统随即发 didBecomeActive，
+        # 这里若照常 open 主窗口就会"点状态栏图标弹出整窗"
+        panel = getattr(self, "_menu_bar_panel", None)
+        if panel is not None and panel.isVisible():
             return
         if not self.isVisible():
             self.open_main_window()

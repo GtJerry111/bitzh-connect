@@ -19,7 +19,7 @@ from shiboken6 import isValid
 
 from common import theme
 from common.constants import NAV_GROUPS
-from utils.motion_utils import ANIMATION_DURATION_MS, animated_height_toggle, reduce_motion
+from utils.motion_utils import animated_height_toggle, reduce_motion
 from views.chevron import Chevron
 from views.status_panel import StatusDot
 from views.toggle_switch import ToggleSwitch
@@ -153,7 +153,7 @@ class MenuBarPanel(QWidget):
         self.setFixedWidth(_PANEL_WIDTH)
         self._build_ui()
         self._apply_styles()
-        theme.on_scheme_changed(self._apply_styles)
+        theme.on_scheme_changed(self._refresh_theme)
         # 状态镜像：state_changed 即时；1s 轮询补时长/速率（仅可见时）
         main_window.status_panel.state_changed.connect(self._sync_from_main)
         main_window.connect_button.toggled.connect(self._sync_toggle)
@@ -221,10 +221,10 @@ class MenuBarPanel(QWidget):
         stats_box.setSpacing(6)
         from PySide6.QtWidgets import QFrame
 
-        hairline = QFrame()
-        hairline.setFrameShape(QFrame.HLine)
-        hairline.setStyleSheet(f"color: {theme.with_alpha('separator', 0.6)};")
-        stats_box.addWidget(hairline)
+        # 卡内细分隔线：颜色统一由 _apply_styles 按当前主题发放（存引用供刷新）
+        self._card_hairline = QFrame()
+        self._card_hairline.setFrameShape(QFrame.HLine)
+        stats_box.addWidget(self._card_hairline)
         row = QHBoxLayout()
         row.setSpacing(0)
         self._duration = self._add_stat(row, "时长")
@@ -244,10 +244,10 @@ class MenuBarPanel(QWidget):
         self._mode_row.set_trailing(_Icon("chevron_right", 10))
         self._mode_row.clicked.connect(self._on_mode_row)
         rows.addWidget(self._mode_row)
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet(f"color: {theme.with_alpha('separator', 0.4)};")
-        rows.addWidget(sep)
+        # 裸行间 0.5px hairline：颜色统一由 _apply_styles 按当前主题发放
+        self._row_sep = QFrame()
+        self._row_sep.setFrameShape(QFrame.HLine)
+        rows.addWidget(self._row_sep)
         self._nav_row = _Row("grid", "校内导航")
         self._nav_chevron = Chevron()
         self._nav_chevron.set_angle(90.0)  # 收起态朝下（展开器语义）
@@ -381,10 +381,25 @@ class MenuBarPanel(QWidget):
 
     # ---- 样式 ----
 
+    def _refresh_theme(self):
+        """深浅色切换统一刷新：垫层外观 + 样式 + 分隔线/镜像色。"""
+        from utils.macos_glass import update_glass_appearance
+        from utils.macos_vibrancy import update_vibrancy_appearance
+
+        update_glass_appearance(self)     # 未安装一侧安静返回
+        update_vibrancy_appearance(self)
+        self._apply_styles()
+        self._sync_from_main()            # _status/_dot 颜色按新主题重解析
+
     def _apply_styles(self):
         self.conn_card.setStyleSheet(
             f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
         )
+        # 分隔线随主题重算（面板懒创建且永驻，不能停留在旧主题色）
+        self._card_hairline.setStyleSheet(
+            f"color: {theme.with_alpha('separator', 0.6)};"
+        )
+        self._row_sep.setStyleSheet(f"color: {theme.with_alpha('separator', 0.4)};")
         chip_bg = "rgba(255,255,255,107)" if not theme.is_dark() else "rgba(64,64,68,128)"
         chip_bd = "rgba(255,255,255,140)" if not theme.is_dark() else "rgba(255,255,255,36)"
         self._open_btn.setStyleSheet(f"""

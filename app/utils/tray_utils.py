@@ -68,7 +68,7 @@ def handle_close_event(window, event, tray_icon):
         event.accept()
         return
     try:
-        # None 前置短路：面板模式原生状态栏项路径 tray_icon 为 None（托盘职责在
+        # None 前置短路：原生状态栏项路径 tray_icon 为 None（托盘职责在
         # _mac_status_item）；isValid 前置短路已销毁的 C++ 对象；
         # RuntimeError 兜底 isValid 与 isVisible 之间的删除竞态
         tray_visible = (
@@ -109,7 +109,7 @@ def quit_app(window, tray_icon):
             # 不杀则 teardown 必崩——两害相权取强杀）
             worker.terminate()
             worker.wait(500)
-    # None 守卫：面板模式原生状态栏项路径 tray_icon 为 None
+    # None 守卫：原生状态栏项路径 tray_icon 为 None
     # （shiboken6.isValid(None) 实为 True，只靠 isValid 会 AttributeError）
     if tray_icon is not None and isValid(tray_icon):
         tray_icon.deleteLater()

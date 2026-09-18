@@ -201,3 +201,22 @@ def test_nav_group_label_refreshes_on_theme_change(panel, qapp):
         assert any(dark in lbl.styleSheet() for lbl in panel._nav_group_labels)
     finally:
         theme.set_appearance("system")
+
+
+def test_panel_hairline_refreshes_on_theme_change(panel, qapp):
+    """回归（I1）：切深浅色后面板分隔线颜色随之刷新，不停留旧主题色。"""
+    from common import theme
+
+    theme.set_appearance("light")
+    try:
+        light = theme.with_alpha("separator", 0.6)
+        assert light == "rgba(209,209,214,0.6)"  # 锁住浅色换算，避免断言空转
+        assert light in panel._card_hairline.styleSheet()
+
+        theme.set_appearance("dark")
+        dark = theme.with_alpha("separator", 0.6)
+        assert dark == "rgba(58,58,60,0.6)"  # 锁住深色 token 值
+        assert dark in panel._card_hairline.styleSheet()
+        assert theme.with_alpha("separator", 0.4) in panel._row_sep.styleSheet()
+    finally:
+        theme.set_appearance("system")

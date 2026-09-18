@@ -189,6 +189,17 @@ def test_app_activate_noop_when_window_visible(window, monkeypatch):
     assert calls == []
 
 
+def test_app_activate_ignored_when_panel_visible(window):
+    """快捷面板可见时激活不得连带拉起主窗口（面板 _activate 抢焦点会触发 didBecomeActive）。"""
+    import types
+
+    window.hide()
+    window._ready = True
+    window._menu_bar_panel = types.SimpleNamespace(isVisible=lambda: True)
+    window._on_app_activate()
+    assert not window.isVisible()
+
+
 def test_return_pressed_triggers_connect(window, qtbot, monkeypatch):
     """凭据齐全时输入框回车直接发起连接（桌面表单惯例）；空凭据不触发"""
     from PySide6.QtCore import Qt
@@ -266,6 +277,8 @@ def test_main_window_cards_exist(window):
 def test_disconnect_button_outlined_when_connected(window):
     window.connect_button.setChecked(True)  # 凭据为空会早退复位，只看样式切换函数
     window._apply_connect_button_style(True)
+    # 断开态：白底（transparent）+ 绿描边，两条一起锁住，避免只匹配到 accent 边
+    assert "background-color: transparent" in window.connect_button.styleSheet()
     assert "border: 2px solid" in window.connect_button.styleSheet()
     window._apply_connect_button_style(False)
     assert "border: 2px solid transparent" in window.connect_button.styleSheet()

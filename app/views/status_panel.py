@@ -73,7 +73,7 @@ class StatusDot(QWidget):
 class StatusPanel(QWidget):
     # (凭据区是否可见, 资源区是否可见)
     areas_changed = Signal(bool, bool)
-    # hero/副标题变化（_set_hero 单一漏斗发出，菜单栏面板镜像用）
+    # hero/副标题变化（所有状态文案变化发出，菜单栏面板镜像用）
     state_changed = Signal()
 
     def __init__(self, server_text: str = "", parent=None):

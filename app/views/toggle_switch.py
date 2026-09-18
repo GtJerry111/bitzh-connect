@@ -3,7 +3,7 @@
 38×23 轨道 + 白色圆形 knob（带 1px 下沉阴影），150ms OutCubic 滑动，可打断；
 on=accent 绿 / off=track 灰；disabled 整体 40% 透明（honest 置灰）。
 """
-from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QAbstractButton
 from shiboken6 import isValid
