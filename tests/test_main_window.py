@@ -269,3 +269,12 @@ def test_disconnect_button_outlined_when_connected(window):
     assert "border: 2px solid" in window.connect_button.styleSheet()
     window._apply_connect_button_style(False)
     assert "border: 2px solid transparent" in window.connect_button.styleSheet()
+
+
+def test_glass_not_installed_offscreen(window):
+    """offscreen 守卫：不装玻璃、不设透明底（桥接保护）。"""
+    from PySide6.QtCore import Qt
+
+    assert getattr(window, "_glass_view", None) is None
+    assert getattr(window, "_vibrancy_view", None) is None
+    assert not window.testAttribute(Qt.WA_TranslucentBackground)

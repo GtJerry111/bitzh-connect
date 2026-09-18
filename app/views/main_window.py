@@ -132,6 +132,20 @@ class MainWindow(QMainWindow):
         )
         if cleanup_residue_proxy(self):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
+        # 主窗口液态玻璃（macOS 26+；旧系统回退毛玻璃；垫层装上才开透明底，
+        # 否则保持不透明——offscreen/桥接失败不留透明窗）
+        if system() == "Darwin":
+            self.winId()  # 真实化 NSWindow（不 show）
+            from utils.macos_glass import install_glass
+
+            if not install_glass(self, corner_radius=12.0):
+                from utils.macos_vibrancy import install_vibrancy
+
+                install_vibrancy(self, corner_radius=12.0)
+            if self._glass_active():
+                self.setAttribute(Qt.WA_TranslucentBackground, True)
+            theme.on_scheme_changed(self._update_backdrop)
+            self._apply_theme_styles()  # 玻璃态就位后重放卡片 QSS（半透 vs 实色）
         # 原生状态栏项（macOS，桥接失败回退 QSystemTrayIcon）；须在任何
         # 可能关闭窗口/退出流程的方法之前就位
         self._mac_status_item = None
