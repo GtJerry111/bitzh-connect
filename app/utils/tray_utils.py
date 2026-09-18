@@ -128,6 +128,12 @@ def init_tray_icon(window):
     """初始化托盘/状态栏项。macOS 面板模式走原生 NSStatusItem（左键展开
     面板、右键菜单）；桥接失败静默回退 QSystemTrayIcon。返回托盘对象
     （面板模式且桥接成功时为 None，托盘职责由 window._mac_status_item 承担）。"""
+    if system() == "Darwin":
+        # QSystemTrayIcon 在 macOS 27 + Qt ≤ 6.11.2 上点击即崩（Qt 内部
+        # emitActivated 对 SysDefined 事件发 clickCount）；建托盘前打补丁
+        from utils.macos_tray_fix import apply_tray_click_fix
+
+        apply_tray_click_fix()
     if system() == "Darwin" and getattr(window, "menu_bar_mode", False):
         from utils.macos_status_item import create
 

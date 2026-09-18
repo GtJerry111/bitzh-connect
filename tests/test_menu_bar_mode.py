@@ -357,3 +357,32 @@ def test_effective_dock_policy_follows_panel_mode(qtbot, monkeypatch):
     dialog2.accept()
     assert calls and calls[-1] is False  # 原偏好 False → 恢复显示
     w.reconnect_manager.cancel()
+
+
+# ---- macOS 27 QSystemTrayIcon 点击崩溃补丁（utils/macos_tray_fix.py） ----
+
+
+def test_tray_click_fix_skipped_offscreen(qtbot):
+    """offscreen 测试环境（非 cocoa）不打补丁，且不抛异常。"""
+    from utils import macos_tray_fix
+
+    macos_tray_fix._applied = False  # 重置幂等标志，隔离其他测试
+    assert macos_tray_fix.apply_tray_click_fix() is False
+
+
+def test_tray_click_fix_idempotent(qtbot):
+    """重复调用安全（幂等）：无论是否打上补丁，第二次调用不抛异常。"""
+    from utils import macos_tray_fix
+
+    macos_tray_fix._applied = False
+    macos_tray_fix.apply_tray_click_fix()
+    macos_tray_fix.apply_tray_click_fix()  # 第二次不抛异常即通过
+
+
+def test_tray_click_fix_non_darwin_noop(monkeypatch, qtbot):
+    """非 macOS 平台直接跳过（打补丁无意义且可能误伤）。"""
+    from utils import macos_tray_fix
+
+    monkeypatch.setattr(macos_tray_fix, "system", lambda: "Windows")
+    macos_tray_fix._applied = False
+    assert macos_tray_fix.apply_tray_click_fix() is False

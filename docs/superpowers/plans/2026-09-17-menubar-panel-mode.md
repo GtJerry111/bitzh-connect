@@ -1778,3 +1778,29 @@ git commit -m "docs: README 特性列表补充 macOS 菜单栏面板形态"
 **复审（`2697588`）Approved**，仅剩 coverage/polish；随后 `12150c7` 补两条锁定测试（I1 可见即 no-op、Dock 策略随面板模式）并 DRY `accept`。全量 **173 passed**。
 
 **明确延后（不阻塞合并，真机兜底）：** Task 3 几何 1px/负原点/超窄屏；`macos_status_item` `onClick_` 无兜底与 `teardown` 不清 `_target`；`_apply_panel_chrome(False)` 硬编码 `Qt.Window` 而非还原进入前 flags；`_panel_mode` 先于 `setWindowFlags` 的重入；`tray_icon_activated` 双击路由；原生失败静默（缺日志）；`_on_content_resize` 每帧重复原生取坐标。
+
+---
+
+## 真机修复记录（2026-09-18，面板→浮动切换后点托盘即崩）
+
+**现象：** macOS 27 上从面板模式切回浮动模式后，点击 QSystemTrayIcon 即 abort：
+`NSInternalInconsistencyException: Invalid message sent to event "NSEvent: type=SysDefined … subtype=7"`，
+栈顶 `-[NSEvent clickCount]` ← `libqcocoa qt_plugin_instance + 186472` ← `NSMenuDidBeginTrackingNotification` 观察者。
+
+**根因（Qt bug，非本分支回归）：** Qt ≤ 6.11.2 的 `QCocoaSystemTrayIcon::emitActivated()` 对
+`NSApp.currentEvent` 无类型守卫直接发 `clickCount`；macOS 27 起状态栏点击改由 gesture recognizer
+驱动，回调时刻 currentEvent 不是鼠标事件（真机点击为 SysDefined，合成事件可复现为 MouseEntered），
+两者对 `clickCount` 均抛异常。Qt 6.11 开发分支已修（`qt_mac_isMouseEvent` 守卫，注释明写 macOS 27），
+但 6.11.0–6.11.2 发布版均未包含。**main 分支纯浮动模式点托盘同样会崩**——只是面板模式下走自研
+`MacStatusItem` 不经过该路径，所以问题在"切回浮动"时首次暴露。
+
+**修复：** `app/utils/macos_tray_fix.py`——经 libobjc `class_replaceMethod` 把 Qt 内部
+`QStatusItemDelegate` 的 `statusItemMenuBeganTracking:` / `statusItemClicked` 两个激活回调替换为
+`-[NSObject self]`（无害 getter）。代价仅 `QSystemTrayIcon.activated` 在 macOS 27 不再发出
+（本 App 只消费 DoubleClick，而带菜单时点击恒弹菜单、DoubleClick 本不可达，零损失；与上游修复
+后 `activated(Unknown)` 的行为等价）。仅 Darwin ≥ 27 + 真实 cocoa 生效，offscreen/低版本 macOS/
+Qt 内部类改名均安静跳过。`init_tray_icon` 入口调用，覆盖启动与 reinit_tray 两条路径。
+
+**验证：** 二进制核对原 IMP（函数起始偏移 `0x37f24`）与崩溃栈返回地址（`qt_plugin_instance+186472`
+= `0x37f50`，即函数内 `clickCount` 调用点）吻合；CGEvent 合成点击真机复现：未补丁 exit 134
+（栈逐帧一致），补丁后 exit 0、菜单正常弹出关闭。全量 182 passed。
