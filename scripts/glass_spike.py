@@ -14,6 +14,7 @@
 8. 关闭脚本后无残留进程/崩溃
 """
 import argparse
+import signal
 import sys
 
 import objc
@@ -21,6 +22,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
+
+# Ctrl+C 直接终止：Cocoa runloop 不把 SIGINT 交回 Python（与 menu_bar_spike.py 同款）
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 sys.path.insert(0, "app")
 import common.resources  # noqa: F401 注册 qrc（水印素材）
@@ -69,7 +73,7 @@ def main():
                         default="system")
     args = parser.parse_args()
 
-    app = QApplication(sys.argv)
+    app = QApplication(sys.argv[:1])  # 只传程序名：避免 Qt 把 --style 当自身选项吞掉并告警
     try:
         objc.lookUpClass("NSGlassEffectView")
     except Exception:
@@ -127,6 +131,11 @@ def main():
         wm.setStyleSheet("background: transparent;")
         wm.setAlignment(_Qt.AlignRight)
     layout.addWidget(wm)
+
+    # 多屏时 Qt 可能把窗口默认放到副屏（用户看不到）：显式居中于主屏顶部
+    win.adjustSize()
+    _avail = QApplication.primaryScreen().availableGeometry()
+    win.move(_avail.center().x() - win.width() // 2, _avail.top() + 60)
 
     win.show()
     win.raise_()
