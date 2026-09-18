@@ -260,6 +260,7 @@ class MenuBarPanel(QWidget):
         nav.setContentsMargins(6, 0, 6, 4)
         nav.setSpacing(4)
         self._nav_badges = []
+        self._nav_group_labels = []  # 组标题：_refresh_nav_chips 随主题重设颜色
         for gi, (group_name, items) in enumerate(NAV_GROUPS):
             label = QLabel(group_name)
             label.setStyleSheet(
@@ -268,6 +269,7 @@ class MenuBarPanel(QWidget):
             )
             if gi:
                 label.setContentsMargins(0, 6, 0, 0)
+            self._nav_group_labels.append(label)
             nav.addWidget(label)
             for i in range(0, len(items), 2):
                 chip_row = QHBoxLayout()
@@ -370,6 +372,12 @@ class MenuBarPanel(QWidget):
                     border-radius: 9px;
                 }}
             """)
+        # 组标题随主题重设颜色（仅换 color，字号/左内距语义不变）
+        for label in self._nav_group_labels:
+            label.setStyleSheet(
+                f"color: {theme.semantic_color('secondary_text')};"
+                "font-size: 10px; padding-left: 4px;"
+            )
 
     # ---- 样式 ----
 

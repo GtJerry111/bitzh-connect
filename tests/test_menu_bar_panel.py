@@ -158,3 +158,18 @@ def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
     first_chip = panel._nav_area.findChildren(QPushButton)[0]
     first_chip.click()
     assert opened and str(opened[0].url()).startswith("http")
+
+
+def test_nav_group_label_refreshes_on_theme_change(panel, qapp):
+    """回归：切深浅色后导航组标题颜色随之刷新，不停留旧 secondary_text。"""
+    from common import theme
+
+    assert panel._nav_group_labels  # 组标题已收集
+    # 切深色会触发 theme 刷新回调（_apply_styles → _refresh_nav_chips）
+    theme.set_appearance("dark")
+    try:
+        dark = theme.semantic_color("secondary_text")
+        assert dark == "#98989D"  # 锁住深色 token 值，避免断言空转
+        assert any(dark in lbl.styleSheet() for lbl in panel._nav_group_labels)
+    finally:
+        theme.set_appearance("system")
