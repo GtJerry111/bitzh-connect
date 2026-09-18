@@ -530,12 +530,11 @@ class MainWindow(QMainWindow):
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setFixedWidth(360)
             self.exit_button.hide()
-            from utils.macos_vibrancy import install_vibrancy
             from common import theme
 
             self.winId()  # 真实化 NSWindow（winId 即创建），不 show——启动路径窗口须保持隐藏
-            install_vibrancy(self)
-            theme.on_scheme_changed(self._update_vibrancy)  # 绑定方法可去重，避免每次切换累积 lambda
+            self._install_backdrop()
+            theme.on_scheme_changed(self._update_backdrop)  # 绑定方法可去重，避免每次切换累积 lambda
             # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
             from PySide6.QtGui import QShortcut, QKeySequence
 
@@ -551,9 +550,11 @@ class MainWindow(QMainWindow):
                 self._esc_shortcut.setEnabled(False)
                 self._esc_shortcut.deleteLater()
                 self._esc_shortcut = None
+            from utils.macos_glass import remove_glass
             from utils.macos_vibrancy import remove_vibrancy
 
-            remove_vibrancy(self)
+            remove_glass(self)
+            remove_vibrancy(self)  # 同会话只会装过一种，另一侧安静返回（防御性双拆）
             self.centralWidget().setStyleSheet("")
             self.setAttribute(Qt.WA_TranslucentBackground, False)
             self.setMinimumWidth(360)
@@ -562,11 +563,25 @@ class MainWindow(QMainWindow):
             self.exit_button.show()
             # 不主动 show：可见性由调用方（set_menu_bar_mode 的 was_visible）恢复
 
-    def _update_vibrancy(self):
-        """深浅色切换：同步毛玻璃外观（绑定方法注册，theme 按身份去重）。"""
+    def _install_backdrop(self):
+        """面板背景垫层：macOS 26+ 液态玻璃，旧系统回退毛玻璃（现状）。"""
+        from utils.macos_glass import glass_available, install_glass
+
+        if glass_available():
+            if install_glass(self):
+                return
+            # 玻璃类存在但安装失败（桥接异常）：回退毛玻璃，不留透明底窗口
+        from utils.macos_vibrancy import install_vibrancy
+
+        install_vibrancy(self)
+
+    def _update_backdrop(self):
+        """深浅色切换：同步玻璃/毛玻璃外观（绑定方法注册，theme 按身份去重）。"""
+        from utils.macos_glass import update_glass_appearance
         from utils.macos_vibrancy import update_vibrancy_appearance
 
-        update_vibrancy_appearance(self)
+        update_glass_appearance(self)
+        update_vibrancy_appearance(self)  # 未安装的一侧安静返回
 
     def open_panel(self):
         """托盘/菜单/Dock 的统一"打开主界面"入口，按形态分发。"""

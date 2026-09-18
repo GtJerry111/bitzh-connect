@@ -449,3 +449,65 @@ def test_update_glass_appearance_noop_when_not_installed(qtbot):
     w = QWidget()
     qtbot.addWidget(w)
     update_glass_appearance(w)  # 未安装：安静返回，不抛异常
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_chrome_prefers_glass_when_available(window, monkeypatch):
+    """玻璃可用时安装玻璃、不装毛玻璃。"""
+    calls = []
+    monkeypatch.setattr("utils.macos_glass.glass_available", lambda: True)
+    monkeypatch.setattr(
+        "utils.macos_glass.install_glass", lambda w: calls.append("glass") or True
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.install_vibrancy",
+        lambda w: calls.append("vibrancy") or True,
+    )
+    window.set_menu_bar_mode(True)
+    assert calls == ["glass"]
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_panel_chrome_falls_back_to_vibrancy(window, monkeypatch):
+    """玻璃不可用（macOS ≤ 15）时回退现有毛玻璃路径。"""
+    calls = []
+    monkeypatch.setattr("utils.macos_glass.glass_available", lambda: False)
+    monkeypatch.setattr(
+        "utils.macos_glass.install_glass", lambda w: calls.append("glass") or True
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.install_vibrancy",
+        lambda w: calls.append("vibrancy") or True,
+    )
+    window.set_menu_bar_mode(True)
+    assert calls == ["vibrancy"]
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_exit_panel_mode_removes_both_backdrops(window, monkeypatch):
+    """切回浮动模式：玻璃与毛玻璃都拆除（幂等安静，防御同会话残留）。"""
+    removed = []
+    monkeypatch.setattr(
+        "utils.macos_glass.remove_glass", lambda w: removed.append("glass")
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.remove_vibrancy", lambda w: removed.append("vibrancy")
+    )
+    window.set_menu_bar_mode(True)
+    window.set_menu_bar_mode(False)
+    assert removed == ["glass", "vibrancy"]
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_backdrop_update_dispatches_both(window, monkeypatch):
+    """深浅色切换回调同时分发玻璃与毛玻璃更新（未安装一侧安静返回）。"""
+    updated = []
+    monkeypatch.setattr(
+        "utils.macos_glass.update_glass_appearance", lambda w: updated.append("g")
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.update_vibrancy_appearance",
+        lambda w: updated.append("v"),
+    )
+    window._update_backdrop()
+    assert updated == ["g", "v"]
