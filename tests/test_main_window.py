@@ -243,3 +243,15 @@ def test_connect_button_narrowed_and_centered(window):
     """主按钮收窄定宽 240px（不再是全宽大色块），与资源胶囊组视觉成组"""
     assert window.connect_button.minimumWidth() == 240
     assert window.connect_button.maximumWidth() == 240
+
+
+def test_connect_button_pressed_sink_qss(qtbot):
+    """按压液态反馈：pressed 态内容下沉 1px（padding-top），背景加深已有。"""
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    qss = w.connect_button.styleSheet()
+    assert ":pressed" in qss
+    assert "padding-top: 1px" in qss
+    w.reconnect_manager.cancel()

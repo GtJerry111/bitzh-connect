@@ -389,8 +389,14 @@ class MainWindow(QMainWindow):
             QPushButton:hover:enabled {{
                 background-color: {theme.semantic_color("accent_hover")};
             }}
+            /* pressed 态：背景加深 + 内容下沉 1px。
+               QSS 无 transition，按压/弹回即时生效——与 Apple 按钮按压行为一致
+               （按压即暗即沉，无延迟动画）。"下沉"用 padding 而非 margin/position：
+               布局管理的 widget 直接 move 会被布局覆盖，margin 会推挤邻近行
+               （底部工具行抖动），padding-top 只让内容在固定按钮框内下移，零副作用。 */
             QPushButton:pressed {{
                 background-color: {theme.semantic_color("accent_pressed")};
+                padding-top: 1px;  /* 按压下沉 1px（内容偏移；按钮外框/布局不动） */
             }}
             QPushButton:focus {{
                 border: 2px solid {theme.with_alpha("accent", 0.5)};
