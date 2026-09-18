@@ -25,6 +25,7 @@ class SegmentedModeSwitch(QWidget):
         self._current = 0
         self._pill_pos = 0.0  # 药丸位置（0.0~1.0，段索引浮点，动画驱动）
         self._segments = ["代理模式", "TUN 模式"]
+        self._pressed = False  # 按压下沉反馈（paintEvent 整体下移 1px）
 
     def currentIndex(self) -> int:
         return self._current
@@ -67,12 +68,29 @@ class SegmentedModeSwitch(QWidget):
         self.update()
 
     def mousePressEvent(self, event):
+        self._pressed = True
+        self.update()
         seg_w = self.width() / len(self._segments)
         self._set_current(int(event.position().x() // seg_w))
+
+    def mouseReleaseEvent(self, event):
+        if self._pressed:
+            self._pressed = False
+            self.update()
+        super().mouseReleaseEvent(event)
+
+    def leaveEvent(self, event):
+        # 按住拖出控件：恢复按压态，否则控件卡在下沉态
+        if self._pressed:
+            self._pressed = False
+            self.update()
+        super().leaveEvent(event)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+        if self._pressed:
+            painter.translate(0, 1)  # 按压下沉 1px（轨道+药丸+文字整体，含假阴影同步）
         w, h = self.width(), self.height()
         seg_w = w / len(self._segments)
 
