@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         # __init__ 期间（setWindowTitle 等）收到事件，晚赋值会 AttributeError。
         # 真正的形态应用（_apply_panel_chrome）留到 setup_ui 之后（依赖 exit_button）。
         self._panel_mode = False
+        self._menu_bar_panel = None  # 快捷面板懒创建（首次点状态栏图标时）
         self._esc_shortcut = None
         self.setWindowTitle(APP_NAME)
 
@@ -609,12 +610,36 @@ class MainWindow(QMainWindow):
             self.raise_()
             self.activateWindow()
 
+    def open_main_window(self, focus_credentials: bool = False):
+        """打开主窗口（托盘菜单/面板 pill/Dock 激活的统一入口）。"""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        if focus_credentials:
+            self.username_input.setFocus()
+
+    def set_connection_mode(self, tun: bool):
+        """代理/TUN 切换统一入口（分段控件与菜单栏面板共用；幂等）。"""
+        tun = bool(tun)
+        if tun == self.tun_mode:
+            return
+        self.tun_mode = tun
+        config = load_config()
+        config["tun_mode"] = tun
+        save_config(config)
+        # 分段控件编程同步（setCurrentIndex 不发信号，不回环）
+        self.mode_switch.setCurrentIndex(1 if tun else 0)
+        if self.connect_button.isChecked():
+            self.output_text.append("[BITZH Connect] 正在切换连接模式，重新连接…\n")
+            self._bounce_connection()
+
     def toggle_panel(self):
-        """状态栏图标左键：展开 ↔ 收起。"""
-        if self.isVisible():
-            self.hide_panel()
-        else:
-            self.show_panel()
+        """状态栏图标左键：快捷面板展开 ↔ 收起（懒创建）。"""
+        if self._menu_bar_panel is None:
+            from views.menu_bar_panel import MenuBarPanel
+
+            self._menu_bar_panel = MenuBarPanel(self)
+        self._menu_bar_panel.toggle()
 
     def _stop_panel_anims(self):
         """停掉在途展开动画（可打断性用）。DeleteWhenStopped 后 wrapper 可能失效，须 isValid。"""
@@ -757,15 +782,7 @@ class MainWindow(QMainWindow):
             self._anchor_panel()
 
     def _on_mode_changed(self, index: int):
-        """主界面模式切换：立即持久化（与高级设置的 TUN 开关同一配置键）；
-        已连接则 bounce 重连让新模式立即生效（TUN 断开零弹窗；切回 TUN 弹一次授权）。"""
-        self.tun_mode = index == 1
-        config = load_config()
-        config["tun_mode"] = self.tun_mode
-        save_config(config)
-        if self.connect_button.isChecked():
-            self.output_text.append("[BITZH Connect] 正在切换连接模式，重新连接…\n")
-            self._bounce_connection()
+        self.set_connection_mode(index == 1)
 
     def _bounce_connection(self):
         """先断后连：worker 收尾（finished→复位）需要一拍，1s 后重连足够稳。"""

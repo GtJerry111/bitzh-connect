@@ -67,6 +67,20 @@ def card_background() -> str:
     return base.lighter(116 if is_dark() else 104).name()
 
 
+def card_qss(glass: bool) -> str:
+    """卡片 QSS 片段：玻璃形态半透（液态玻璃二级材质），否则实色提亮。
+
+    玻璃版带 0.5px 半透描边模拟 inset 高光；实色版无边框（与现状卡片观感一致）。
+    """
+    if glass:
+        if is_dark():
+            return ("background: rgba(64,64,68,128); "
+                    "border: 1px solid rgba(255,255,255,36); border-radius: 14px;")
+        return ("background: rgba(255,255,255,140); "
+                "border: 1px solid rgba(255,255,255,110); border-radius: 14px;")
+    return f"background: {card_background()}; border: none; border-radius: 14px;"
+
+
 _REFRESH_CALLBACKS = []
 _scheme_signal_connected = False
 

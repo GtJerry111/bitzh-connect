@@ -34,6 +34,15 @@ def test_font_hierarchy():
     assert theme.card_title_font().pointSize() < theme.card_value_font().pointSize()
 
 
+def test_card_qss_glass_vs_solid():
+    from common import theme
+
+    glass = theme.card_qss(glass=True)
+    assert "rgba(" in glass and "border-radius: 14px" in glass
+    solid = theme.card_qss(glass=False)
+    assert "rgba(" not in solid.split("border")[0]  # 实色底（card_background 十六进制）
+
+
 def test_reduce_motion_returns_bool():
     from utils.motion_utils import reduce_motion
 
