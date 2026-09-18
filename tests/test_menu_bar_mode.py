@@ -386,3 +386,66 @@ def test_tray_click_fix_non_darwin_noop(monkeypatch, qtbot):
     monkeypatch.setattr(macos_tray_fix, "system", lambda: "Windows")
     macos_tray_fix._applied = False
     assert macos_tray_fix.apply_tray_click_fix() is False
+
+
+# ---- 液态玻璃（utils/macos_glass.py） ----
+
+
+def test_glass_available_false_offscreen(qtbot):
+    """offscreen 测试环境（非 cocoa）玻璃不可用。"""
+    from utils.macos_glass import glass_available
+
+    assert glass_available() is False
+
+
+def test_glass_available_false_non_darwin(monkeypatch, qtbot):
+    from utils import macos_glass
+
+    monkeypatch.setattr(macos_glass, "system", lambda: "Windows")
+    assert macos_glass.glass_available() is False
+
+
+def test_glass_available_false_without_qapp(monkeypatch):
+    """无 QApplication 实例时 platformName 恒返回 cocoa（编译期默认），必须挡掉。"""
+    from utils import macos_glass
+
+    class _FakeQApp:
+        @staticmethod
+        def instance():
+            return None
+
+        @staticmethod
+        def platformName():
+            return "cocoa"
+
+    # 整体替换模块级 QApplication 引用：Shiboken 类的静态方法不适合逐方法打补丁
+    monkeypatch.setattr(macos_glass, "QApplication", _FakeQApp)
+    assert macos_glass.glass_available() is False
+
+
+def test_install_glass_offscreen_returns_false(qtbot):
+    from PySide6.QtWidgets import QWidget
+    from utils.macos_glass import install_glass
+
+    w = QWidget()
+    qtbot.addWidget(w)
+    assert install_glass(w) is False
+    assert getattr(w, "_glass_view", None) is None
+
+
+def test_remove_glass_noop_when_not_installed(qtbot):
+    from PySide6.QtWidgets import QWidget
+    from utils.macos_glass import remove_glass
+
+    w = QWidget()
+    qtbot.addWidget(w)
+    remove_glass(w)  # 未安装：安静返回，不抛异常
+
+
+def test_update_glass_appearance_noop_when_not_installed(qtbot):
+    from PySide6.QtWidgets import QWidget
+    from utils.macos_glass import update_glass_appearance
+
+    w = QWidget()
+    qtbot.addWidget(w)
+    update_glass_appearance(w)  # 未安装：安静返回，不抛异常
