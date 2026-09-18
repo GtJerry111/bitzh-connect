@@ -112,8 +112,8 @@ def _target_class():
 
     pyobjc 不允许同名 ObjC 类二次定义（实测 pyobjc 12.1：
     `objc.error: _Target is overriding existing Objective-C class`）。若像初版那样
-    把 class 定义在 create() 内，本进程第二次 create()（Task 8 reinit_tray 运行时
-    切换形态）会抛错并被 except 吞成 None，状态栏项静默降级为托盘图标。
+    把 class 定义在 create() 内，本进程第二次 create()（重建状态栏项）会抛错并被
+    except 吞成 None，状态栏项静默降级为托盘图标。
     惰性创建同时保证非 cocoa 平台不 import Foundation（守卫生效）。
     """
     global _TARGET_CLASS

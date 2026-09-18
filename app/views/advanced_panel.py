@@ -107,7 +107,6 @@ class AdvancedSettingsDialog(QDialog):
         # 但配置键保留往返：从 window 读入、随保存写回，不丢用户既有配置
         self._cert_file = ""
         self._cert_password = ""
-        self._hide_dock_before_panel = None  # 进面板前用户的隐藏 Dock 偏好（取消时还原）
         self._tab_overhead = None  # 标签栏+面框高度开销（首次贴合时实测）
         self.setup_ui()
 
@@ -191,16 +190,6 @@ class AdvancedSettingsDialog(QDialog):
             general_layout.addWidget(
                 self._description("隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角")
             )
-
-            self.menu_bar_mode_switch = QCheckBox("菜单栏面板模式")
-            general_layout.addWidget(self.menu_bar_mode_switch)
-            general_layout.addWidget(
-                self._description(
-                    "开启后主窗口吸附在菜单栏：点击状态栏图标展开/收起，"
-                    "点面板外或按 Esc 自动收起；Dock 图标将始终隐藏"
-                )
-            )
-            self.menu_bar_mode_switch.toggled.connect(self._on_panel_mode_toggled)
 
         general_layout.addStretch()
 
@@ -494,20 +483,6 @@ class AdvancedSettingsDialog(QDialog):
         """Toggle DNS input field based on auto DNS checkbox"""
         self.dns_input.setEnabled(not self.auto_dns_switch.isChecked())
 
-    def _on_panel_mode_toggled(self, checked: bool):
-        """面板模式强制隐藏 Dock（Accessory 无 Dock 图标）；用户原偏好暂存，取消时还原。"""
-        if system() != "Darwin":
-            return
-        if checked:
-            if self._hide_dock_before_panel is None:
-                self._hide_dock_before_panel = self.hide_dock_icon_switch.isChecked()
-            self.hide_dock_icon_switch.setChecked(True)
-        else:
-            if self._hide_dock_before_panel is not None:
-                self.hide_dock_icon_switch.setChecked(self._hide_dock_before_panel)
-                self._hide_dock_before_panel = None
-        self.hide_dock_icon_switch.setEnabled(not checked)
-
     def _toggle_advanced(self, expanding: bool):
         """高级区展开/收起：对话框高度即时贴合（tab 定高制），内容只做淡入/淡出。
 
@@ -570,14 +545,7 @@ class AdvancedSettingsDialog(QDialog):
         }
 
         if system() == "Darwin":
-            panel_on = self.menu_bar_mode_switch.isChecked()
-            settings["menu_bar_mode"] = panel_on
-            # 面板模式强制隐藏 Dock，但持久化保留用户原偏好，供切回浮动时恢复
-            settings["hide_dock_icon"] = (
-                self._hide_dock_before_panel
-                if panel_on and self._hide_dock_before_panel is not None
-                else self.hide_dock_icon_switch.isChecked()
-            )
+            settings["hide_dock_icon"] = self.hide_dock_icon_switch.isChecked()
 
         return settings
 
@@ -602,7 +570,6 @@ class AdvancedSettingsDialog(QDialog):
         auto_reconnect=True,
         appearance="system",
         tun_mode=False,
-        menu_bar_mode=False,
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -614,10 +581,7 @@ class AdvancedSettingsDialog(QDialog):
         self.silent_mode_switch.setChecked(silent_mode)
         self.check_update_switch.setChecked(check_update)
         if system() == "Darwin":
-            self._hide_dock_before_panel = None
-            self.hide_dock_icon_switch.setChecked(hide_dock_icon)  # 持久化的用户原偏好
-            self.menu_bar_mode_switch.setChecked(menu_bar_mode)    # 触发 handler：暂存原值+强制勾选
-            self._on_panel_mode_toggled(menu_bar_mode)             # 幂等兜底 + 锁定态
+            self.hide_dock_icon_switch.setChecked(hide_dock_icon)
         self.keep_alive_switch.setChecked(keep_alive)
         self.debug_dump_switch.setChecked(debug_dump)
         self.auto_multi_line_switch.setChecked(not disable_multi_line)
@@ -647,9 +611,7 @@ class AdvancedSettingsDialog(QDialog):
         set_launch_at_login(enable=self.startup_switch.isChecked())
 
         if system() == "Darwin" and self.parent() is not None:
-            effective_hide = settings["hide_dock_icon"]
-            self.parent().hide_dock_icon = effective_hide
-            # 面板模式下 Dock 恒隐藏；否则按用户偏好
-            hide_dock_icon(True if self.menu_bar_mode_switch.isChecked() else effective_hide)
+            self.parent().hide_dock_icon = settings["hide_dock_icon"]
+            hide_dock_icon(settings["hide_dock_icon"])
 
         super().accept()

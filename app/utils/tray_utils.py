@@ -23,13 +23,12 @@ def _detach_qt_tray_sync(window):
 
 
 def build_tray_menu(window: QMainWindow) -> QMenu:
-    """构建 Qt 托盘菜单（打开面板 / VPN 连接 / 退出；浮动形态 QSystemTrayIcon 用）。"""
+    """构建 Qt 托盘菜单（打开主窗口 / VPN 连接 / 退出；QSystemTrayIcon 用）。"""
     # 重建时先撤销旧同步槽（否则陈旧 lambda 命中已销毁 QAction，见 Task 6 ⑤）
     _detach_qt_tray_sync(window)
     menu = QMenu()
-    show_action = menu.addAction("打开面板")
-    # 打开入口统一走 open_panel（按形态分发 show_panel / show+raise）
-    show_action.triggered.connect(window.open_panel)
+    show_action = menu.addAction("打开主窗口")
+    show_action.triggered.connect(window.open_main_window)
     connect_action = QAction("VPN 连接", menu)
     connect_action.setCheckable(True)
     connect_action.triggered.connect(
@@ -94,6 +93,9 @@ def quit_app(window, tray_icon):
     if mac_item is not None:
         mac_item.teardown()
         window._mac_status_item = None
+    panel = getattr(window, "_menu_bar_panel", None)
+    if panel is not None:
+        panel.hide()
     window.hide()
     # 关键：worker 线程必须死在 QApplication 销毁之前——QThread 析构时线程仍在跑
     # 会 qFatal（真实崩溃栈：QThreadWrapper::~QThreadWrapper 于解释器收尾期）。
@@ -114,43 +116,22 @@ def quit_app(window, tray_icon):
     QTimer.singleShot(1500, QApplication.quit)
 
 
-def reinit_tray(window):
-    """形态切换时重建托盘（先拆后建，幂等）。
-
-    Task 6 只处理 QSystemTrayIcon；Task 8 起 `_mac_status_item` 存在时先 teardown
-    原生状态栏项。用 getattr 容错，使本函数在两个阶段都可用。
-    """
-    item = getattr(window, "_mac_status_item", None)
-    if item is not None:
-        item.teardown()
-        window._mac_status_item = None
-    old_tray = getattr(window, "tray_icon", None)
-    if old_tray is not None:
-        try:
-            old_tray.hide()
-            old_tray.deleteLater()
-        except RuntimeError:
-            pass
-        window.tray_icon = None
-    window.tray_icon = init_tray_icon(window)
-
-
 def init_tray_icon(window):
-    """初始化托盘/状态栏项。macOS 面板模式走原生 NSStatusItem（左键展开
-    面板、右键菜单）；桥接失败静默回退 QSystemTrayIcon。返回托盘对象
-    （面板模式且桥接成功时为 None，托盘职责由 window._mac_status_item 承担）。"""
+    """初始化托盘/状态栏项。macOS 恒尝试原生 NSStatusItem（左键展开快捷面板、
+    右键菜单）；桥接失败静默回退 QSystemTrayIcon。返回托盘对象
+    （原生状态栏项创建成功时为 None，托盘职责由 window._mac_status_item 承担）。"""
     if system() == "Darwin":
         # QSystemTrayIcon 在 macOS 27 + Qt ≤ 6.11.2 上点击即崩（Qt 内部
         # emitActivated 对 SysDefined 事件发 clickCount）；建托盘前打补丁
         from utils.macos_tray_fix import apply_tray_click_fix
 
         apply_tray_click_fix()
-    if system() == "Darwin" and getattr(window, "menu_bar_mode", False):
+    if system() == "Darwin":
         from utils.macos_status_item import create
 
         # 原生 NSMenu：macOS 26+ 由系统自动给右键菜单套液态玻璃（Qt QMenu 拿不到）
         menu_spec = [
-            {"title": "打开面板", "action": window.open_panel},
+            {"title": "打开主窗口", "action": window.open_main_window},
             {
                 "title": "VPN 连接",
                 "action": window.connect_button.toggle,
@@ -164,8 +145,7 @@ def init_tray_icon(window):
         if item is not None:
             window._mac_status_item = item
             return None
-        # 回落浮动托盘路径（menu_bar_mode 配置不强行改写，
-        # 窗口外壳已由 set_menu_bar_mode 决定，托盘只是入口之一）
+        # 桥接不可用（非 cocoa/无 pyobjc）：回退 QSystemTrayIcon
 
     tray_icon = QSystemTrayIcon(window)
 

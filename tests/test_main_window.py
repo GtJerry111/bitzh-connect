@@ -181,7 +181,7 @@ def test_app_activate_shows_hidden_window(window):
 def test_app_activate_noop_when_window_visible(window, monkeypatch):
     """窗口已可见时激活不得再 show/raise（否则抢设置对话框焦点、面板形态重放开场动画）。"""
     calls = []
-    monkeypatch.setattr(window, "open_panel", lambda: calls.append("open"))
+    monkeypatch.setattr(window, "open_main_window", lambda: calls.append("open"))
     window._ready = True
     assert window.isVisible()
     window._on_app_activate()

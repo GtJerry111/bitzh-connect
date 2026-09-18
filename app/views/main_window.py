@@ -31,11 +31,6 @@ VERSION = get_version()
 # 深色模式下浅灰笔画对比天然偏高，压低不透明度保持"水印"克制
 _WATERMARK_OPACITY = {"light": 0.60, "dark": 0.14}
 
-# 面板展开/收起动效（grilling 定稿"慢开快收"）：展开 220ms 下滑 8px+淡入；收起 160ms 淡出
-_PANEL_SHOW_DURATION_MS = 220
-_PANEL_HIDE_DURATION_MS = 160
-_PANEL_SLIDE_PX = 8
-
 
 class WatermarkContainer(QWidget):
     """中央容器：在内容层之下绘制校训竖排书法水印（右侧垂直居中）。
@@ -103,12 +98,7 @@ class WatermarkContainer(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        # 形态标志须在任何事件/方法可触及之前就位：event() 覆盖层会在
-        # __init__ 期间（setWindowTitle 等）收到事件，晚赋值会 AttributeError。
-        # 真正的形态应用（_apply_panel_chrome）留到 setup_ui 之后（依赖 exit_button）。
-        self._panel_mode = False
         self._menu_bar_panel = None  # 快捷面板懒创建（首次点状态栏图标时）
-        self._esc_shortcut = None
         self.setWindowTitle(APP_NAME)
 
         self._ready = False  # 启动宽限期标志：静默启动时 Dock 激活不弹主窗口
@@ -142,10 +132,8 @@ class MainWindow(QMainWindow):
         )
         if cleanup_residue_proxy(self):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
-        # 菜单栏面板形态（macOS）：flags/毛玻璃/锚定；须在托盘初始化之前
-        # （托盘按形态路由 NSStatusItem / QSystemTrayIcon）
-        if self.menu_bar_mode:
-            self._apply_panel_chrome(True)
+        # 原生状态栏项（macOS，桥接失败回退 QSystemTrayIcon）；须在任何
+        # 可能关闭窗口/退出流程的方法之前就位
         self._mac_status_item = None
         self.tray_icon = init_tray_icon(self)
 
@@ -478,120 +466,12 @@ class MainWindow(QMainWindow):
 
         托盘图标被拥挤的菜单栏裁掉时，Dock 是打开主界面的兜底入口。
         启动宽限期（静默启动）与退出流程中不响应。
-        仅窗口隐藏时动作：已可见时再 show/raise/activate 会抢设置对话框焦点，
-        且面板形态下会经 activation 通知重入 show_panel 重放开场动画。
+        仅窗口隐藏时动作：已可见时再 show/raise/activate 会抢设置对话框焦点。
         """
         if not getattr(self, "_ready", False) or getattr(self, "_quitting", False):
             return
         if not self.isVisible():
-            self.open_panel()
-
-    # ---- 菜单栏面板形态（macOS 专属） ----
-
-    def set_menu_bar_mode(self, enabled: bool):
-        """切换浮动窗口 ↔ 菜单栏面板形态（幂等；运行时切换即时生效）。"""
-        from platform import system
-
-        if system() != "Darwin":
-            return
-        enabled = bool(enabled)
-        if enabled == self._panel_mode:
-            return
-        self.menu_bar_mode = enabled
-        # setWindowFlags 会隐式 hide——记录切换前可见性，切换后按原样恢复
-        # （启动初始化路径窗口本不可见，不得因模式应用而提前弹出）
-        was_visible = self.isVisible()
-        self._apply_panel_chrome(enabled)
-        # 托盘随形态路由（面板↔原生状态栏项，浮动↔QSystemTrayIcon）
-        from utils.tray_utils import reinit_tray
-
-        reinit_tray(self)
-        from utils.macos_utils import hide_dock_icon
-
-        # 面板形态强制 Accessory（Dock 图标无意义）；切回浮动恢复用户设置
-        hide_dock_icon(True if enabled else self.hide_dock_icon)
-        if was_visible:
-            if enabled:
-                self.show_panel(animated=False)
-            else:
-                self.show()
-
-    def event(self, e):
-        """面板失焦自动收起。
-
-        Tool 形态没有 Qt.Popup 的自隐行为（Task 1 实测 Popup 在 Accessory 下
-        show() 即自隐，不可用），改为手动接窗口失活；IME 候选窗不触发本事件，
-        故中文输入时不会误关（Task 1 真机确认）。
-        """
-        if (
-            self._panel_mode
-            and e.type() == QEvent.WindowDeactivate
-            and self.isVisible()
-        ):
-            self.hide_panel()
-        return super().event(e)
-
-    def _apply_panel_chrome(self, enabled: bool):
-        """窗口外壳切换：flags / 透明底 / 毛玻璃 / 退出按钮 / Esc / 圆角样式。"""
-        self._panel_mode = enabled
-        if enabled:
-            # Tool 形态（非 Popup）：Accessory 策略下 Popup show() 即自隐、无法输入
-            self.setWindowFlags(
-                Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
-            )
-            self.setAttribute(Qt.WA_TranslucentBackground, True)
-            self.setFixedWidth(360)
-            self.exit_button.hide()
-            from common import theme
-
-            self.winId()  # 真实化 NSWindow（winId 即创建），不 show——启动路径窗口须保持隐藏
-            self._install_backdrop()
-            # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
-            from utils.macos_panel_shape import round_panel_window
-
-            round_panel_window(self)
-            theme.on_scheme_changed(self._update_backdrop)  # 绑定方法可去重，避免每次切换累积 lambda
-            # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
-            from PySide6.QtGui import QShortcut, QKeySequence
-
-            self._esc_shortcut = QShortcut(QKeySequence("Esc"), self)
-            self._esc_shortcut.setContext(Qt.WindowShortcut)
-            self._esc_shortcut.activated.connect(self.hide_panel)
-            # 圆角视觉：central widget 圆角样式与毛玻璃圆角一致（10px）
-            self.centralWidget().setStyleSheet(
-                "WatermarkContainer { border-radius: 10px; }"
-            )
-        else:
-            if self._esc_shortcut is not None:
-                self._esc_shortcut.setEnabled(False)
-                self._esc_shortcut.deleteLater()
-                self._esc_shortcut = None
-            from utils.macos_glass import remove_glass
-            from utils.macos_vibrancy import remove_vibrancy
-            from utils.macos_panel_shape import restore_window_shape
-
-            remove_glass(self)
-            remove_vibrancy(self)  # 同会话只会装过一种，另一侧安静返回（防御性双拆）
-            restore_window_shape(self)  # 还原窗口 frame，避免浮动窗口四角被裁
-            self.centralWidget().setStyleSheet("")
-            self.setAttribute(Qt.WA_TranslucentBackground, False)
-            self.setMinimumWidth(360)
-            self.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
-            self.setWindowFlags(Qt.Window)
-            self.exit_button.show()
-            # 不主动 show：可见性由调用方（set_menu_bar_mode 的 was_visible）恢复
-
-    def _install_backdrop(self):
-        """面板背景垫层：macOS 26+ 液态玻璃，旧系统回退毛玻璃（现状）。"""
-        from utils.macos_glass import glass_available, install_glass
-
-        if glass_available():
-            if install_glass(self):
-                return
-            # 玻璃类存在但安装失败（桥接异常）：回退毛玻璃，不留透明底窗口
-        from utils.macos_vibrancy import install_vibrancy
-
-        install_vibrancy(self)
+            self.open_main_window()
 
     def _update_backdrop(self):
         """深浅色切换：同步玻璃/毛玻璃外观（绑定方法注册，theme 按身份去重）。"""
@@ -600,15 +480,6 @@ class MainWindow(QMainWindow):
 
         update_glass_appearance(self)
         update_vibrancy_appearance(self)  # 未安装的一侧安静返回
-
-    def open_panel(self):
-        """托盘/菜单/Dock 的统一"打开主界面"入口，按形态分发。"""
-        if self._panel_mode:
-            self.show_panel()
-        else:
-            self.show()
-            self.raise_()
-            self.activateWindow()
 
     def open_main_window(self, focus_credentials: bool = False):
         """打开主窗口（托盘菜单/面板 pill/Dock 激活的统一入口）。"""
@@ -641,145 +512,9 @@ class MainWindow(QMainWindow):
             self._menu_bar_panel = MenuBarPanel(self)
         self._menu_bar_panel.toggle()
 
-    def _stop_panel_anims(self):
-        """停掉在途展开动画（可打断性用）。DeleteWhenStopped 后 wrapper 可能失效，须 isValid。"""
-        from shiboken6 import isValid
-
-        anims = getattr(self, "_panel_anims", None)
-        self._panel_anims = None
-        for anim in anims or ():
-            try:
-                if isValid(anim):
-                    anim.stop()
-            except RuntimeError:
-                pass
-
-    def _stop_panel_hide_anim(self):
-        """停掉在途收起动画（可打断性用）。"""
-        from shiboken6 import isValid
-
-        anim = getattr(self, "_panel_hide_anim", None)
-        self._panel_hide_anim = None
-        if anim is not None:
-            try:
-                if isValid(anim):
-                    anim.stop()
-            except RuntimeError:
-                pass
-
-    def show_panel(self, animated: bool = True):
-        """展开面板：定位到状态栏图标下缘，下滑 8px + 淡入（220ms OutCubic）。
-
-        可打断：停掉在途收起动画并翻“世代号”，陈旧 finished 不得隐藏刚展开的面板
-        （失焦收起 + Dock/Cmd-Tab 快速激活会命中该竞态）。
-        """
-        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
-        from utils.motion_utils import reduce_motion
-
-        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
-        self._stop_panel_hide_anim()
-        self._anchor_panel()
-        animated = animated and not reduce_motion()
-        if not animated:
-            self.setWindowOpacity(1.0)
-            self.show()
-            self._activate_panel()
-            return
-        self.setWindowOpacity(0.0)
-        target = self.pos()
-        self.move(target.x(), target.y() - _PANEL_SLIDE_PX)
-        self.show()
-        anim_pos = QPropertyAnimation(self, b"pos", self)
-        anim_pos.setDuration(_PANEL_SHOW_DURATION_MS)
-        anim_pos.setStartValue(self.pos())
-        anim_pos.setEndValue(target)
-        anim_pos.setEasingCurve(QEasingCurve.OutCubic)
-        anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
-        anim_opacity.setDuration(_PANEL_SHOW_DURATION_MS)
-        anim_opacity.setStartValue(0.0)
-        anim_opacity.setEndValue(1.0)
-        anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
-        self._panel_anims = (anim_pos, anim_opacity)  # 防 GC
-        anim_pos.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-        anim_opacity.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-        self._activate_panel()
-
-    def hide_panel(self):
-        """收起面板（Esc/再点图标）：淡出后隐藏；reduce-motion/不可见时直出。"""
-        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
-        from utils.motion_utils import reduce_motion
-
-        self._panel_anim_gen = getattr(self, "_panel_anim_gen", 0) + 1
-        gen = self._panel_anim_gen
-        self._stop_panel_hide_anim()
-        self._stop_panel_anims()
-        if reduce_motion() or not self.isVisible():
-            self.hide()
-            self.setWindowOpacity(1.0)
-            return
-        anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
-        anim_opacity.setDuration(_PANEL_HIDE_DURATION_MS)
-        anim_opacity.setStartValue(self.windowOpacity())  # 从当前不透明度接续（可打断）
-        anim_opacity.setEndValue(0.0)
-        anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
-
-        def _finish():
-            if getattr(self, "_panel_anim_gen", 0) != gen:
-                return  # 期间又 show/hide 过：陈旧回调不得决定终态
-            self.hide()
-            self.setWindowOpacity(1.0)  # 复位：下次 show 不带残留透明度
-
-        anim_opacity.finished.connect(_finish)
-        self._panel_hide_anim = anim_opacity
-        anim_opacity.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-
-    def _activate_panel(self):
-        """Accessory 策略下抢键盘焦点（用户名/密码输入框依赖）。"""
-        from platform import system
-
-        from PySide6.QtWidgets import QApplication
-
-        self.raise_()
-        self.activateWindow()
-        # 仅真实 cocoa 平台调 NSApp（offscreen 测试下调用会无意义地抢开发机焦点）
-        if system() == "Darwin" and QApplication.platformName() == "cocoa":
-            try:
-                import ctypes
-
-                import objc
-
-                nsapp = objc.lookUpClass("NSApplication").sharedApplication()
-                nsapp.activateIgnoringOtherApps_(True)
-                # Tool 窗口需显式 makeKey 才能真正拿到键盘焦点（Task 1 spike 实测）
-                view = objc.objc_object(
-                    c_void_p=ctypes.c_void_p(int(self.winId()))
-                )
-                view.window().makeKeyAndOrderFront_(None)
-            except Exception:
-                pass
-
-    def _anchor_panel(self):
-        """面板定位：状态栏图标下缘居中；图标失效退化屏幕右上角。"""
-        from PySide6.QtWidgets import QApplication
-        from utils.panel_geometry import panel_geometry
-
-        # 窗口可能从未显示过，self.size() 会是陈旧值——先按内容尺寸兜底（幂等）
-        self.adjustSize()
-        item = getattr(self, "_mac_status_item", None)
-        icon_rect = item.icon_global_rect() if item is not None else None
-        screen = None
-        if icon_rect is not None:
-            screen = QApplication.screenAt(icon_rect.center())
-        if screen is None:
-            screen = QApplication.primaryScreen()
-        geo = panel_geometry(icon_rect, screen.availableGeometry(), self.size())
-        self.move(geo.topLeft())
-
     def _on_content_resize(self):
-        """内容高度变化（凭据区/资源区收放）：adjustSize 后面板顶边钉住不动。"""
+        """内容高度变化（凭据区/资源区收放）：adjustSize 使窗口贴合内容。"""
         self.adjustSize()
-        if self._panel_mode and self.isVisible():
-            self._anchor_panel()
 
     def _on_mode_changed(self, index: int):
         self.set_connection_mode(index == 1)
@@ -823,8 +558,8 @@ class MainWindow(QMainWindow):
         if getattr(self, "_quitting", False):
             event.accept()
             return
-        if self._panel_mode:
-            # 面板无"关闭"概念：收起即隐藏，进程由状态栏项驻留
+        # macOS：NSStatusItem 常驻 = 后台驻留，关窗即隐藏（进程由状态栏项驻留）
+        if getattr(self, "_mac_status_item", None) is not None:
             self.hide()
             event.ignore()
             return

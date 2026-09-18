@@ -84,7 +84,6 @@ def show_advanced_settings(window):
         window.auto_reconnect,
         window.appearance,
         window.tun_mode,
-        menu_bar_mode=window.menu_bar_mode,
     )
 
     if dialog.exec():
@@ -110,9 +109,6 @@ def show_advanced_settings(window):
         window.reconnect_manager.set_enabled(window.auto_reconnect)
         window.appearance = settings["appearance"]
         window.tun_mode = settings["tun_mode"]
-        new_menu_bar_mode = settings.get("menu_bar_mode", False)
-        if system() == "Darwin" and new_menu_bar_mode != window.menu_bar_mode:
-            window.set_menu_bar_mode(new_menu_bar_mode)
         # 主窗口分段选择器同步（高级设置与主界面是同一配置键的两个入口）
         window.mode_switch.setCurrentIndex(1 if window.tun_mode else 0)
         from common import theme
@@ -122,4 +118,4 @@ def show_advanced_settings(window):
         if server_changed:
             window.status_panel.set_server_text(window.server_address)
         if system() == "Darwin":
-            hide_dock_icon(True if window.menu_bar_mode else window.hide_dock_icon)
+            hide_dock_icon(window.hide_dock_icon)

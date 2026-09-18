@@ -160,6 +160,34 @@ def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
     assert opened and str(opened[0].url()).startswith("http")
 
 
+def test_toggle_panel_lazy_creates(main, qtbot, monkeypatch):
+    # 面板模块直接 from-import reduce_motion：两处都打桩，避免依赖模块导入顺序
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    assert main._menu_bar_panel is None
+    main.toggle_panel()
+    assert main._menu_bar_panel is not None
+    assert main._menu_bar_panel.isVisible()
+    main.toggle_panel()
+    assert not main._menu_bar_panel.isVisible()
+
+
+def test_close_hides_to_status_item(main, qtbot):
+    """macOS NSStatusItem 存在 = 后台驻留：关窗隐藏而非退出。"""
+    main._mac_status_item = object()  # 哨兵：非 None 即驻留
+    from PySide6.QtGui import QCloseEvent
+
+    event = QCloseEvent()
+    main.closeEvent(event)
+    assert not event.isAccepted()
+
+
+def test_menu_bar_mode_config_removed(qtbot):
+    from utils.config_utils import load_config
+
+    assert "menu_bar_mode" not in load_config()
+
+
 def test_nav_group_label_refreshes_on_theme_change(panel, qapp):
     """回归：切深浅色后导航组标题颜色随之刷新，不停留旧 secondary_text。"""
     from common import theme
