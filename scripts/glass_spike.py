@@ -70,7 +70,9 @@ def main():
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
-    if objc.lookUpClass("NSGlassEffectView") is None:
+    try:
+        objc.lookUpClass("NSGlassEffectView")
+    except Exception:
         print("本机无 NSGlassEffectView（macOS < 26）——spike 不适用")
         return 1
 
