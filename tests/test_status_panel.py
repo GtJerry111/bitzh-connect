@@ -213,3 +213,26 @@ def test_panel_stays_transparent_in_both_schemes(panel):
     panel.refresh_theme()
     assert panel.styleSheet() == ""
     theme.set_appearance("system")
+
+
+def test_state_changed_emitted_on_hero_transitions(qtbot):
+    from views.status_panel import StatusPanel
+
+    panel = StatusPanel(server_text="112.91.150.228:443")
+    qtbot.addWidget(panel)
+    calls = []
+    panel.state_changed.connect(lambda: calls.append(1))
+    panel.set_connecting()
+    panel.set_connected("10.0.43.17")
+    panel.set_disconnected()
+    assert len(calls) == 3
+
+
+def test_dot_state_property(qtbot):
+    from views.status_panel import StatusPanel
+
+    panel = StatusPanel(server_text="s")
+    qtbot.addWidget(panel)
+    assert panel.dot_state == "idle"
+    panel.set_connected("10.0.43.17")
+    assert panel.dot_state == "connected"

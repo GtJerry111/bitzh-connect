@@ -73,6 +73,8 @@ class StatusDot(QWidget):
 class StatusPanel(QWidget):
     # (凭据区是否可见, 资源区是否可见)
     areas_changed = Signal(bool, bool)
+    # hero/副标题变化（_set_hero 单一漏斗发出，菜单栏面板镜像用）
+    state_changed = Signal()
 
     def __init__(self, server_text: str = "", parent=None):
         super().__init__(parent)
@@ -179,6 +181,11 @@ class StatusPanel(QWidget):
     @property
     def down_text(self) -> str:
         return self.down_value.text()
+
+    @property
+    def dot_state(self) -> str:
+        """当前语义状态色名（idle/working/connected/error）。"""
+        return self._dot_state
 
     # ---- 内部：值标签 / 统计行 / hero ----
 
@@ -310,6 +317,7 @@ class StatusPanel(QWidget):
         hero_color = "ink" if color_name == "idle" else color_name
         animate_label_color(self.status_text, theme.semantic_color(hero_color))
         self._apply_glow(color_name == "connected")
+        self.state_changed.emit()
 
     def _tick(self):
         if self._connected_since:
