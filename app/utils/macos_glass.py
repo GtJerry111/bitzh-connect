@@ -21,7 +21,9 @@ from utils.macos_vibrancy import _nsview_of
 
 _NS_WINDOW_BELOW = -1    # NSWindowOrderingMode
 _AUTORESIZE = 2 | 16     # WidthSizable | HeightSizable
-_GLASS_STYLE = 0         # NSGlassEffectStyleRegular（spike 选定；clear=1）
+# NSGlassEffectView.Style：0=Regular（乳白标准玻璃）1=Clear（清透强折射，壁纸渗色多）
+_GLASS_STYLE_REGULAR = 0
+_GLASS_STYLE_CLEAR = 1
 
 
 def _cocoa() -> bool:
@@ -44,10 +46,16 @@ def glass_available() -> bool:
         return False
 
 
-def install_glass(window, corner_radius: float = 10.0) -> bool:
+def install_glass(
+    window, corner_radius: float = 10.0,
+    style: int = _GLASS_STYLE_REGULAR, interactive: bool = False,
+) -> bool:
     """为窗口安装液态玻璃背景（幂等）。
 
     corner_radius 与面板 QSS 圆角一致（HIG：圆角连续）；默认 10.0 兼容既有调用。
+    style：Regular（默认，乳白）/ Clear（清透强折射，菜单栏面板定稿 Clear——
+    真机 A/B 对比 BetterDisplay 参考图后选定）。
+    interactive：官方 effectIsInteractive，玻璃对悬停/按压有光学响应。
     返回是否成功；失败由调用方回退 vibrancy。
     """
     if not glass_available():
@@ -67,7 +75,9 @@ def install_glass(window, corner_radius: float = 10.0) -> bool:
         glass = glass_cls.alloc().initWithFrame_(content.frame())
         glass.setAutoresizingMask_(_AUTORESIZE)
         glass.setCornerRadius_(corner_radius)
-        glass.setStyle_(_GLASS_STYLE)
+        glass.setStyle_(style)
+        if interactive:
+            glass.setEffectIsInteractive_(True)
         # 关键：置于 host 中、contentView 之下（不能加到 contentView 里）
         host.addSubview_positioned_relativeTo_(glass, _NS_WINDOW_BELOW, content)
         window._glass_view = glass  # 防 GC + 供移除/更新时查找

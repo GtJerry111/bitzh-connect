@@ -13,8 +13,10 @@ from platform import system
 from PySide6.QtCore import (
     QEasingCurve, QEvent, QPointF, QRectF, Qt, QTimer, QUrl, QVariantAnimation, Signal,
 )
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter, QPen
+from PySide6.QtWidgets import (
+    QAbstractButton, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+)
 from shiboken6 import isValid
 
 from common import theme
@@ -43,13 +45,25 @@ def _draw_icon(painter: QPainter, kind: str):
         for x, y in ((4, 4), (13, 4), (4, 13), (13, 13)):
             painter.drawRoundedRect(QRectF(x, y, 7, 7), 1.6, 1.6)
     elif kind == "gear":
-        painter.drawEllipse(QPointF(12, 12), 3.2, 3.2)
+        # 填充式齿轮（环 + 8 齿，内孔减除）：描边式齿轮在小尺寸下像"亮度/深色模式"太阳
+        from PySide6.QtGui import QPainterPath, QTransform
+
+        ring = QPainterPath()
+        ring.addEllipse(QPointF(12, 12), 7.4, 7.4)
         for i in range(8):
-            painter.save()
-            painter.translate(12, 12)
-            painter.rotate(i * 45)
-            painter.drawLine(QPointF(0, -5.6), QPointF(0, -8.2))
-            painter.restore()
+            # 齿直接在中心系建造（顶部齿），与环外缘交叠 1.5 格防游离；
+            # QPainterPath 无 transformed()：T⁻¹→R→T 绕中心旋转，用 QTransform.map
+            tooth = QPainterPath()
+            tooth.addRoundedRect(QRectF(12 - 1.9, 12 - 10.2, 3.8, 4.3), 0.9, 0.9)
+            transform = QTransform().translate(12, 12).rotate(i * 45).translate(-12, -12)
+            ring |= transform.map(tooth)
+        hole = QPainterPath()
+        hole.addEllipse(QPointF(12, 12), 3.2, 3.2)
+        painter.save()
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(painter.pen().color())
+        painter.drawPath(ring.subtracted(hole))
+        painter.restore()
     elif kind == "power":
         painter.drawLine(QPointF(12, 4), QPointF(12, 11))
         painter.drawArc(QRectF(5.5, 6.5, 13, 13), 130 * 16, 280 * 16)
@@ -59,24 +73,6 @@ def _draw_icon(painter: QPainter, kind: str):
     elif kind == "chevron_right":
         painter.drawLine(QPointF(9, 5), QPointF(16, 12))
         painter.drawLine(QPointF(16, 12), QPointF(9, 19))
-
-
-def icon_pixmap(kind: str, size: int = 15, color: str | None = None) -> QPixmap:
-    """把线条图标渲染成 QPixmap（@2x 保 Retina 清晰），供 QPushButton setIcon。"""
-    pm = QPixmap(size * 2, size * 2)
-    pm.setDevicePixelRatio(2)
-    pm.fill(Qt.transparent)
-    painter = QPainter(pm)
-    painter.setRenderHint(QPainter.Antialiasing)
-    pen = QPen(QColor(color or theme.semantic_color("ink")))
-    pen.setWidthF(1.5)
-    pen.setCapStyle(Qt.RoundCap)
-    pen.setJoinStyle(Qt.RoundJoin)
-    painter.setPen(pen)
-    painter.scale(size / 24.0, size / 24.0)
-    _draw_icon(painter, kind)
-    painter.end()
-    return pm
 
 
 class _Icon(QWidget):
@@ -138,6 +134,93 @@ class _Row(QWidget):
         self.value.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
 
 
+class _GlassButton(QAbstractButton):
+    """玻璃 chip 按钮（QPainter 自绘：圆角填充 + 1px 高光描边 + 图标/可选文字）。
+
+    QSS 的 1px 半透边框在透明底（WA_TranslucentBackground）窗口上抗锯齿向错误
+    底色混合，边缘出毛刺；自绘走 QPainter 路径（与 ToggleSwitch 同款），边缘干净。
+    颜色在 paintEvent 现取主题——深浅色切换只需 update()，无需重建资源。
+    """
+
+    def __init__(self, icon_kind: str, text: str = "", tooltip: str = "", parent=None):
+        super().__init__(parent)
+        self._icon_kind = icon_kind
+        self._text = text
+        self._hover = False
+        self.setCursor(Qt.PointingHandCursor)
+        if tooltip:
+            self.setToolTip(tooltip)
+        self.setFixedHeight(28)
+        if not text:
+            self.setFixedWidth(28)
+
+    def sizeHint(self):
+        from PySide6.QtCore import QSize
+
+        if not self._text:
+            return QSize(28, 28)
+        from PySide6.QtGui import QFontMetrics
+
+        fm = QFontMetrics(self.font())
+        # 左右各 12 内边距 + 13px 图标 + 6px 图标文字间距 + 文字宽
+        return QSize(12 + 13 + 6 + fm.horizontalAdvance(self._text) + 12, 28)
+
+    def enterEvent(self, event):
+        self._hover = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hover = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        dark = theme.is_dark()
+        # 填充：常态 = 二级材质；hover 微亮；pressed 加深
+        if self.isDown():
+            fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
+        elif self._hover:
+            fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
+        else:
+            fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
+        border = QColor(255, 255, 255, 36) if dark else QColor(255, 255, 255, 140)
+        w, h = self.width(), self.height()
+        pen = QPen(border)
+        pen.setWidthF(1.0)
+        painter.setPen(pen)
+        painter.setBrush(fill)
+        # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
+        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
+        # 内容（图标 + 可选文字）整体居中
+        ink = QColor(theme.semantic_color("ink"))
+        icon_px = 13
+        text_w = 0
+        if self._text:
+            text_w = painter.fontMetrics().horizontalAdvance(self._text)
+        total = icon_px + (6 + text_w if self._text else 0)
+        x = (w - total) / 2
+        painter.save()
+        painter.translate(x, (h - icon_px) / 2)
+        painter.scale(icon_px / 24.0, icon_px / 24.0)
+        icon_pen = QPen(ink)
+        icon_pen.setWidthF(1.5)
+        icon_pen.setCapStyle(Qt.RoundCap)
+        icon_pen.setJoinStyle(Qt.RoundJoin)
+        painter.setPen(icon_pen)
+        painter.setBrush(Qt.NoBrush)
+        _draw_icon(painter, self._icon_kind)
+        painter.restore()
+        if self._text:
+            painter.setPen(ink)
+            painter.drawText(
+                QRectF(x + icon_px + 6, 0, text_w, h), Qt.AlignVCenter, self._text
+            )
+        painter.end()
+
+
 class MenuBarPanel(QWidget):
     """快捷面板：连接卡 + 模式/导航裸行 + 底部工具条。"""
 
@@ -170,9 +253,12 @@ class MenuBarPanel(QWidget):
         self._esc.setContext(Qt.WindowShortcut)
         self._esc.activated.connect(self.hide_panel)
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
-        from utils.macos_glass import install_glass
+        from utils.macos_glass import _GLASS_STYLE_CLEAR, install_glass
 
-        if not install_glass(self, corner_radius=22.0):
+        # Clear 清透强折射（真机 A/B 定稿）+ 官方交互光学响应
+        if not install_glass(
+            self, corner_radius=22.0, style=_GLASS_STYLE_CLEAR, interactive=True
+        ):
             from utils.macos_vibrancy import install_vibrancy
 
             install_vibrancy(self, corner_radius=22.0)
@@ -281,17 +367,16 @@ class MenuBarPanel(QWidget):
         rows.addWidget(self._nav_area)
         root.addWidget(self._rows)
 
-        # 底部工具条
+        # 底部工具条（自绘玻璃 chip：QSS 半透描边在透明底窗口上抗锯齿失真）
         bar = QHBoxLayout()
         bar.setSpacing(7)
-        self._open_btn = QPushButton(" 打开主窗口")
-        self._open_btn.setCursor(Qt.PointingHandCursor)
+        self._open_btn = _GlassButton("window", "打开主窗口")
         self._open_btn.clicked.connect(lambda: self._main.open_main_window())
         bar.addWidget(self._open_btn)
         bar.addStretch()
-        self._settings_btn = self._round_button("gear", "设置")
+        self._settings_btn = _GlassButton("gear", tooltip="设置")
         self._settings_btn.clicked.connect(self._open_settings)
-        self._quit_btn = self._round_button("power", "退出")
+        self._quit_btn = _GlassButton("power", tooltip="退出")
         self._quit_btn.clicked.connect(self._main.quit_app)
         bar.addWidget(self._settings_btn)
         bar.addWidget(self._quit_btn)
@@ -313,15 +398,6 @@ class MenuBarPanel(QWidget):
         row.addLayout(col)
         row.addStretch()
         return value
-
-    def _round_button(self, icon_kind: str, tooltip: str) -> QPushButton:
-        btn = QPushButton()
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setFixedSize(28, 28)
-        btn.setToolTip(tooltip)
-        btn.setIcon(QIcon(icon_pixmap(icon_kind, 13)))
-        btn.setProperty("chip", True)  # QSS 选择器用
-        return btn
 
     def _make_chip(self, glyph: str, name: str, url: str, tip: str) -> QPushButton:
         chip = QPushButton()
@@ -400,34 +476,15 @@ class MenuBarPanel(QWidget):
             f"color: {theme.with_alpha('separator', 0.6)};"
         )
         self._row_sep.setStyleSheet(f"color: {theme.with_alpha('separator', 0.4)};")
-        chip_bg = "rgba(255,255,255,107)" if not theme.is_dark() else "rgba(64,64,68,128)"
-        chip_bd = "rgba(255,255,255,140)" if not theme.is_dark() else "rgba(255,255,255,36)"
-        self._open_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {chip_bg}; border: 1px solid {chip_bd};
-                border-radius: 14px; padding: 5px 12px; font-size: 12px;
-                color: {theme.semantic_color("ink")};
-            }}
-            QPushButton:pressed {{ padding-top: 6px; }}
-        """)
-        for btn in (self._settings_btn, self._quit_btn):
-            btn.setStyleSheet(f"""
-                QPushButton[chip="true"] {{
-                    background: {chip_bg}; border: 1px solid {chip_bd};
-                    border-radius: 14px;
-                }}
-                QPushButton[chip="true"]:pressed {{ background: {chip_bd}; }}
-            """)
         self._mode_row.refresh_theme()
         self._nav_row.refresh_theme()
         if not self._hint_active:
             self._subtitle.setStyleSheet(
                 f"color: {theme.semantic_color('secondary_text')};"
             )
-        # 图标颜色随主题（ink 经 icon_pixmap 烘焙，需重建）
-        self._open_btn.setIcon(QIcon(icon_pixmap("window", 12)))
-        self._settings_btn.setIcon(QIcon(icon_pixmap("gear", 13)))
-        self._quit_btn.setIcon(QIcon(icon_pixmap("power", 13)))
+        # 玻璃 chip 按钮颜色在 paintEvent 现取主题：深浅色切换触发重绘即可
+        for btn in (self._open_btn, self._settings_btn, self._quit_btn):
+            btn.update()
         self._refresh_nav_chips()
 
     # ---- 状态镜像 ----
@@ -547,10 +604,14 @@ class MenuBarPanel(QWidget):
             anim.valueChanged.connect(self._nav_chevron.set_angle)
             self._nav_anim = anim
             anim.start()
+        # 收起去 fade 提速 200ms：fade 会让透明度效果对 10 个 chip 逐帧栅格化，
+        # 叠加每帧窗口缩放 + 玻璃背景重采样即掉帧抽搐（展开从 0 长起不卡，收起
+        # 全量栅格化才卡——不对称根因）；展开保留 fade（从 0 长起，硬切突兀）
         animated_height_toggle(
             self._nav_area, self._nav_expanded,
             max_height=max(self._nav_area.sizeHint().height(), 1),
-            fade=True, on_frame=self.adjustSize,
+            duration=250 if self._nav_expanded else 200,
+            fade=self._nav_expanded, on_frame=self.adjustSize,
         )
 
     def _open_settings(self):

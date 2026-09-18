@@ -29,6 +29,32 @@ def test_panel_structure(panel):
     assert panel._status.text() == "未连接"
 
 
+def test_toolbar_uses_glass_buttons(panel):
+    """工具条按钮为自绘玻璃 chip（QSS 半透描边在透明底窗口上出毛刺）。"""
+    from views.menu_bar_panel import _GlassButton
+
+    for btn in (panel._open_btn, panel._settings_btn, panel._quit_btn):
+        assert isinstance(btn, _GlassButton)
+    assert panel._settings_btn._icon_kind == "gear"  # 设置入口 = 齿轮按钮
+    assert panel._quit_btn.width() == 28  # 圆形 28×28
+    assert panel._open_btn.sizeHint().width() > 28  # pill 含文字，比圆钮宽
+
+
+def test_glass_button_paint_offscreen(panel, qtbot):
+    """自绘路径冒烟：hover/pressed 态离屏渲染不抛异常。"""
+    from PySide6.QtGui import QPixmap
+
+    btn = panel._settings_btn
+    pm = QPixmap(56, 56)
+    pm.fill()
+    btn._hover = True
+    btn.render(pm)  # render 即走 paintEvent
+    btn._hover = False
+    btn.setDown(True)
+    btn.render(pm)
+    btn.setDown(False)
+
+
 def test_mirror_connected(panel, main, monkeypatch):
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     main.status_panel.set_connected("10.0.43.17")
