@@ -2,6 +2,7 @@
 """菜单栏快捷面板（offscreen：玻璃/状态栏项桥接自动回退，结构行为全可测）。"""
 import pytest
 from PySide6.QtCore import QSignalBlocker
+from PySide6.QtWidgets import QPushButton
 
 
 @pytest.fixture
@@ -131,3 +132,29 @@ def test_mode_row_fallback_toggles_mode(panel, main, monkeypatch):
     assert main.tun_mode == (not old)
     panel._on_mode_row()
     assert main.tun_mode == old
+
+
+def test_nav_expand_toggle(panel, qtbot, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    assert panel._nav_area.isHidden()
+    panel._nav_row.clicked.emit()
+    assert not panel._nav_area.isHidden()
+    assert panel._nav_chevron._angle == 270.0
+    panel._nav_row.clicked.emit()
+    assert panel._nav_area.isHidden()
+
+
+def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    opened = []
+    monkeypatch.setattr(
+        "views.menu_bar_panel.QDesktopServices.openUrl",
+        lambda url: opened.append(url),
+    )
+    panel._nav_row.clicked.emit()
+    first_chip = panel._nav_area.findChildren(QPushButton)[0]
+    first_chip.click()
+    assert opened and str(opened[0].url()).startswith("http")

@@ -254,8 +254,27 @@ class MenuBarPanel(QWidget):
         self._nav_row.set_trailing(self._nav_chevron)
         self._nav_row.clicked.connect(self._toggle_nav)
         rows.addWidget(self._nav_row)
-        # 导航展开区（Task 6 填 chips；本任务为空容器）
+        # 导航展开区：分组小标题 + 双列 chip（单字圆标 + 短名，App 纯排版语言）
         self._nav_area = QWidget()
+        nav = QVBoxLayout(self._nav_area)
+        nav.setContentsMargins(6, 0, 6, 4)
+        nav.setSpacing(4)
+        self._nav_badges = []
+        for gi, (group_name, items) in enumerate(NAV_GROUPS):
+            label = QLabel(group_name)
+            label.setStyleSheet(
+                f"color: {theme.semantic_color('secondary_text')};"
+                "font-size: 10px; padding-left: 4px;"
+            )
+            if gi:
+                label.setContentsMargins(0, 6, 0, 0)
+            nav.addWidget(label)
+            for i in range(0, len(items), 2):
+                chip_row = QHBoxLayout()
+                chip_row.setSpacing(4)
+                for glyph, name, url, tip in items[i : i + 2]:
+                    chip_row.addWidget(self._make_chip(glyph, name, url, tip), 1)
+                nav.addLayout(chip_row)
         self._nav_area.setVisible(False)
         rows.addWidget(self._nav_area)
         root.addWidget(self._rows)
@@ -302,6 +321,56 @@ class MenuBarPanel(QWidget):
         btn.setProperty("chip", True)  # QSS 选择器用
         return btn
 
+    def _make_chip(self, glyph: str, name: str, url: str, tip: str) -> QPushButton:
+        chip = QPushButton()
+        chip.setCursor(Qt.PointingHandCursor)
+        chip.setFixedHeight(26)
+        chip.setToolTip(tip)
+        chip.setAttribute(Qt.WA_AlwaysShowToolTips)
+        lay = QHBoxLayout(chip)
+        lay.setContentsMargins(6, 2, 6, 2)
+        lay.setSpacing(6)
+        badge = QLabel(glyph)
+        badge.setFixedSize(18, 18)
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setAttribute(Qt.WA_TransparentForMouseEvents)
+        bf = badge.font()
+        bf.setPointSize(8.5)
+        badge.setFont(bf)
+        self._nav_badges.append(badge)
+        lay.addWidget(badge)
+        text = QLabel(name)
+        text.setAttribute(Qt.WA_TransparentForMouseEvents)
+        tf = text.font()
+        tf.setPointSize(11.5)
+        text.setFont(tf)
+        lay.addWidget(text, 1)
+        chip.setProperty("navchip", True)
+        chip.clicked.connect(
+            lambda _c=False, u=url: QDesktopServices.openUrl(QUrl(u))
+        )
+        return chip
+
+    def _refresh_nav_chips(self):
+        for chip in self._nav_area.findChildren(QPushButton):
+            chip.setStyleSheet(f"""
+                QPushButton[navchip="true"] {{
+                    border: none; border-radius: 6px;
+                    background: transparent; text-align: left;
+                }}
+                QPushButton[navchip="true"]:hover {{
+                    background: {theme.with_alpha("accent", 0.10)};
+                }}
+            """)
+        for badge in self._nav_badges:
+            badge.setStyleSheet(f"""
+                QLabel {{
+                    background: {theme.with_alpha("accent", 0.10)};
+                    color: {theme.semantic_color("accent")};
+                    border-radius: 9px;
+                }}
+            """)
+
     # ---- 样式 ----
 
     def _apply_styles(self):
@@ -336,6 +405,7 @@ class MenuBarPanel(QWidget):
         self._open_btn.setIcon(QIcon(icon_pixmap("window", 12)))
         self._settings_btn.setIcon(QIcon(icon_pixmap("gear", 13)))
         self._quit_btn.setIcon(QIcon(icon_pixmap("power", 13)))
+        self._refresh_nav_chips()
 
     # ---- 状态镜像 ----
 
@@ -434,18 +504,25 @@ class MenuBarPanel(QWidget):
         self._sync_mode_label()
 
     def _toggle_nav(self):
-        """校内导航内联展开（chips 网格 Task 6 填充；本任务展开空容器）。"""
+        """校内导航内联展开（分组双列 chips + chevron 旋转 + 高度动画）。"""
         self._nav_expanded = not self._nav_expanded
         angle = 270.0 if self._nav_expanded else 90.0
         if reduce_motion():
             self._nav_chevron.set_angle(angle)
         else:
+            # 可打断：先停旧动画再从当前展示角度重启（同 ToggleSwitch._animate_knob）
+            old = getattr(self, "_nav_anim", None)
+            if old is not None:
+                self._nav_anim = None
+                if isValid(old):
+                    old.stop()
             anim = QVariantAnimation(self)
             anim.setDuration(150)
             anim.setStartValue(self._nav_chevron._angle)
             anim.setEndValue(angle)
             anim.setEasingCurve(QEasingCurve.OutCubic)
             anim.valueChanged.connect(self._nav_chevron.set_angle)
+            self._nav_anim = anim
             anim.start()
         animated_height_toggle(
             self._nav_area, self._nav_expanded,
