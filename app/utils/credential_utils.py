@@ -1,30 +1,18 @@
 from .config_utils import load_config, save_config
-from .credential_store import CredentialStore
-
-_store = CredentialStore()
-
-
-def _log(window, msg):
-    if hasattr(window, "output_text"):
-        window.output_text.append(msg)
+from .credential_crypto import decrypt_password, encrypt_password, is_encrypted
 
 
 def save_credentials(window):
+    """按“记住密码”保存/清除凭据；密码本地加密后存 QSettings（不碰系统钥匙串）。"""
     config = load_config()
     remember = window.remember_cb.isChecked()
     config["remember"] = remember
 
     if remember:
-        username = window.username_input.text()
+        config["username"] = window.username_input.text()
         password = window.password_input.text()
-        config["username"] = username
-        if _store.set_password(username, password):
-            config["password"] = ""  # 已入钥匙串，清掉明文
-        else:
-            config["password"] = password  # 回退明文
-            _log(window, "[BITZH Connect] 警告：系统钥匙串不可用，密码将以明文保存\n")
+        config["password"] = encrypt_password(password) if password else ""
     else:
-        _store.delete_password(window.username_input.text())
         config["username"] = ""
         config["password"] = ""
 
@@ -32,16 +20,23 @@ def save_credentials(window):
 
 
 def load_credentials():
-    """返回 (username, password)。含一次性明文→钥匙串迁移。"""
+    """返回 (username, password)。
+
+    旧版明文（含旧钥匙串时代的回退明文）首次读取时迁移为本地密文。
+    旧版“密码在系统钥匙串、配置为空”的条目无法再取回，用户重输一次即可。
+    """
     config = load_config()
     username = config.get("username", "")
-    password = _store.get_password(username) or ""
+    raw = config.get("password", "")
 
-    legacy_plaintext = config.get("password", "")
-    if username and not password and legacy_plaintext:
-        password = legacy_plaintext
-        if _store.set_password(username, legacy_plaintext):
-            config["password"] = ""
-            save_config(config)
+    if not raw:
+        return username, ""
 
+    if is_encrypted(raw):
+        return username, decrypt_password(raw) or ""
+
+    # 旧版明文：本次直接使用，并原地迁移为密文
+    password = raw
+    config["password"] = encrypt_password(password)
+    save_config(config)
     return username, password
