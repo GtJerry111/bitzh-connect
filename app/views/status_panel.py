@@ -330,6 +330,8 @@ class StatusPanel(QWidget):
     def _countdown_tick(self):
         self._countdown_remaining = max(0, self._countdown_remaining - 1)
         self.subtitle.setText(f"{self._countdown_remaining}s 后第 {self._retry_attempt} 次重连…")
+        # 绕行写入路径也须发信号（不走 _set_hero，避免每秒重放圆点/淡入动画）
+        self.state_changed.emit()
         if self._countdown_remaining == 0:
             self._countdown_timer.stop()
 
@@ -338,6 +340,8 @@ class StatusPanel(QWidget):
         self._server_text = text
         if self.status_text.text() in ("未连接", "连接中…"):
             self.subtitle.setText(text)
+            # 绕行写入路径也须发信号（菜单栏镜像同步新地址）
+            self.state_changed.emit()
 
     # ---- 对外状态接口 ----
 

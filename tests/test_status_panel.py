@@ -236,3 +236,22 @@ def test_dot_state_property(qtbot):
     assert panel.dot_state == "idle"
     panel.set_connected("10.0.43.17")
     assert panel.dot_state == "connected"
+
+
+def test_state_changed_emitted_on_countdown_tick(panel):
+    """重连倒计时每秒改副标题，须补发 state_changed（菜单栏镜像不漏帧）"""
+    calls = []
+    panel.state_changed.connect(lambda: calls.append(1))
+    panel.set_reconnecting(1, 3)
+    base = len(calls)  # set_reconnecting 自身经 _set_hero 已发一次
+    panel._countdown_tick()
+    assert len(calls) == base + 1
+
+
+def test_state_changed_emitted_on_server_text_change(panel):
+    """高级设置改服务器地址后副标题同步，须补发 state_changed"""
+    calls = []
+    panel.state_changed.connect(lambda: calls.append(1))
+    panel.set_server_text("10.0.0.1:8443")
+    assert panel.subtitle.text() == "10.0.0.1:8443"
+    assert len(calls) == 1
