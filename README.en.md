@@ -34,7 +34,7 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 - Fast and green compared to **EasyConnect**.
 - Built with PySide6, easy to build and maintain.
 - Multi-platform support, with native optimization for the **macOS** version.
-- Native macOS experience: Liquid Glass main window (macOS 26+, vibrancy on older systems); persistent menu bar icon, left-click opens a Liquid Glass quick panel (connect toggle / rates / mode / campus navigation), right-click for a quick menu
+- Native macOS experience: persistent menu bar icon; left-click opens a Liquid Glass quick panel (macOS 26+, vibrancy on older systems; connect toggle / rates / mode / campus navigation), right-click for a quick menu
 - Passwords are stored locally with encryption, never on disk in plaintext, and the system keychain is not used.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
 - Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
