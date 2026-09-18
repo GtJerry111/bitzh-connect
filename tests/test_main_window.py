@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtWidgets import QWidget
 
 
 @pytest.fixture
@@ -255,3 +256,16 @@ def test_connect_button_pressed_sink_qss(qtbot):
     assert ":pressed" in qss
     assert "padding-top: 1px" in qss
     w.reconnect_manager.cancel()
+
+
+def test_main_window_cards_exist(window):
+    cards = window.centralWidget().findChildren(QWidget, "Card")
+    assert len(cards) == 3  # 状态卡 / 凭据卡 / 导航卡
+
+
+def test_disconnect_button_outlined_when_connected(window):
+    window.connect_button.setChecked(True)  # 凭据为空会早退复位，只看样式切换函数
+    window._apply_connect_button_style(True)
+    assert "border: 2px solid" in window.connect_button.styleSheet()
+    window._apply_connect_button_style(False)
+    assert "border: 2px solid transparent" in window.connect_button.styleSheet()

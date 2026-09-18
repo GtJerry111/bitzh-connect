@@ -179,12 +179,13 @@ class MainWindow(QMainWindow):
 
         # 状态仪表盘（hero 布局）
         self.status_panel = StatusPanel(server_text=self.server_address)
-        layout.addWidget(self.status_panel)
+        layout.addWidget(self._wrap_card(self.status_panel))
 
-        # 资源区（初始隐藏，连接成功展开）
+        # 资源区（初始隐藏，连接成功展开）；显隐由卡片承担，nav_area 自身不再隐藏
         self.nav_area = NavSection()
-        self.nav_area.setVisible(False)
-        layout.addWidget(self.nav_area)
+        self.nav_card = self._wrap_card(self.nav_area)
+        self.nav_card.setVisible(False)
+        layout.addWidget(self.nav_card)
 
         # 凭据区（容器化，连接成功收起）
         self.cred_area = QWidget()
@@ -232,7 +233,8 @@ class MainWindow(QMainWindow):
         opt_row.addStretch()
         cred_layout.addLayout(opt_row)
 
-        layout.addWidget(self.cred_area)
+        self.cred_card = self._wrap_card(self.cred_area)
+        layout.addWidget(self.cred_card)
 
         # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）；
         # 收窄定宽 240px 居中（与资源胶囊组 248px 视觉成组），不再是全宽大色块
@@ -252,7 +254,8 @@ class MainWindow(QMainWindow):
         self.settings_button = QPushButton("设置")
         self.settings_button.setCursor(Qt.PointingHandCursor)
         self.settings_button.clicked.connect(lambda: show_advanced_settings(self))
-        self._apply_theme_styles()
+        # 注：_apply_theme_styles 需 centralWidget 就位（卡片 QSS 挂在中央容器上），
+        # 故移到本方法末尾 setCentralWidget 之后调用
         self.connect_button.toggled.connect(
             lambda: self.start_connection()
             if self.connect_button.isChecked()
@@ -264,6 +267,11 @@ class MainWindow(QMainWindow):
             else self.connect_button.setText("连接")
         )
         self.connect_button.toggled.connect(self.save_credentials)
+        # 按钮样式随勾选态实时切换（连接=绿实心 / 断开=白底绿描边）；
+        # 读实时 isChecked：凭据校验早退复位路径也保持样式一致
+        self.connect_button.toggled.connect(
+            lambda checked: self._apply_connect_button_style(self.connect_button.isChecked())
+        )
         # 输入框禁用态跟随按钮实时勾选态（而非 toggled 参数）：
         # start_connection 凭据校验早退已在前面槽位复位按钮，用参数会把输入框重新禁用
         self.connect_button.toggled.connect(
@@ -328,12 +336,32 @@ class MainWindow(QMainWindow):
         container = WatermarkContainer()
         container.setLayout(layout)
         self.setCentralWidget(container)
+        # 首次样式应用：须在 centralWidget 就位后（卡片 QSS 挂中央容器）
+        self._apply_theme_styles()
 
         # 深浅色切换时刷新样式（含水印透明度重绘）
         theme.on_scheme_changed(self._apply_theme_styles)
         theme.on_scheme_changed(self.status_panel.refresh_theme)
         theme.on_scheme_changed(self.nav_area.refresh_theme)
         theme.on_scheme_changed(container.update)
+
+    def _wrap_card(self, widget) -> QWidget:
+        """卡片容器：objectName=Card，QSS 由 _apply_theme_styles 统一发放。"""
+        card = QWidget()
+        card.setObjectName("Card")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(14, 8, 14, 10)
+        lay.setSpacing(0)
+        lay.addWidget(widget)
+        return card
+
+    def _glass_active(self) -> bool:
+        """主窗口是否装着玻璃/毛玻璃垫层（决定卡片半透还是实色）。"""
+        return (
+            getattr(self, "_glass_view", None) is not None
+            or getattr(self, "_vibrancy_view", None) is not None
+        )
 
     def _connect_on_return(self):
         """回车触发连接：仅凭据齐全且当前未连接时（disabled 态不响应）。"""
@@ -350,51 +378,78 @@ class MainWindow(QMainWindow):
             return
         self._cred_visible = cred_visible
         self._res_visible = res_visible
+        # 卡片容器承担显隐动画（max_height 含卡片上下 padding 24）
         self._animated_height_toggle(
-            self.cred_area, cred_visible, max_height=140, on_frame=self._on_content_resize,
+            self.cred_card, cred_visible, max_height=164, on_frame=self._on_content_resize,
             fade=True,
         )
         self._animated_height_toggle(
-            self.nav_area, res_visible,
-            max_height=max(self.nav_area.sizeHint().height(), 1),
+            self.nav_card, res_visible,
+            max_height=max(self.nav_area.sizeHint().height() + 24, 1),
             on_frame=self._on_content_resize,
             fade=True,
         )
         self.centralWidget().set_motto_visible(not cred_visible)
 
+    def _apply_connect_button_style(self, connected: bool):
+        """连接（绿实心）/ 断开（白底绿描边）双态样式。"""
+        from common import theme
+
+        if not connected:
+            self.connect_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {theme.semantic_color("accent")};
+                    color: {theme.semantic_color("accent_text")};
+                    border: 2px solid transparent;
+                    border-radius: 6px;
+                    font-size: 13pt;
+                    font-weight: 600;
+                }}
+                QPushButton:hover:enabled {{
+                    background-color: {theme.semantic_color("accent_hover")};
+                }}
+                /* pressed 态：背景加深 + 内容下沉 1px。
+                   QSS 无 transition，按压/弹回即时生效——与 Apple 按钮按压行为一致
+                   （按压即暗即沉，无延迟动画）。"下沉"用 padding 而非 margin/position：
+                   布局管理的 widget 直接 move 会被布局覆盖，margin 会推挤邻近行
+                   （底部工具行抖动），padding-top 只让内容在固定按钮框内下移，零副作用。 */
+                QPushButton:pressed {{
+                    background-color: {theme.semantic_color("accent_pressed")};
+                    padding-top: 1px;  /* 按压下沉 1px（内容偏移；按钮外框/布局不动） */
+                }}
+                QPushButton:focus {{
+                    border: 2px solid {theme.with_alpha("accent", 0.5)};
+                }}
+                QPushButton:disabled {{
+                    background-color: {theme.semantic_color("accent_disabled")};
+                    color: {theme.semantic_color("accent_text")};
+                }}
+            """)
+        else:
+            self.connect_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {theme.semantic_color("accent")};
+                    border: 2px solid {theme.semantic_color("accent")};
+                    border-radius: 6px;
+                    font-size: 13pt;
+                    font-weight: 600;
+                }}
+                QPushButton:hover:enabled {{
+                    background-color: {theme.with_alpha("accent", 0.08)};
+                }}
+                QPushButton:pressed {{
+                    background-color: {theme.with_alpha("accent", 0.16)};
+                    padding-top: 1px;
+                }}
+            """)
+
     def _apply_theme_styles(self):
         """主题相关样式统一入口（深浅色切换时重放）。"""
         from common import theme
 
-        self.connect_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {theme.semantic_color("accent")};
-                color: {theme.semantic_color("accent_text")};
-                border: 2px solid transparent;
-                border-radius: 6px;
-                font-size: 13pt;
-                font-weight: 600;
-            }}
-            QPushButton:hover:enabled {{
-                background-color: {theme.semantic_color("accent_hover")};
-            }}
-            /* pressed 态：背景加深 + 内容下沉 1px。
-               QSS 无 transition，按压/弹回即时生效——与 Apple 按钮按压行为一致
-               （按压即暗即沉，无延迟动画）。"下沉"用 padding 而非 margin/position：
-               布局管理的 widget 直接 move 会被布局覆盖，margin 会推挤邻近行
-               （底部工具行抖动），padding-top 只让内容在固定按钮框内下移，零副作用。 */
-            QPushButton:pressed {{
-                background-color: {theme.semantic_color("accent_pressed")};
-                padding-top: 1px;  /* 按压下沉 1px（内容偏移；按钮外框/布局不动） */
-            }}
-            QPushButton:focus {{
-                border: 2px solid {theme.with_alpha("accent", 0.5)};
-            }}
-            QPushButton:disabled {{
-                background-color: {theme.semantic_color("accent_disabled")};
-                color: {theme.semantic_color("accent_text")};
-            }}
-        """)
+        # 连接按钮样式抽出为独立方法（双态 + toggled 实时重放）
+        self._apply_connect_button_style(False)
         # 退出/设置：次要文字按钮（无边框灰字，hover 升到主文字色）
         # 字号用 pt 不用 px：QSS 的 px 是物理像素，Retina 下比同值 pt 小一截
         text_button_style = f"""
@@ -438,6 +493,12 @@ class MainWindow(QMainWindow):
             palette = line_edit.palette()
             palette.setColor(QPalette.PlaceholderText, placeholder)
             line_edit.setPalette(palette)
+        # 卡片样式（玻璃半透 / 实色，随材质与深浅色重放）
+        self.centralWidget().setStyleSheet(
+            f"QWidget#Card {{ {theme.card_qss(glass=self._glass_active())} }}"
+        )
+        # 连接按钮样式按实时勾选态重放（深浅色/外观切换时保持断开描边或连接实心）
+        self._apply_connect_button_style(self.connect_button.isChecked())
 
     def eventFilter(self, obj, event):
         # 禁用态下 Qt 不派发 tooltip：拦截后手动弹出（内联校验的提示依赖此路径）
