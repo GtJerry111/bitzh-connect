@@ -132,30 +132,6 @@ class MainWindow(QMainWindow):
         )
         if cleanup_residue_proxy(self):
             self.output_text.append("[BITZH Connect] 已清理上次异常退出残留的系统代理\n")
-        # 主窗口液态玻璃（macOS 26+；旧系统回退毛玻璃；垫层装上才开透明底，
-        # 否则保持不透明——offscreen/桥接失败不留透明窗）
-        if system() == "Darwin":
-            from PySide6.QtWidgets import QApplication
-
-            from utils.macos_glass import install_glass
-            from utils.macos_vibrancy import install_vibrancy
-
-            cocoa = QApplication.platformName() == "cocoa"
-            # WA_TranslucentBackground 只在原生窗口创建时转 alpha buffer：
-            # 必须在 winId() 之前设置，否则真机玻璃被不透明 contentView 盖住；
-            # 仅真实 cocoa 才设（offscreen 不触碰原生、保持不透明）
-            if cocoa:
-                self.setAttribute(Qt.WA_TranslucentBackground, True)
-            self.winId()  # 真实化 NSWindow（不 show）
-            if not install_glass(self, corner_radius=12.0):
-                install_vibrancy(self, corner_radius=12.0)
-            if cocoa and not self._glass_active():
-                # 两种垫层都失败：撤掉透明底并丢弃已建原生窗口，避免留下无垫层的空透明窗
-                self.setAttribute(Qt.WA_TranslucentBackground, False)
-                self.destroy()  # PySide6 提供：销毁原生窗口（已验证 hasattr）
-                self.winId()
-            theme.on_scheme_changed(self._update_backdrop)
-            self._apply_theme_styles()  # 玻璃态就位后重放卡片 QSS（半透 vs 实色）
         # 原生状态栏项（macOS，桥接失败回退 QSystemTrayIcon）；须在任何
         # 可能关闭窗口/退出流程的方法之前就位
         self._mac_status_item = None
@@ -203,13 +179,12 @@ class MainWindow(QMainWindow):
 
         # 状态仪表盘（hero 布局）
         self.status_panel = StatusPanel(server_text=self.server_address)
-        layout.addWidget(self._wrap_card(self.status_panel))
+        layout.addWidget(self.status_panel)
 
-        # 资源区（初始隐藏，连接成功展开）；显隐由卡片承担，nav_area 自身不再隐藏
+        # 资源区（初始隐藏，连接成功展开）
         self.nav_area = NavSection()
-        self.nav_card = self._wrap_card(self.nav_area)
-        self.nav_card.setVisible(False)
-        layout.addWidget(self.nav_card)
+        self.nav_area.setVisible(False)
+        layout.addWidget(self.nav_area)
 
         # 凭据区（容器化，连接成功收起）
         self.cred_area = QWidget()
@@ -257,8 +232,7 @@ class MainWindow(QMainWindow):
         opt_row.addStretch()
         cred_layout.addLayout(opt_row)
 
-        self.cred_card = self._wrap_card(self.cred_area)
-        layout.addWidget(self.cred_card)
+        layout.addWidget(self.cred_area)
 
         # 连接按钮（BIT 绿 accent，悬停微亮/按下加深/禁用衰减，焦点环兜底）；
         # 收窄定宽 240px 居中（与资源胶囊组 248px 视觉成组），不再是全宽大色块
@@ -369,24 +343,6 @@ class MainWindow(QMainWindow):
         theme.on_scheme_changed(self.nav_area.refresh_theme)
         theme.on_scheme_changed(container.update)
 
-    def _wrap_card(self, widget) -> QWidget:
-        """卡片容器：objectName=Card，QSS 由 _apply_theme_styles 统一发放。"""
-        card = QWidget()
-        card.setObjectName("Card")
-        card.setAttribute(Qt.WA_StyledBackground, True)
-        lay = QVBoxLayout(card)
-        lay.setContentsMargins(14, 8, 14, 10)
-        lay.setSpacing(0)
-        lay.addWidget(widget)
-        return card
-
-    def _glass_active(self) -> bool:
-        """主窗口是否装着玻璃/毛玻璃垫层（决定卡片半透还是实色）。"""
-        return (
-            getattr(self, "_glass_view", None) is not None
-            or getattr(self, "_vibrancy_view", None) is not None
-        )
-
     def _connect_on_return(self):
         """回车触发连接：仅凭据齐全且当前未连接时（disabled 态不响应）。"""
         if self.connect_button.isEnabled() and not self.connect_button.isChecked():
@@ -402,14 +358,13 @@ class MainWindow(QMainWindow):
             return
         self._cred_visible = cred_visible
         self._res_visible = res_visible
-        # 卡片容器承担显隐动画（max_height 含卡片上下 padding 18，上限含余量）
         self._animated_height_toggle(
-            self.cred_card, cred_visible, max_height=164, on_frame=self._on_content_resize,
+            self.cred_area, cred_visible, max_height=140, on_frame=self._on_content_resize,
             fade=True,
         )
         self._animated_height_toggle(
-            self.nav_card, res_visible,
-            max_height=max(self.nav_area.sizeHint().height() + 24, 1),
+            self.nav_area, res_visible,
+            max_height=max(self.nav_area.sizeHint().height(), 1),
             on_frame=self._on_content_resize,
             fade=True,
         )
@@ -472,8 +427,6 @@ class MainWindow(QMainWindow):
         """主题相关样式统一入口（深浅色切换时重放）。"""
         from common import theme
 
-        # 连接按钮样式抽出为独立方法（双态 + toggled 实时重放）
-        self._apply_connect_button_style(False)
         # 退出/设置：次要文字按钮（无边框灰字，hover 升到主文字色）
         # 字号用 pt 不用 px：QSS 的 px 是物理像素，Retina 下比同值 pt 小一截
         text_button_style = f"""
@@ -517,10 +470,6 @@ class MainWindow(QMainWindow):
             palette = line_edit.palette()
             palette.setColor(QPalette.PlaceholderText, placeholder)
             line_edit.setPalette(palette)
-        # 卡片样式（玻璃半透 / 实色，随材质与深浅色重放）
-        self.centralWidget().setStyleSheet(
-            f"QWidget#Card {{ {theme.card_qss(glass=self._glass_active())} }}"
-        )
         # 连接按钮样式按实时勾选态重放（深浅色/外观切换时保持断开描边或连接实心）
         self._apply_connect_button_style(self.connect_button.isChecked())
 
@@ -563,14 +512,6 @@ class MainWindow(QMainWindow):
             return
         if not self.isVisible():
             self.open_main_window()
-
-    def _update_backdrop(self):
-        """深浅色切换：同步玻璃/毛玻璃外观（绑定方法注册，theme 按身份去重）。"""
-        from utils.macos_glass import update_glass_appearance
-        from utils.macos_vibrancy import update_vibrancy_appearance
-
-        update_glass_appearance(self)
-        update_vibrancy_appearance(self)  # 未安装的一侧安静返回
 
     def open_main_window(self, focus_credentials: bool = False):
         """打开主窗口（托盘菜单/面板 pill/Dock 激活的统一入口）。"""

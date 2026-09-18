@@ -111,8 +111,14 @@ def test_update_glass_appearance_noop_when_not_installed(qtbot):
     update_glass_appearance(w)  # 未安装：安静返回，不抛异常
 
 
-def test_backdrop_update_dispatches_both(window, monkeypatch):
-    """深浅色切换回调同时分发玻璃与毛玻璃更新（未安装一侧安静返回）。"""
+def test_backdrop_update_dispatches_both(window, monkeypatch, qtbot):
+    """深浅色切换回调同时分发玻璃与毛玻璃更新（未安装一侧安静返回）。
+
+    主窗口不装垫层（液态玻璃为菜单栏面板专属）；分发职责在快捷面板
+    _refresh_theme，此处经面板验证。
+    """
+    from views.menu_bar_panel import MenuBarPanel
+
     updated = []
     monkeypatch.setattr(
         "utils.macos_glass.update_glass_appearance", lambda w: updated.append("g")
@@ -121,7 +127,9 @@ def test_backdrop_update_dispatches_both(window, monkeypatch):
         "utils.macos_vibrancy.update_vibrancy_appearance",
         lambda w: updated.append("v"),
     )
-    window._update_backdrop()
+    panel = MenuBarPanel(window)
+    qtbot.addWidget(panel)
+    panel._refresh_theme()
     assert updated == ["g", "v"]
 
 

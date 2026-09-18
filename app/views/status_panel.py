@@ -90,7 +90,7 @@ class StatusPanel(QWidget):
 
         layout = QVBoxLayout()
         layout.setSpacing(6)
-        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setContentsMargins(0, 24, 0, 0)
 
         # ---- hero：圆点/旋转弧（同槽位等径互斥）+ 状态词 + 副标题 ----
         self.spinner = BusySpinner(self, diameter=20)
@@ -270,8 +270,8 @@ class StatusPanel(QWidget):
     def refresh_theme(self):
         """深浅色/外观切换时刷新依赖主题色的样式（含圆点/状态词当前态重解析）。
 
-        注：卡片由主窗口卡片容器承担（玻璃半透），本组件保持透明——
-        不透明卡片会盖住校训水印，得失不偿；水印即质感。
+        注：主窗口不做卡片分层——不透明卡片会盖住校训水印，得不偿失；
+        深浅色统一保持透明，水印即质感。
         """
         self.setStyleSheet("")
         secondary = theme.semantic_color("secondary_text")
