@@ -25,7 +25,6 @@ _NS_VISUAL_EFFECT_STATE_ACTIVE = 1  # 不随窗口失焦变灰（面板本就是
 _NS_WINDOW_BELOW = -1               # NSWindowOrderingMode
 # NSAutoresizingMaskOptions：WidthSizable | HeightSizable
 _AUTORESIZE = 2 | 16
-_CORNER_RADIUS = 10.0
 
 
 def _nsview_of(window):
@@ -35,8 +34,11 @@ def _nsview_of(window):
     return objc.objc_object(c_void_p=__import__("ctypes").c_void_p(int(window.winId())))
 
 
-def install_vibrancy(window) -> bool:
-    """为窗口安装毛玻璃背景（幂等）。返回是否成功。"""
+def install_vibrancy(window, corner_radius: float = 10.0) -> bool:
+    """为窗口安装毛玻璃背景（幂等）。
+
+    corner_radius 与面板 QSS 圆角一致；默认 10.0 兼容既有调用。返回是否成功。
+    """
     from PySide6.QtWidgets import QApplication
 
     # 非 cocoa 平台 winId 不是 NSView 指针（offscreen 下为 1），桥接会段错误
@@ -61,7 +63,7 @@ def install_vibrancy(window) -> bool:
         effect.setBlendingMode_(_NS_VISUAL_EFFECT_BLENDING_BEHIND_WINDOW)
         effect.setState_(_NS_VISUAL_EFFECT_STATE_ACTIVE)
         effect.setWantsLayer_(True)
-        effect.layer().setCornerRadius_(_CORNER_RADIUS)
+        effect.layer().setCornerRadius_(corner_radius)
         effect.layer().setMasksToBounds_(True)
         # 关键：置于 host 中、contentView 之下（不能加到 contentView 里，否则盖住内容）
         host.addSubview_positioned_relativeTo_(effect, _NS_WINDOW_BELOW, content)

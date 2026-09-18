@@ -21,7 +21,6 @@ from utils.macos_vibrancy import _nsview_of
 
 _NS_WINDOW_BELOW = -1    # NSWindowOrderingMode
 _AUTORESIZE = 2 | 16     # WidthSizable | HeightSizable
-_CORNER_RADIUS = 10.0    # 与面板 QSS 圆角一致（HIG：圆角连续）
 _GLASS_STYLE = 0         # NSGlassEffectStyleRegular（spike 选定；clear=1）
 
 
@@ -45,8 +44,12 @@ def glass_available() -> bool:
         return False
 
 
-def install_glass(window) -> bool:
-    """为窗口安装液态玻璃背景（幂等）。返回是否成功；失败由调用方回退 vibrancy。"""
+def install_glass(window, corner_radius: float = 10.0) -> bool:
+    """为窗口安装液态玻璃背景（幂等）。
+
+    corner_radius 与面板 QSS 圆角一致（HIG：圆角连续）；默认 10.0 兼容既有调用。
+    返回是否成功；失败由调用方回退 vibrancy。
+    """
     if not glass_available():
         return False
     if getattr(window, "_glass_view", None) is not None:
@@ -63,7 +66,7 @@ def install_glass(window) -> bool:
         # frame 与 content 完全重合；autoresize 跟随窗口尺寸
         glass = glass_cls.alloc().initWithFrame_(content.frame())
         glass.setAutoresizingMask_(_AUTORESIZE)
-        glass.setCornerRadius_(_CORNER_RADIUS)
+        glass.setCornerRadius_(corner_radius)
         glass.setStyle_(_GLASS_STYLE)
         # 关键：置于 host 中、contentView 之下（不能加到 contentView 里）
         host.addSubview_positioned_relativeTo_(glass, _NS_WINDOW_BELOW, content)

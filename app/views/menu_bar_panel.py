@@ -5,7 +5,8 @@
 状态镜像：只读 MainWindow/StatusPanel（state_changed 信号即时 + 1s 轮询时长/速率），
 不复制状态机；toggle 拨动 = main.connect_button.setChecked（校验早退会复位按钮，
 面板经 toggled 镜像弹回）。
-外壳（flags/玻璃/定位/动画）见 Task 4——本文件结构与方法全集在此。
+外壳：无边框置顶透明窗口 + 22px 玻璃/毛玻璃 + 图标锚定定位 +
+慢开快收动画 + Esc/失焦收起 + 抢焦点激活。
 """
 from platform import system
 
@@ -161,6 +162,24 @@ class MenuBarPanel(QWidget):
         self._poll.timeout.connect(self._sync_metrics)
         self._sync_from_main()
         self._sync_metrics()
+
+        # Esc 收起（面板无标题栏/关闭按钮，Esc 是显式收起的键盘路径）
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        self._esc = QShortcut(QKeySequence("Esc"), self)
+        self._esc.setContext(Qt.WindowShortcut)
+        self._esc.activated.connect(self.hide_panel)
+        self.winId()  # 真实化 NSWindow，供玻璃垫层安装
+        from utils.macos_glass import install_glass
+
+        if not install_glass(self, corner_radius=22.0):
+            from utils.macos_vibrancy import install_vibrancy
+
+            install_vibrancy(self, corner_radius=22.0)
+        # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
+        from utils.macos_panel_shape import round_panel_window
+
+        round_panel_window(self)
 
     # ---- 结构 ----
 
@@ -439,7 +458,7 @@ class MenuBarPanel(QWidget):
 
         show_advanced_settings(self._main)
 
-    # ---- 显隐（Task 4 填动画/定位；先给最小可用） ----
+    # ---- 显隐（位置：图标下缘居中并由 panel_geometry 夹紧到屏内） ----
 
     def toggle(self):
         if self.isVisible():
@@ -447,12 +466,127 @@ class MenuBarPanel(QWidget):
         else:
             self.show_panel()
 
+    # 展开 220ms 下滑 8px+淡入；收起 160ms 淡出（grilling 定稿"慢开快收"）
+    _SHOW_MS = 220
+    _HIDE_MS = 160
+    _SLIDE_PX = 8
+
     def show_panel(self, animated: bool = True):
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        from PySide6.QtWidgets import QApplication
+        from utils.panel_geometry import panel_geometry
+
+        self._anim_gen = getattr(self, "_anim_gen", 0) + 1
+        self._stop_hide_anim()
         self._sync_from_main()
         self._sync_metrics()
+        self.adjustSize()
+        item = getattr(self._main, "_mac_status_item", None)
+        icon_rect = item.icon_global_rect() if item is not None else None
+        screen = None
+        if icon_rect is not None:
+            screen = QApplication.screenAt(icon_rect.center())
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        geo = panel_geometry(icon_rect, screen.availableGeometry(), self.size())
+        self.move(geo.topLeft())
+        animated = animated and not reduce_motion()
+        if not animated:
+            self.setWindowOpacity(1.0)
+            self.show()
+            self._poll.start()
+            self._activate()
+            return
+        self.setWindowOpacity(0.0)
+        target = self.pos()
+        self.move(target.x(), target.y() - self._SLIDE_PX)
         self.show()
+        anim_pos = QPropertyAnimation(self, b"pos", self)
+        anim_pos.setDuration(self._SHOW_MS)
+        anim_pos.setStartValue(self.pos())
+        anim_pos.setEndValue(target)
+        anim_pos.setEasingCurve(QEasingCurve.OutCubic)
+        anim_opacity = QPropertyAnimation(self, b"windowOpacity", self)
+        anim_opacity.setDuration(self._SHOW_MS)
+        anim_opacity.setStartValue(0.0)
+        anim_opacity.setEndValue(1.0)
+        anim_opacity.setEasingCurve(QEasingCurve.OutCubic)
+        self._show_anims = (anim_pos, anim_opacity)  # 防 GC
+        anim_pos.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        anim_opacity.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
         self._poll.start()
+        self._activate()
 
     def hide_panel(self):
-        self._poll.stop()
-        self.hide()
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+
+        self._anim_gen = getattr(self, "_anim_gen", 0) + 1
+        gen = self._anim_gen
+        self._stop_hide_anim()
+        self._stop_show_anims()
+        if reduce_motion() or not self.isVisible():
+            self.hide()
+            self.setWindowOpacity(1.0)
+            self._poll.stop()
+            return
+        anim = QPropertyAnimation(self, b"windowOpacity", self)
+        anim.setDuration(self._HIDE_MS)
+        anim.setStartValue(self.windowOpacity())
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+
+        def _finish():
+            if getattr(self, "_anim_gen", 0) != gen:
+                return  # 期间又 show/hide 过：陈旧回调不得决定终态
+            self.hide()
+            self.setWindowOpacity(1.0)
+            self._poll.stop()
+
+        anim.finished.connect(_finish)
+        self._hide_anim = anim
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    def _stop_show_anims(self):
+        anims = getattr(self, "_show_anims", None)
+        self._show_anims = None
+        for anim in anims or ():
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
+    def _stop_hide_anim(self):
+        anim = getattr(self, "_hide_anim", None)
+        self._hide_anim = None
+        if anim is not None:
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+
+    def _activate(self):
+        """Accessory 策略下抢键盘焦点（Esc/点击控件依赖）。"""
+        from PySide6.QtWidgets import QApplication
+
+        self.raise_()
+        self.activateWindow()
+        if system() == "Darwin" and QApplication.platformName() == "cocoa":
+            try:
+                import ctypes
+
+                import objc
+
+                nsapp = objc.lookUpClass("NSApplication").sharedApplication()
+                nsapp.activateIgnoringOtherApps_(True)
+                view = objc.objc_object(c_void_p=ctypes.c_void_p(int(self.winId())))
+                view.window().makeKeyAndOrderFront_(None)
+            except Exception:
+                pass
+
+    def event(self, e):
+        """失焦自动收起（IME 候选窗不触发本事件，中文输入不误关）。"""
+        if e.type() == QEvent.WindowDeactivate and self.isVisible():
+            self.hide_panel()
+        return super().event(e)

@@ -81,3 +81,44 @@ def test_sync_metrics_heals_toggle_desync_after_silent_reset(panel, main):
     panel._sync_metrics()  # 1s 轮询
 
     assert not panel._toggle.isChecked()  # 自愈到实际态
+
+
+def test_panel_window_flags(panel):
+    from PySide6.QtCore import Qt
+
+    flags = panel.windowFlags()
+    assert flags & Qt.FramelessWindowHint
+    assert flags & Qt.Tool
+    assert flags & Qt.WindowStaysOnTopHint
+    assert panel.testAttribute(Qt.WA_TranslucentBackground)
+
+
+def test_esc_hides_panel(panel, qtbot, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    assert panel.isVisible()
+    panel._esc.activated.emit()
+    assert not panel.isVisible()
+
+
+def test_hide_on_deactivate(panel, qtbot, monkeypatch):
+    from PySide6.QtCore import QEvent
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    panel.event(QEvent(QEvent.WindowDeactivate))
+    assert not panel.isVisible()
+
+
+def test_show_panel_anchors_on_screen(panel, qtbot, monkeypatch):
+    """无状态栏项（offscreen）退化到屏幕右上角可见区域内。"""
+    from PySide6.QtWidgets import QApplication
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    geo = QApplication.primaryScreen().availableGeometry()
+    assert geo.contains(panel.geometry().topLeft())
+    panel.hide_panel()

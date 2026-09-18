@@ -1,9 +1,9 @@
 # app/utils/macos_panel_shape.py
 """面板窗口圆角：让系统窗口阴影跟随玻璃圆角，消除四角方形阴影残留。
 
-现象：面板玻璃本身圆角正确（NSGlassEffectView.cornerRadius=10），但四角仍有
+现象：面板玻璃本身圆角正确（NSGlassEffectView.cornerRadius=22），但四角仍有
 小直角。根因是 NSWindow 恒为矩形，macOS 按**矩形窗口边界**生成窗口阴影，
-方形阴影从 10px 圆角玻璃外露出。invalidateShadow() 无效；把窗口 frame 视图
+方形阴影从 22px 圆角玻璃外露出。invalidateShadow() 无效；把窗口 frame 视图
 （contentView 的父视图）也设成同半径圆角 + masksToBounds 后，阴影随圆角走。
 
 切回浮动形态必须还原（去掉 mask/radius），否则普通窗口四角会被裁掉。
@@ -12,7 +12,7 @@
 """
 from platform import system
 
-_CORNER_RADIUS = 10.0  # 与面板 QSS 圆角、玻璃 cornerRadius 一致
+_CORNER_RADIUS = 22.0  # 与面板 QSS 圆角、玻璃 cornerRadius 一致
 
 
 def _cocoa_window(window):
