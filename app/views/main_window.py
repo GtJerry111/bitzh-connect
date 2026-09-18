@@ -135,15 +135,25 @@ class MainWindow(QMainWindow):
         # 主窗口液态玻璃（macOS 26+；旧系统回退毛玻璃；垫层装上才开透明底，
         # 否则保持不透明——offscreen/桥接失败不留透明窗）
         if system() == "Darwin":
-            self.winId()  # 真实化 NSWindow（不 show）
+            from PySide6.QtWidgets import QApplication
+
             from utils.macos_glass import install_glass
+            from utils.macos_vibrancy import install_vibrancy
 
-            if not install_glass(self, corner_radius=12.0):
-                from utils.macos_vibrancy import install_vibrancy
-
-                install_vibrancy(self, corner_radius=12.0)
-            if self._glass_active():
+            cocoa = QApplication.platformName() == "cocoa"
+            # WA_TranslucentBackground 只在原生窗口创建时转 alpha buffer：
+            # 必须在 winId() 之前设置，否则真机玻璃被不透明 contentView 盖住；
+            # 仅真实 cocoa 才设（offscreen 不触碰原生、保持不透明）
+            if cocoa:
                 self.setAttribute(Qt.WA_TranslucentBackground, True)
+            self.winId()  # 真实化 NSWindow（不 show）
+            if not install_glass(self, corner_radius=12.0):
+                install_vibrancy(self, corner_radius=12.0)
+            if cocoa and not self._glass_active():
+                # 两种垫层都失败：撤掉透明底并丢弃已建原生窗口，避免留下无垫层的空透明窗
+                self.setAttribute(Qt.WA_TranslucentBackground, False)
+                self.destroy()  # PySide6 提供：销毁原生窗口（已验证 hasattr）
+                self.winId()
             theme.on_scheme_changed(self._update_backdrop)
             self._apply_theme_styles()  # 玻璃态就位后重放卡片 QSS（半透 vs 实色）
         # 原生状态栏项（macOS，桥接失败回退 QSystemTrayIcon）；须在任何
