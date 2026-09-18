@@ -1,6 +1,7 @@
 # tests/test_menu_bar_panel.py
 """菜单栏快捷面板（offscreen：玻璃/状态栏项桥接自动回退，结构行为全可测）。"""
 import pytest
+from PySide6.QtCore import QSignalBlocker
 
 
 @pytest.fixture
@@ -65,3 +66,18 @@ def test_no_credentials_hint_and_open_main(panel, main, monkeypatch):
     assert panel._hint_active
     assert panel._subtitle.text() == "请先在主窗口填写凭据"
     assert opened == [True]
+
+
+def test_sync_metrics_heals_toggle_desync_after_silent_reset(panel, main):
+    # 复现 QSignalBlocker 静默复位 connect_button 后的错位：
+    # connect_button 实际未勾选，但面板 toggle 仍卡在 ON（toggled 被屏蔽不回环）。
+    with QSignalBlocker(panel._toggle):
+        panel._toggle.setChecked(True)
+    with QSignalBlocker(main.connect_button):
+        main.connect_button.setChecked(False)
+    assert panel._toggle.isChecked()  # 面板显示 ON
+    assert not main.connect_button.isChecked()  # 实际未连接
+
+    panel._sync_metrics()  # 1s 轮询
+
+    assert not panel._toggle.isChecked()  # 自愈到实际态

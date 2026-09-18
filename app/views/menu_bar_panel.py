@@ -350,6 +350,10 @@ class MenuBarPanel(QWidget):
                 f"color: {theme.semantic_color('secondary_text' if placeholder else 'ink')};"
             )
         self._sync_mode_label()
+        # 兜底自愈：QSignalBlocker 静默复位 connect_button 的路径（进程意外退出/认证失败/
+        # TUN 授权取消/冲突）不触发 toggled 回调，轮询里补一次 toggle 同步，
+        # 避免面板卡在与实际不符的 ON 态（≤1s 收敛；面板隐藏时 show_panel 会再同步）。
+        self._sync_toggle(self._main.connect_button.isChecked())
 
     def _sync_mode_label(self):
         self._mode_row.value.setText("TUN" if self._main.tun_mode else "代理")
