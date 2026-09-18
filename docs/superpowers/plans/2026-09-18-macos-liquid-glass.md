@@ -233,8 +233,9 @@ git commit -m "test: 液态玻璃 spike——NSGlassEffectView 垫层真机验�
 ```
 
 **== Task 1 结论（2026-09-18 真机验收）==**
-- 选定 style：**regular（`_GLASS_STYLE = 0`）**。clear 档过于通透，弃用。
-- 用户真机逐条验收，未报告异常项；玻璃折射/边缘高光肉眼可见，z-order 正确（不盖 Qt 控件）。
+- 选定 style：**regular（`_GLASS_STYLE = 0`）**（用户真机运行后选定；clear 未选作默认）。
+- 用户真机运行 regular 档并选定，**未报告异常项**；本计划未逐条记录 8 条清单结果（以"无异常反馈"为准）。
+- controller 经截图复核：玻璃垫层正常渲染（clear 档可见明显折射）、z-order 正确（Qt 控件可见，未被玻璃盖住）。
 - 偏离记录（真机运行必需，脚本与 plan 代码块已同步；commit be8bca7/57e282f/b62df34）：
   - `objc.lookUpClass` 未知类抛错而非返回 None → 可用性检测改 `try/except`。
   - 多屏下 Qt 默认把窗口放到副屏 → 显式居中主屏；补 `signal(SIGINT, SIG_DFL)` 复位（Cocoa runloop 吞 SIGINT）；`QApplication(sys.argv[:1])` 去 Qt `--style` 告警。
