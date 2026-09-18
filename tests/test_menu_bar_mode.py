@@ -484,18 +484,47 @@ def test_panel_chrome_falls_back_to_vibrancy(window, monkeypatch):
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
-def test_exit_panel_mode_removes_both_backdrops(window, monkeypatch):
-    """切回浮动模式：玻璃与毛玻璃都拆除（幂等安静，防御同会话残留）。"""
-    removed = []
+def test_panel_chrome_falls_back_when_glass_install_fails(window, monkeypatch):
+    """玻璃类存在但安装失败：回退毛玻璃，绝不留下透明底窗口。"""
+    calls = []
+    monkeypatch.setattr("utils.macos_glass.glass_available", lambda: True)
     monkeypatch.setattr(
-        "utils.macos_glass.remove_glass", lambda w: removed.append("glass")
+        "utils.macos_glass.install_glass", lambda w: calls.append("glass") or False
     )
     monkeypatch.setattr(
-        "utils.macos_vibrancy.remove_vibrancy", lambda w: removed.append("vibrancy")
+        "utils.macos_vibrancy.install_vibrancy",
+        lambda w: calls.append("vibrancy") or True,
+    )
+    window.set_menu_bar_mode(True)
+    assert calls == ["glass", "vibrancy"]
+
+
+@pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
+def test_exit_panel_mode_removes_both_backdrops(window, monkeypatch):
+    """切回浮动模式：玻璃与毛玻璃都拆除（幂等安静，防御同会话残留）。
+
+    install 也打桩：否则真 cocoa 下会真的装上原生背景视图，而打桩的
+    remove 永远拆不掉它，污染原生状态。
+    """
+    events = []
+    monkeypatch.setattr(
+        "utils.macos_glass.install_glass",
+        lambda w: events.append("install_glass") or True,
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.install_vibrancy",
+        lambda w: events.append("install_vibrancy") or True,
+    )
+    monkeypatch.setattr(
+        "utils.macos_glass.remove_glass", lambda w: events.append("remove_glass")
+    )
+    monkeypatch.setattr(
+        "utils.macos_vibrancy.remove_vibrancy", lambda w: events.append("remove_vibrancy")
     )
     window.set_menu_bar_mode(True)
     window.set_menu_bar_mode(False)
-    assert removed == ["glass", "vibrancy"]
+    # offscreen 下 glass_available() 为 False → 走 vibrancy 安装；退出双拆
+    assert events == ["install_vibrancy", "remove_glass", "remove_vibrancy"]
 
 
 @pytest.mark.skipif(system() != "Darwin", reason="菜单栏面板仅 macOS")
