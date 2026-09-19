@@ -384,10 +384,12 @@ class MenuBarPanel(QWidget):
         card.addWidget(self._stats_area)
         root.addWidget(self.conn_card)
 
-        # 裸行区（行间 0.5px hairline）
+        # 行区包半透卡（clear 玻璃上裸行被亮背景冲刷；行间 0.5px hairline）
         self._rows = QWidget()
+        self._rows.setObjectName("PanelCard")
+        self._rows.setAttribute(Qt.WA_StyledBackground, True)
         rows = QVBoxLayout(self._rows)
-        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setContentsMargins(0, 4, 0, 4)  # 卡片上下呼吸位
         rows.setSpacing(0)
         self._mode_row = _Row("swap", "连接模式")
         self._mode_row.set_trailing(_Icon("chevron_right", 10))
@@ -531,9 +533,9 @@ class MenuBarPanel(QWidget):
         self._sync_from_main()            # _status/_dot 颜色按新主题重解析
 
     def _apply_styles(self):
-        self.conn_card.setStyleSheet(
-            f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
-        )
+        card_qss = f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
+        self.conn_card.setStyleSheet(card_qss)
+        self._rows.setStyleSheet(card_qss)  # 行区卡：clear 玻璃上裸行的可读性兜底
         # 分隔线随主题重算（面板懒创建且永驻，不能停留在旧主题色）
         self._card_hairline.setStyleSheet(
             f"color: {theme.with_alpha('separator', 0.6)};"

@@ -56,8 +56,9 @@ def _render_template(name: str, canvas: int) -> QImage | None:
         sym = ns_image.imageWithSystemSymbolName_accessibilityDescription_(name, None)
         if sym is None:
             return None
-        # 13pt + regular（NSFontWeightRegular=5）：官方字重体系默认档
-        config = config_cls.configurationWithPointSize_weight_(13.0, 5)
+        # 13pt + Light（NSFontWeightLight=-0.4；注意该参数是 CGFloat 偏移量语义，
+        # Regular=0.0——真机 A/B 定稿 Light，参考图纤细感；误传 5 会拉成超粗黑块）
+        config = config_cls.configurationWithPointSize_weight_(13.0, -0.4)
         sym = sym.imageWithSymbolConfiguration_(config)
         sym.setTemplate_(True)  # 模板图：黑色 + alpha，颜色留给 Qt 侧
         sw, sh = sym.size()  # pyobjc 返回 tuple

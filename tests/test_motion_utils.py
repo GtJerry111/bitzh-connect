@@ -47,8 +47,17 @@ def test_animated_height_toggle_final_frame_reanchors(qtbot):
     qtbot.addWidget(w)
     w.show()
     calls = []
-    animated_height_toggle(w, True, max_height=120, on_frame=lambda: calls.append(w.maximumHeight()))
+    anim = animated_height_toggle(
+        w, True, max_height=120, on_frame=lambda: calls.append(w.maximumHeight())
+    )
     # 动画完成 = maximumHeight 释放回 QWIDGETSIZE_MAX
     qtbot.waitUntil(lambda: w.maximumHeight() == 16777215, timeout=2000)
     # 终态 on_frame 必须发生在 maxHeight 释放之后（最后一帧记录为 MAX）
     assert calls and calls[-1] == 16777215
+    # 生命周期纪律（PySide6 6.11 实测段错误）：DeleteWhenStopped 的 DeferredDelete
+    # 被事件循环处理时若 Python 包装器已回收 → QObject 析构段错误。
+    # 顺序必须：引用还在时先泵送事件（让 DeferredDelete 落到有效代理上），再清引用
+    qtbot.wait(0)
+    anim = None
+    w.deleteLater()
+    qtbot.wait(0)
