@@ -23,7 +23,6 @@ from common import theme
 from common.constants import NAV_GROUPS
 from utils.macos_sf_symbols import sf_symbol_pixmap
 from utils.motion_utils import animated_height_toggle, reduce_motion
-from views.chevron import Chevron
 from views.status_panel import StatusDot
 from views.toggle_switch import ToggleSwitch
 
@@ -102,6 +101,47 @@ class _Icon(QWidget):
         painter.setPen(pen)
         painter.scale(self.width() / 24.0, self.width() / 24.0)
         _draw_icon(painter, self._kind)
+        painter.end()
+
+
+class _SfChevron(QWidget):
+    """SF chevron.down 旋转折叠指示：与行尾 chevron.right 同字重（自绘细线版粗细不搭）。
+
+    角度语义沿用旧 Chevron：90=下（收起），270=上（展开），由外部 QVariantAnimation 驱动。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(12, 12)
+        self._angle = 90.0
+
+    def set_angle(self, deg: float):
+        self._angle = deg
+        self.update()
+
+    def paintEvent(self, event):
+        pm = sf_symbol_pixmap(
+            "chevron_down", self.width(), theme.semantic_color("secondary_text")
+        )
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        if pm is not None:
+            painter.save()
+            painter.translate(self.width() / 2, self.height() / 2)
+            painter.rotate(self._angle - 90.0)  # 90°=基准（向下）
+            painter.drawPixmap(QPointF(-self.width() / 2, -self.height() / 2), pm)
+            painter.restore()
+        else:
+            # 回退自绘细线 chevron（SF 不可用时）
+            pen = QPen(QColor(theme.semantic_color("secondary_text")))
+            pen.setWidthF(1.5)
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pen)
+            painter.translate(6, 6)
+            painter.rotate(self._angle)
+            painter.drawLine(QPointF(-1.6, -4.0), QPointF(2.4, 0.0))
+            painter.drawLine(QPointF(2.4, 0.0), QPointF(-1.6, 4.0))
         painter.end()
 
 
@@ -195,7 +235,8 @@ class _GlassButton(QAbstractButton):
             fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
         else:
             fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
-        border = QColor(255, 255, 255, 36) if dark else QColor(255, 255, 255, 140)
+        # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
+        border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
         w, h = self.width(), self.height()
         pen = QPen(border)
         pen.setWidthF(1.0)
@@ -357,7 +398,7 @@ class MenuBarPanel(QWidget):
         self._row_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._row_sep)
         self._nav_row = _Row("grid", "校内导航")
-        self._nav_chevron = Chevron()
+        self._nav_chevron = _SfChevron()
         self._nav_chevron.set_angle(90.0)  # 收起态朝下（展开器语义）
         self._nav_row.set_trailing(self._nav_chevron)
         self._nav_row.clicked.connect(self._toggle_nav)

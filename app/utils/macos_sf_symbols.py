@@ -24,6 +24,7 @@ SF_NAMES = {
     "grid": "square.grid.2x2",
     "window": "macwindow",
     "chevron_right": "chevron.right",
+    "chevron_down": "chevron.down",
 }
 
 _CACHE = {}

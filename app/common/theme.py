@@ -76,8 +76,9 @@ def card_qss(glass: bool) -> str:
         if is_dark():
             return ("background: rgba(64,64,68,128); "
                     "border: 1px solid rgba(255,255,255,36); border-radius: 14px;")
+        # 浅色：白色描边在白底/亮玻璃上不可见，改用深色发丝线（Apple 玻璃对比惯例）
         return ("background: rgba(255,255,255,140); "
-                "border: 1px solid rgba(255,255,255,110); border-radius: 14px;")
+                "border: 1px solid rgba(60,60,67,26); border-radius: 14px;")
     return f"background: {card_background()}; border: none; border-radius: 14px;"
 
 
