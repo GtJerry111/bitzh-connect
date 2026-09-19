@@ -195,3 +195,12 @@ NSStatusItem 桥接失败（任意一步异常）→ 回退 QSystemTrayIcon，
 - `theme.card_qss(glass=...)` 保留（菜单栏面板连接卡在用）；
 - `install_glass/install_vibrancy` 的 `corner_radius` 参数化保留（面板 22px）；
 - 深浅色垫层分发职责在 `MenuBarPanel._refresh_theme`（主窗口 `_update_backdrop` 已删）。
+
+**§8.1 三连修（v1.3.4 真机反馈后）：**
+- 导航收起因 fade 逐帧栅格化掉帧抽搐 → 收起去 fade 提速 200ms（展开保留）。
+- 工具条按钮 QSS 半透描边在透明底窗口出毛刺 → 改 QPainter 自绘 `_GlassButton`。
+- 玻璃 Regular 乳白 → **Clear 清透强折射**（真机 A/B 定稿）+ `effectIsInteractive`。
+- 面板图标换 **SF Symbols 官方库**（`utils/macos_sf_symbols.py`，字重统一；
+  自绘 `_draw_icon` 保留为回退）；自绘描边齿轮因像"亮度图标"废弃。
+- 设置新增「面板玻璃质感」清透/标准开关（通用 tab 外观行下方，即时换肤，
+  配置键 `glass_style`，macOS 限定显示）。
