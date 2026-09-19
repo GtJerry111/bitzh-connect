@@ -22,8 +22,8 @@ from utils.macos_vibrancy import _nsview_of
 _NS_WINDOW_BELOW = -1    # NSWindowOrderingMode
 _AUTORESIZE = 2 | 16     # WidthSizable | HeightSizable
 # NSGlassEffectView.Style：0=Regular（乳白标准玻璃）1=Clear（清透强折射，壁纸渗色多）
-_GLASS_STYLE_REGULAR = 0
-_GLASS_STYLE_CLEAR = 1
+GLASS_STYLE_REGULAR = 0
+GLASS_STYLE_CLEAR = 1
 
 
 def _cocoa() -> bool:
@@ -48,7 +48,7 @@ def glass_available() -> bool:
 
 def install_glass(
     window, corner_radius: float = 10.0,
-    style: int = _GLASS_STYLE_REGULAR, interactive: bool = False,
+    style: int = GLASS_STYLE_REGULAR, interactive: bool = False,
 ) -> bool:
     """为窗口安装液态玻璃背景（幂等）。
 

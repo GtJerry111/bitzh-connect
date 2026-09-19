@@ -183,6 +183,25 @@ class AdvancedSettingsDialog(QDialog):
         appearance_row.addStretch()
         general_layout.addLayout(appearance_row)
 
+        # 面板玻璃质感（仅 macOS；外观三态同族——深浅色管色相、本行管材质）
+        if system() == "Darwin":
+            from views.mode_switch import SegmentedModeSwitch
+
+            glass_row = QHBoxLayout()
+            glass_row.setContentsMargins(0, 0, 0, 0)
+            glass_row.addWidget(QLabel("面板玻璃质感"))
+            self.glass_style_switch = SegmentedModeSwitch(["清透", "标准"])
+            self.glass_style_switch.setFixedWidth(150)
+            glass_row.addWidget(self.glass_style_switch)
+            glass_row.addStretch()
+            general_layout.addLayout(glass_row)
+            general_layout.addWidget(
+                self._description(
+                    "菜单栏快捷面板的玻璃材质：清透 = 强透光强折射（Liquid Glass 本色）；"
+                    "标准 = 乳白磨砂。仅 macOS 26+，切换即时生效"
+                )
+            )
+
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
@@ -546,6 +565,9 @@ class AdvancedSettingsDialog(QDialog):
 
         if system() == "Darwin":
             settings["hide_dock_icon"] = self.hide_dock_icon_switch.isChecked()
+            settings["glass_style"] = (
+                "clear" if self.glass_style_switch.currentIndex() == 0 else "regular"
+            )
 
         return settings
 
@@ -570,6 +592,7 @@ class AdvancedSettingsDialog(QDialog):
         auto_reconnect=True,
         appearance="system",
         tun_mode=False,
+        glass_style="clear",
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -582,6 +605,7 @@ class AdvancedSettingsDialog(QDialog):
         self.check_update_switch.setChecked(check_update)
         if system() == "Darwin":
             self.hide_dock_icon_switch.setChecked(hide_dock_icon)
+            self.glass_style_switch.setCurrentIndex(0 if glass_style == "clear" else 1)
         self.keep_alive_switch.setChecked(keep_alive)
         self.debug_dump_switch.setChecked(debug_dump)
         self.auto_multi_line_switch.setChecked(not disable_multi_line)

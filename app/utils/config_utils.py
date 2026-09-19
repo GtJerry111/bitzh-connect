@@ -43,6 +43,8 @@ def load_config():
         "tun_mode": True,
         # 校内导航折叠条展开状态记忆（重启保持）
         "nav_expanded": False,
+        # 菜单栏面板玻璃材质：clear=清透强折射 / regular=乳白磨砂（仅 macOS 26+ 生效）
+        "glass_style": "clear",
     }
 
     for key in default_config.keys():
@@ -79,6 +81,7 @@ def load_settings(self):
     self.auto_reconnect = config["auto_reconnect"]
     self.appearance = config["appearance"]
     self.tun_mode = config["tun_mode"]
+    self.glass_style = config["glass_style"]
     if system() == "Windows":
         # 与 connection_utils 的硬守卫同款策略：Windows 平台 TUN 强制关闭，
         # 防止脏配置/默认值让 Windows 用户每次连接都撞"本期暂不支持"

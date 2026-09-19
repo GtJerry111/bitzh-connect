@@ -21,6 +21,7 @@ from shiboken6 import isValid
 
 from common import theme
 from common.constants import NAV_GROUPS
+from utils.macos_sf_symbols import sf_symbol_pixmap
 from utils.motion_utils import animated_height_toggle, reduce_motion
 from views.chevron import Chevron
 from views.status_panel import StatusDot
@@ -76,7 +77,7 @@ def _draw_icon(painter: QPainter, kind: str):
 
 
 class _Icon(QWidget):
-    """行内线条图标（_draw_icon 的 widget 形态）。"""
+    """行内线条图标：SF Symbols 优先（官方字重统一），取不到回退 _draw_icon 自绘。"""
 
     def __init__(self, kind: str, size: int = 15, parent=None):
         super().__init__(parent)
@@ -84,6 +85,14 @@ class _Icon(QWidget):
         self.setFixedSize(size, size)
 
     def paintEvent(self, event):
+        pm = sf_symbol_pixmap(
+            self._kind, self.width(), theme.semantic_color("secondary_text")
+        )
+        if pm is not None:
+            painter = QPainter(self)
+            painter.drawPixmap(QPointF(0, 0), pm)
+            painter.end()
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         pen = QPen(QColor(theme.semantic_color("secondary_text")))
@@ -194,25 +203,30 @@ class _GlassButton(QAbstractButton):
         painter.setBrush(fill)
         # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
         painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
-        # 内容（图标 + 可选文字）整体居中
-        ink = QColor(theme.semantic_color("ink"))
+        # 内容（图标 + 可选文字）整体居中；图标 SF Symbols 优先，回退自绘
+        ink_name = theme.semantic_color("ink")
+        ink = QColor(ink_name)
         icon_px = 13
         text_w = 0
         if self._text:
             text_w = painter.fontMetrics().horizontalAdvance(self._text)
         total = icon_px + (6 + text_w if self._text else 0)
         x = (w - total) / 2
-        painter.save()
-        painter.translate(x, (h - icon_px) / 2)
-        painter.scale(icon_px / 24.0, icon_px / 24.0)
-        icon_pen = QPen(ink)
-        icon_pen.setWidthF(1.5)
-        icon_pen.setCapStyle(Qt.RoundCap)
-        icon_pen.setJoinStyle(Qt.RoundJoin)
-        painter.setPen(icon_pen)
-        painter.setBrush(Qt.NoBrush)
-        _draw_icon(painter, self._icon_kind)
-        painter.restore()
+        pm = sf_symbol_pixmap(self._icon_kind, icon_px, ink_name)
+        if pm is not None:
+            painter.drawPixmap(QPointF(x, (h - icon_px) / 2), pm)
+        else:
+            painter.save()
+            painter.translate(x, (h - icon_px) / 2)
+            painter.scale(icon_px / 24.0, icon_px / 24.0)
+            icon_pen = QPen(ink)
+            icon_pen.setWidthF(1.5)
+            icon_pen.setCapStyle(Qt.RoundCap)
+            icon_pen.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(icon_pen)
+            painter.setBrush(Qt.NoBrush)
+            _draw_icon(painter, self._icon_kind)
+            painter.restore()
         if self._text:
             painter.setPen(ink)
             painter.drawText(
@@ -253,11 +267,19 @@ class MenuBarPanel(QWidget):
         self._esc.setContext(Qt.WindowShortcut)
         self._esc.activated.connect(self.hide_panel)
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
-        from utils.macos_glass import _GLASS_STYLE_CLEAR, install_glass
+        from utils.macos_glass import (
+            GLASS_STYLE_CLEAR, GLASS_STYLE_REGULAR, install_glass,
+        )
 
-        # Clear 清透强折射（真机 A/B 定稿）+ 官方交互光学响应
+        # 玻璃材质跟随设置（默认 Clear 清透强折射 + 官方交互光学响应）；
+        # 设置里切成"标准"后由 MainWindow.set_glass_style 实时换肤
+        glass_style = (
+            GLASS_STYLE_CLEAR
+            if getattr(self._main, "glass_style", "clear") == "clear"
+            else GLASS_STYLE_REGULAR
+        )
         if not install_glass(
-            self, corner_radius=22.0, style=_GLASS_STYLE_CLEAR, interactive=True
+            self, corner_radius=22.0, style=glass_style, interactive=True
         ):
             from utils.macos_vibrancy import install_vibrancy
 

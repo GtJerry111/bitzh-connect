@@ -84,6 +84,7 @@ def show_advanced_settings(window):
         window.auto_reconnect,
         window.appearance,
         window.tun_mode,
+        glass_style=getattr(window, "glass_style", "clear"),
     )
 
     if dialog.exec():
@@ -109,6 +110,8 @@ def show_advanced_settings(window):
         window.reconnect_manager.set_enabled(window.auto_reconnect)
         window.appearance = settings["appearance"]
         window.tun_mode = settings["tun_mode"]
+        # 玻璃质感：属性 + 已创建面板实时换肤（非 macOS 对话框无此键，get 兜底）
+        window.set_glass_style(settings.get("glass_style", "clear"))
         # 主窗口分段选择器同步（高级设置与主界面是同一配置键的两个入口）
         window.mode_switch.setCurrentIndex(1 if window.tun_mode else 0)
         from common import theme
