@@ -153,6 +153,10 @@ def animated_height_toggle(widget, expanding: bool, max_height: int = 200,
             widget.setVisible(False)
         # 终态移除透明度效果：常驻 QGraphicsOpacityEffect 会关掉文字的子像素渲染
         widget.setGraphicsEffect(None)
+        # 终态重锚定：动画掉帧时最后一帧未必是终值，缺这一步窗口会卡在中间尺寸
+        # （真实案例：菜单栏面板工具条被窗口底边裁掉一截）
+        if on_frame:
+            on_frame()
 
     anim.finished.connect(_finish)
     widget._height_anim = anim  # 须在 start 前建立身份：start 可能同步触发旧动画 finished
