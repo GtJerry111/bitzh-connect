@@ -1,3 +1,5 @@
+import sys
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 from platform import system
@@ -6,6 +8,7 @@ from common.constants import APP_NAME
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
 from common import resources
+from utils.single_instance import acquire_single_instance_lock
 from utils.tun_utils import sweep_orphan_tun
 from views.main_window import MainWindow
 
@@ -26,6 +29,10 @@ if __name__ == "__main__":
             # 失败仅表现为 Dock 名不纠正，不影响功能
             print(f"setProcessName failed: {e}")
     app = QApplication()
+    # 单实例：第二次启动直接退出——否则启动清扫会误伤另一实例正在用的 TUN 内核
+    _instance_lock = acquire_single_instance_lock()
+    if _instance_lock is None:
+        sys.exit(0)
     # 启动自愈：清掉上次异常退出残留的 TUN 内核/临时文件（含内嵌密码的 launcher）
     sweep_orphan_tun()
     window = MainWindow()

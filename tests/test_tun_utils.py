@@ -243,3 +243,54 @@ def test_sweep_orphan_tun_removes_launcher_and_log(monkeypatch, tmp_path):
 
     assert not sh.exists()
     assert not log.exists()
+
+
+def test_sweep_orphan_tun_preserves_unparsable_pid(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-empty.pid"
+    pid_file.write_text("")  # launcher 尚未写入 pid
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: True)
+
+    assert tu.sweep_orphan_tun() == 0
+    assert pid_file.exists()  # 保守保留，避免内核永久不可停
+
+
+def test_sweep_orphan_tun_keeps_live_pid_file(monkeypatch, tmp_path):
+    import os
+
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-live1234.pid"
+    pid_file.write_text(str(os.getpid()))
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: True)
+
+    assert tu.sweep_orphan_tun() == 1
+    assert pid_file.exists()  # 活内核的 pid 文件不能删
+    assert (tmp_path / "bitzh-tun-live1234.pid.stop").exists()
+
+
+def test_sweep_orphan_tun_skips_foreign_uid(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    (tmp_path / "bitzh-tun-foreign.pid").write_text("12345")
+    (tmp_path / "bitzh-tun-foreign.sh").write_text("#!/bin/sh\n")
+    monkeypatch.setattr(tu, "_owned_by_me", lambda path: False)
+
+    assert tu.sweep_orphan_tun() == 0
+    assert (tmp_path / "bitzh-tun-foreign.pid").exists()
+    assert (tmp_path / "bitzh-tun-foreign.sh").exists()
+
+
+def test_sweep_orphan_tun_noop_on_windows(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Windows")
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    (tmp_path / "bitzh-tun-win.pid").write_text("123")
+
+    assert tu.sweep_orphan_tun() == 0
+    assert (tmp_path / "bitzh-tun-win.pid").exists()

@@ -240,6 +240,14 @@ def request_stop(stop_path: str) -> None:
         pass
 
 
+def _owned_by_me(path: str) -> bool:
+    """文件是否属于当前用户（Linux 共用 /tmp 时避免误伤他人残留）。"""
+    try:
+        return os.stat(path).st_uid == os.getuid()
+    except (OSError, AttributeError):
+        return False
+
+
 def sweep_orphan_tun() -> int:
     """清理异常退出残留的 TUN 内核与临时文件（启动时自愈）。
 
@@ -250,11 +258,17 @@ def sweep_orphan_tun() -> int:
     - 删掉残留的 launcher 脚本与日志（脚本内嵌命令行含密码，必须清）。
     返回本次要求停止的内核数量。失败安静忽略（启动不应被清理问题阻断）。
     """
+    if system() == "Windows":
+        return 0  # _pid_alive 在 Windows 是破坏性的 TerminateProcess
     stopped = 0
     tmp = tempfile.gettempdir()
     for pid_file in glob.glob(os.path.join(tmp, "bitzh-tun-*.pid")):
+        if not _owned_by_me(pid_file):
+            continue
         pid = read_pid(pid_file)
-        if pid is not None and _pid_alive(pid):
+        if pid is None:
+            continue  # 空/损坏：内核可能刚 spawn、launcher 尚未写 pid，保守保留
+        if _pid_alive(pid):
             request_stop(pid_file + ".stop")
             stopped += 1
         else:
@@ -265,6 +279,8 @@ def sweep_orphan_tun() -> int:
                     pass
     for pattern in ("bitzh-tun-*.sh", "bitzh-tun-*.log"):
         for path in glob.glob(os.path.join(tmp, pattern)):
+            if not _owned_by_me(path):
+                continue
             try:
                 os.remove(path)
             except OSError:
