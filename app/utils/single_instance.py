@@ -9,7 +9,9 @@ import tempfile
 
 from PySide6.QtCore import QLockFile
 
-_LOCK_NAME = "bitzh-connect.lock"
+# 锁文件名带 uid：Linux 的 /tmp 是全用户共享，不带 uid 会让用户 B 被用户 A 残留的锁
+# 挡在门外（且 sticky /tmp 下 B 删不掉 A 的文件）。Windows 无 os.getuid，用 'win' 占位。
+_LOCK_NAME = f"bitzh-connect-{getattr(os, 'getuid', lambda: 'win')()}.lock"
 
 
 def acquire_single_instance_lock():
@@ -18,4 +20,6 @@ def acquire_single_instance_lock():
     lock = QLockFile(path)
     if lock.tryLock(100):
         return lock
+    # Qt 只暴露 error()（QLockFile.LockError），无 errorString()；用枚举名作原因描述
+    print(f"[BITZH Connect] 已有实例在运行（{lock.error().name}），退出", flush=True)
     return None

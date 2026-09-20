@@ -285,6 +285,15 @@ def test_sweep_orphan_tun_skips_foreign_uid(monkeypatch, tmp_path):
     assert (tmp_path / "bitzh-tun-foreign.sh").exists()
 
 
+def test_owned_by_me_current_and_missing(tmp_path):
+    import utils.tun_utils as tu
+
+    real = tmp_path / "real.txt"
+    real.write_text("")
+    assert tu._owned_by_me(str(real)) is True
+    assert tu._owned_by_me(str(tmp_path / "missing.txt")) is False
+
+
 def test_sweep_orphan_tun_noop_on_windows(monkeypatch, tmp_path):
     import utils.tun_utils as tu
 

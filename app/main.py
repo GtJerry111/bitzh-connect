@@ -35,7 +35,9 @@ if __name__ == "__main__":
     if _instance_lock is None:
         sys.exit(0)
     # 启动自愈：清掉上次异常退出残留的 TUN 内核/临时文件（含内嵌密码的 launcher）
-    sweep_orphan_tun()
+    _orphans = sweep_orphan_tun()
+    if _orphans:
+        print(f"[BITZH Connect] 已清理上次异常退出残留的 TUN 内核：{_orphans} 个", flush=True)
     window = MainWindow()
     # 关闭终端/Ctrl-C/kill 时走一次优雅退出（写停止标记、收掉 root 内核）
     _exit_timer = install_exit_signal_handlers(window.quit_app, parent=window)

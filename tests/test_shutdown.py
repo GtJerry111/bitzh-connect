@@ -12,11 +12,14 @@ _PLATFORM_SIGNALS = [
 ]
 
 
-def test_signals_constant_has_no_missing():
+def test_signals_constant_has_core_signals():
     """SIGHUP 等 Unix-only 常量在缺失平台不得让模块 import 崩（Windows）。"""
+    import signal as _signal
+
     import utils.shutdown as sd
 
-    assert sd._SIGNALS  # 至少有 SIGINT/SIGTERM
+    assert _signal.SIGINT in sd._SIGNALS
+    assert _signal.SIGTERM in sd._SIGNALS
     assert all(s is not None for s in sd._SIGNALS)
 
 
@@ -28,9 +31,37 @@ def test_install_exit_signal_handlers_triggers_on_signal(qtbot, sig):
     saved = {s: signal.getsignal(s) for s in _PLATFORM_SIGNALS}
     timer = install_exit_signal_handlers(lambda: fired.append(True))
     try:
+        assert signal.getsignal(sig) is not signal.SIG_DFL  # 确认 handler 已装上，避免误杀 pytest
         signal.raise_signal(sig)
         qtbot.waitUntil(lambda: fired == [True], timeout=2000)
         assert timer.isActive() is False  # 触发后停表
+    finally:
+        timer.stop()
+        for s, handler in saved.items():
+            signal.signal(s, handler)
+
+
+def test_on_signal_exception_keeps_handler_alive(qtbot):
+    """on_signal 抛异常不得让信号处理永久失效：后续信号仍可再触发。"""
+    from utils.shutdown import install_exit_signal_handlers
+
+    sig = signal.SIGTERM
+    calls = []
+    saved = {s: signal.getsignal(s) for s in _PLATFORM_SIGNALS}
+
+    def on_signal():
+        calls.append(True)
+        if len(calls) == 1:
+            raise RuntimeError("boom")
+
+    timer = install_exit_signal_handlers(on_signal)
+    try:
+        signal.raise_signal(sig)
+        qtbot.waitUntil(lambda: len(calls) >= 1, timeout=2000)
+        assert timer.isActive() is True  # 异常后轮询不得停表
+        signal.raise_signal(sig)
+        qtbot.waitUntil(lambda: len(calls) >= 2, timeout=2000)
+        qtbot.waitUntil(lambda: timer.isActive() is False, timeout=2000)  # 成功后停表
     finally:
         timer.stop()
         for s, handler in saved.items():

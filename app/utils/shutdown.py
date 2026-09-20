@@ -24,6 +24,7 @@ def install_exit_signal_handlers(on_signal, parent=None) -> QTimer:
     """安装退出信号处理器，返回需保活的 QTimer（挂 parent 上随其生命周期）。
 
     on_signal 在事件循环里触发（可重入性由调用方 quit_app 自身保证）。
+    触发成功后停表；on_signal 抛异常则不停表，保留后续信号的再触发能力。
     非主线程/平台不支持的信号安装失败时安静跳过。
     """
     state = {"fired": False}
@@ -41,9 +42,15 @@ def install_exit_signal_handlers(on_signal, parent=None) -> QTimer:
     timer.setInterval(200)
 
     def _poll():
-        if state["fired"]:
-            timer.stop()
+        if not state["fired"]:
+            return
+        state["fired"] = False
+        try:
             on_signal()
+        except Exception:
+            # on_signal 异常时保留信号处理能力：后续信号/轮询仍可再触发
+            return
+        timer.stop()
 
     timer.timeout.connect(_poll)
     timer.start()

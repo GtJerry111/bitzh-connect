@@ -256,6 +256,8 @@ def sweep_orphan_tun() -> int:
     - pid 仍存活 → 写 .stop，交给仍在等待的 root 守护脚本收掉；
     - pid 已死 → 删掉残留的 pid/stop；
     - 删掉残留的 launcher 脚本与日志（脚本内嵌命令行含密码，必须清）。
+    Windows 直接返回 0（_pid_alive 在 Windows 是破坏性的）；非本人 uid 的文件跳过；
+    空/损坏 pid 文件保守保留（内核可能刚 spawn、launcher 尚未写 pid）。
     返回本次要求停止的内核数量。失败安静忽略（启动不应被清理问题阻断）。
     """
     if system() == "Windows":
