@@ -112,3 +112,110 @@ def test_linux_tun_conflict_detects_tun_default_route(monkeypatch):
         lambda *a, **k: "default via 10.0.0.1 dev wg0\n",
     )
     assert tu.check_tun_conflict() is None
+
+
+def test_parse_route_get_interface():
+    import utils.tun_utils as tu
+
+    text = (
+        "   route to: 112.91.150.228\n"
+        "destination: 112.91.150.228\n"
+        "       mask: 255.255.255.255\n"
+        "  interface: utun5\n"
+    )
+    assert tu._parse_route_get_interface(text) == "utun5"
+    assert tu._parse_route_get_interface("no interface line") is None
+
+
+def test_parse_scutil_nwi():
+    import utils.tun_utils as tu
+
+    text = (
+        "Network information\n\n"
+        "IPv4 network interface information\n"
+        "     en0 : flags      : 0x7 (IPv4,IPv6,DNS)\n"
+        "Network interfaces: en0\n"
+    )
+    assert tu._parse_scutil_nwi(text) == "en0"
+    assert tu._parse_scutil_nwi("nothing here") is None
+
+
+def test_parse_ip_route_dev():
+    import utils.tun_utils as tu
+
+    assert (
+        tu._parse_ip_route_dev("1.1.1.1 via 10.0.0.1 dev en0 src 10.0.0.2")
+        == "en0"
+    )
+    assert tu._parse_ip_route_dev("no dev token") is None
+
+
+def test_capturing_tun_for_darwin_hits_tun(monkeypatch):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "   route to: 112.91.150.228\n  interface: utun5\n",
+    )
+    assert tu.capturing_tun_for("112.91.150.228") == "utun5"
+
+
+def test_capturing_tun_for_physical_is_none(monkeypatch):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "   route to: 1.1.1.1\n  interface: en0\n",
+    )
+    assert tu.capturing_tun_for("1.1.1.1") is None
+
+
+def test_capturing_tun_for_linux(monkeypatch):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "112.91.150.228 via 10.0.0.1 dev tun0 src 10.0.0.2\n",
+    )
+    assert tu.capturing_tun_for("112.91.150.228") == "tun0"
+
+
+def test_capturing_tun_for_error_is_none(monkeypatch):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Darwin")
+
+    def boom(*a, **k):
+        raise FileNotFoundError("route")
+
+    monkeypatch.setattr(tu.subprocess, "check_output", boom)
+    assert tu.capturing_tun_for("112.91.150.228") is None
+
+
+def test_physical_interface_darwin(monkeypatch):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        tu.subprocess, "check_output",
+        lambda *a, **k: "IPv4 network interface information\nNetwork interfaces: en0\n",
+    )
+    assert tu.physical_interface() == "en0"
+
+
+def test_physical_interface_excludes_tun_and_falls_back(monkeypatch):
+    """nwi 只报 tun（异常）→ 回退默认路由出口；且 utun 出口不被采纳"""
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu, "system", lambda: "Darwin")
+
+    def fake(cmd, *a, **k):
+        if cmd[0] == "scutil":
+            return "Network interfaces: utun5\n"
+        return "   route to: default\n  interface: en0\n"
+
+    monkeypatch.setattr(tu.subprocess, "check_output", fake)
+    assert tu.physical_interface() == "en0"

@@ -25,6 +25,111 @@ from platform import system
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 
+def _parse_route_get_interface(text: str) -> str | None:
+    """从 `route -n get <ip>` 输出里取 interface（macOS）。"""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("interface:"):
+            return stripped.split(":", 1)[1].strip() or None
+    return None
+
+
+def _parse_scutil_nwi(text: str) -> str | None:
+    """从 `scutil --nwi` 输出取主网卡（"Network interfaces: en0, en1"）。"""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Network interfaces:"):
+            names = stripped.split(":", 1)[1].replace(",", " ").split()
+            return names[0] if names else None
+    return None
+
+
+# `ip route` 行的特殊目的关键字（非地址开头的情形）
+_ROUTE_DEST_KEYWORDS = frozenset({
+    "default", "local", "broadcast", "multicast",
+    "unreachable", "prohibit", "blackhole", "throw", "nat",
+})
+
+
+def _parse_ip_route_dev(text: str) -> str | None:
+    """从 `ip route` 输出取 `dev <iface>`（Linux）。
+
+    `ip route` 行以目的地址开头（IP/CIDR、IPv6 或 default/local 等关键字）；
+    先校验这点，避免恰好含 "dev" 单词的普通文本（如 "no dev token"）被误当
+    路由输出解析。
+    """
+    parts = text.split()
+    if not parts:
+        return None
+    dest = parts[0]
+    if dest not in _ROUTE_DEST_KEYWORDS and ":" not in dest and not dest[0].isdigit():
+        return None
+    if "dev" in parts:
+        idx = parts.index("dev")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    return None
+
+
+def _is_tun_name(name: str) -> bool:
+    return name.startswith(("utun", "tun"))
+
+
+def capturing_tun_for(server_ip: str) -> str | None:
+    """返回会把去 server_ip 的流量截进 TUN 的网卡名；无则 None。
+
+    比"默认路由是否在 utun"更准：FlClash/mihomo 不抢默认路由，而是用一串
+    明细路由（如 64.0.0.0/2）把服务器 IP 拐进自己的 utun。
+    命令失败/解析失败安静返回 None（探测失败不该阻断连接）。
+    """
+    try:
+        if system() == "Darwin":
+            out = subprocess.check_output(
+                ["route", "-n", "get", server_ip],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            dev = _parse_route_get_interface(out)
+        elif system() == "Linux":
+            out = subprocess.check_output(
+                ["ip", "route", "get", server_ip],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            dev = _parse_ip_route_dev(out)
+        else:
+            return None
+        return dev if dev and _is_tun_name(dev) else None
+    except Exception:
+        return None
+
+
+def physical_interface() -> str | None:
+    """主物理网卡名；macOS 用 scutil --nwi，失败回退默认路由出口；排除 TUN。"""
+    try:
+        if system() == "Darwin":
+            out = subprocess.check_output(
+                ["scutil", "--nwi"], text=True, stderr=subprocess.DEVNULL
+            )
+            name = _parse_scutil_nwi(out)
+            if name and not _is_tun_name(name):
+                return name
+            out = subprocess.check_output(
+                ["route", "-n", "get", "default"],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            name = _parse_route_get_interface(out)
+        elif system() == "Linux":
+            out = subprocess.check_output(
+                ["ip", "route", "show", "default"],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            name = _parse_ip_route_dev(out)
+        else:
+            return None
+        return name if name and not _is_tun_name(name) else None
+    except Exception:
+        return None
+
+
 def check_tun_conflict() -> str | None:
     """默认路由已在虚拟网卡上（如 Clash TUN）→ 返回该网卡名；否则 None。
 
