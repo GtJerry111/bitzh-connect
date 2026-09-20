@@ -222,11 +222,11 @@ class _Row(QWidget):
 class _GlassButton(QAbstractButton):
     """玻璃 chip 按钮（QPainter 自绘：圆角半透填充 + 1px 发丝高光 + 图标/可选文字）。
 
-    材质是 Qt 自绘的二级半透材质，叠在窗口的原生 regular 底板上（对标 MenuPower
-    "底板实、控件透"）：不再叠第二层原生玻璃，否则 clear 玻璃件各自采样壁纸 + 强
-    高光，会比底板更白，层级观感反掉。QSS 的 1px 半透边框在透明底窗口上抗锯齿向
-    错误底色混合、边缘出毛刺，故自绘（与 ToggleSwitch 同款）。颜色在 paintEvent
-    现取主题——深浅色切换只需 update()，无需重建资源。
+    材质是 Qt 自绘的二级半透材质，叠在窗口的原生玻璃底板上（对标 MenuPower 的
+    控件层）：不再叠第二层原生玻璃，否则 clear 玻璃件各自采样壁纸 + 强高光，会
+    比底板更白，层级观感反掉。QSS 的 1px 半透边框在透明底窗口上抗锯齿向错误底色
+    混合、边缘出毛刺，故自绘（与 ToggleSwitch 同款）。颜色在 paintEvent 现取主题
+    ——深浅色切换只需 update()，无需重建资源。
     """
 
     def __init__(self, icon_kind: str, text: str = "", tooltip: str = "", parent=None):
@@ -345,12 +345,11 @@ class MenuBarPanel(QWidget):
         self._esc.setContext(Qt.WindowShortcut)
         self._esc.activated.connect(self._on_esc)
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
-        from utils.macos_glass import GLASS_STYLE_REGULAR, install_glass
+        from utils.macos_glass import GLASS_STYLE_CLEAR, install_glass
 
-        # 材质分层（对标 MenuPower）：整窗只一层 regular 乳白玻璃（底板，负责可读性）；
-        # 卡片/按钮是 Qt 自绘的半透二级材质，叠在这层玻璃之上——不再叠第二层原生
-        # clear 玻璃件（各自采样壁纸 + 强高光，会比底板更白，层级观感反掉）
-        if not install_glass(self, corner_radius=22.0, style=GLASS_STYLE_REGULAR):
+        # 底板玻璃 = clear（清透强折射、透出壁纸），对标 MenuPower「底板玻璃」的 Clear 档
+        # 并作为默认；卡片/按钮是 Qt 自绘的半透二级材质，叠在这层玻璃上（底透、控件实）
+        if not install_glass(self, corner_radius=22.0, style=GLASS_STYLE_CLEAR):
             from utils.macos_vibrancy import install_vibrancy
 
             install_vibrancy(self, corner_radius=22.0)
@@ -622,8 +621,8 @@ class MenuBarPanel(QWidget):
         self._sync_from_main()            # _status/_dot 颜色按新主题重解析
 
     def _apply_styles(self):
-        # 卡片/标题卡统一走 QSS 半透二级材质，叠在原生 regular 底板上
-        # （底板实、控件透；不叠第二层原生玻璃，避免白泡与层级反转）
+        # 卡片/标题卡统一走 QSS 半透二级材质，叠在原生 clear 底板上
+        # （底透、控件实；不叠第二层原生玻璃，避免白泡与层级反转）
         for card in (self.conn_card, self._rows, self._nav_header, self._nav_card,
                      self._mode_header, self._mode_card):
             card.setStyleSheet(
