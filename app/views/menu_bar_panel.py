@@ -220,11 +220,13 @@ class _Row(QWidget):
 
 
 class _GlassButton(QAbstractButton):
-    """玻璃 chip 按钮（QPainter 自绘：圆角填充 + 1px 高光描边 + 图标/可选文字）。
+    """玻璃 chip 按钮（QPainter 自绘：圆角半透填充 + 1px 发丝高光 + 图标/可选文字）。
 
-    QSS 的 1px 半透边框在透明底（WA_TranslucentBackground）窗口上抗锯齿向错误
-    底色混合，边缘出毛刺；自绘走 QPainter 路径（与 ToggleSwitch 同款），边缘干净。
-    颜色在 paintEvent 现取主题——深浅色切换只需 update()，无需重建资源。
+    材质是 Qt 自绘的二级半透材质，叠在窗口的原生 regular 底板上（对标 MenuPower
+    "底板实、控件透"）：不再叠第二层原生玻璃，否则 clear 玻璃件各自采样壁纸 + 强
+    高光，会比底板更白，层级观感反掉。QSS 的 1px 半透边框在透明底窗口上抗锯齿向
+    错误底色混合、边缘出毛刺，故自绘（与 ToggleSwitch 同款）。颜色在 paintEvent
+    现取主题——深浅色切换只需 update()，无需重建资源。
     """
 
     def __init__(self, icon_kind: str, text: str = "", tooltip: str = "", parent=None):
@@ -265,24 +267,21 @@ class _GlassButton(QAbstractButton):
         painter.setRenderHint(QPainter.Antialiasing)
         dark = theme.is_dark()
         w, h = self.width(), self.height()
-        # 有玻璃件（clear 液态玻璃）时材质归原生：只画内容；
-        # 无玻璃件（旧系统/offscreen）自绘底：填充 + 发丝描边
-        if getattr(self, "_glass_piece", None) is None:
-            # 填充：常态 = 二级材质；hover 微亮；pressed 加深
-            if self.isDown():
-                fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
-            elif self._hover:
-                fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
-            else:
-                fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
-            # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
-            border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
-            pen = QPen(border)
-            pen.setWidthF(1.0)
-            painter.setPen(pen)
-            painter.setBrush(fill)
-            # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
-            painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
+        # 填充：常态 = 二级材质；hover 微亮；pressed 加深
+        if self.isDown():
+            fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
+        elif self._hover:
+            fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
+        else:
+            fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
+        # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
+        border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
+        pen = QPen(border)
+        pen.setWidthF(1.0)
+        painter.setPen(pen)
+        painter.setBrush(fill)
+        # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
+        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
         # 内容（图标 + 可选文字）整体居中；图标 SF Symbols 优先，回退自绘
         ink_name = theme.semantic_color("ink")
         ink = QColor(ink_name)
@@ -348,51 +347,17 @@ class MenuBarPanel(QWidget):
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
         from utils.macos_glass import GLASS_STYLE_REGULAR, install_glass
 
-        # 材质分层（参考图定稿）：底板 = regular 乳白玻璃（整窗），
-        # 卡片/工具条按钮 = clear 玻璃件（独立折射高光，官方交互光学响应）
+        # 材质分层（对标 MenuPower）：整窗只一层 regular 乳白玻璃（底板，负责可读性）；
+        # 卡片/按钮是 Qt 自绘的半透二级材质，叠在这层玻璃之上——不再叠第二层原生
+        # clear 玻璃件（各自采样壁纸 + 强高光，会比底板更白，层级观感反掉）
         if not install_glass(self, corner_radius=22.0, style=GLASS_STYLE_REGULAR):
             from utils.macos_vibrancy import install_vibrancy
 
             install_vibrancy(self, corner_radius=22.0)
-        self._install_glass_pieces()
         # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
         from utils.macos_panel_shape import round_panel_window
 
         round_panel_window(self)
-        self.installEventFilter(self)  # LayoutRequest/Resize → 玻璃件几何跟随
-
-    def _install_glass_pieces(self):
-        """卡片与工具条按钮安装 clear 玻璃件；无底板/旧系统时安静回退 QSS 卡面。"""
-        from utils.macos_glass import install_glass_piece
-
-        self._glass_targets = [
-            (self.conn_card, 14.0), (self._rows, 14.0),
-            (self._nav_header, 14.0), (self._nav_card, 14.0),
-            (self._mode_header, 14.0), (self._mode_card, 14.0),
-            (self._open_btn, 14.0), (self._settings_btn, 14.0),
-            (self._quit_btn, 14.0),
-        ]
-        for w, radius in self._glass_targets:
-            install_glass_piece(self, w, corner_radius=radius)
-
-    def _sync_glass_pieces(self):
-        from utils.macos_glass import sync_glass_piece
-
-        for w, _radius in getattr(self, "_glass_targets", []):
-            sync_glass_piece(self, w)
-
-    def eventFilter(self, obj, event):
-        """布局/尺寸变化 → 玻璃件 frame 跟随。
-
-        Resize 时布局已完成 → 立即同步；LayoutRequest 发布局前 → 事件循环
-        下一轮同步（singleShot(0) 让布局先跑完，几何才正确）。
-        """
-        if obj is self:
-            if event.type() == QEvent.Resize:
-                self._sync_glass_pieces()
-            elif event.type() == QEvent.LayoutRequest:
-                QTimer.singleShot(0, self._sync_glass_pieces)
-        return super().eventFilter(obj, event)
 
     # ---- 结构（QStackedWidget 三页：主页 / 导航页 / 模式页） ----
 
@@ -657,18 +622,13 @@ class MenuBarPanel(QWidget):
         self._sync_from_main()            # _status/_dot 颜色按新主题重解析
 
     def _apply_styles(self):
-        # 材质分层：有玻璃件的卡片 Qt 侧全透（折射高光归原生 clear 玻璃件）；
-        # 无玻璃件（旧系统毛玻璃/offscreen）保留 QSS 半透卡兜底
+        # 卡片/标题卡统一走 QSS 半透二级材质，叠在原生 regular 底板上
+        # （底板实、控件透；不叠第二层原生玻璃，避免白泡与层级反转）
         for card in (self.conn_card, self._rows, self._nav_header, self._nav_card,
                      self._mode_header, self._mode_card):
-            if getattr(card, "_glass_piece", None) is not None:
-                card.setStyleSheet(
-                    "QWidget#PanelCard { background: transparent; border: none; }"
-                )
-            else:
-                card.setStyleSheet(
-                    f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
-                )
+            card.setStyleSheet(
+                f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
+            )
         # 分隔线随主题重算（面板懒创建且永驻，不能停留在旧主题色）
         self._card_hairline.setStyleSheet(
             f"color: {theme.with_alpha('separator', 0.6)};"
@@ -775,7 +735,6 @@ class MenuBarPanel(QWidget):
         if reduce_motion():
             stack.setCurrentIndex(index)
             self.adjustSize()
-            self._sync_glass_pieces()
             return
         from PySide6.QtWidgets import QGraphicsOpacityEffect
 
@@ -811,7 +770,6 @@ class MenuBarPanel(QWidget):
         fade.finished.connect(lambda: new_page.setGraphicsEffect(None))
         self._page_fade = fade  # 防 GC
         fade.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
-        self._sync_glass_pieces()
 
     def _on_mode_radio(self, index: int):
         """radio 选择 → 切换模式（已连接走 bounce 重连）；稍停让勾选入眼再回主页。"""
@@ -870,7 +828,6 @@ class MenuBarPanel(QWidget):
             screen = QApplication.primaryScreen()
         geo = panel_geometry(icon_rect, screen.availableGeometry(), self.size())
         self.move(geo.topLeft())
-        self._sync_glass_pieces()  # 页面复位/尺寸就位后同步玻璃件 frame
         animated = animated and not reduce_motion()
         if not animated:
             self.setWindowOpacity(1.0)
