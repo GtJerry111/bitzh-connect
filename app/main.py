@@ -6,6 +6,7 @@ from common.constants import APP_NAME
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
 from common import resources
+from utils.tun_utils import sweep_orphan_tun
 from views.main_window import MainWindow
 
 # Run the application
@@ -25,6 +26,8 @@ if __name__ == "__main__":
             # 失败仅表现为 Dock 名不纠正，不影响功能
             print(f"setProcessName failed: {e}")
     app = QApplication()
+    # 启动自愈：清掉上次异常退出残留的 TUN 内核/临时文件（含内嵌密码的 launcher）
+    sweep_orphan_tun()
     window = MainWindow()
 
     if system() == "Windows":

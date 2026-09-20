@@ -194,3 +194,52 @@ def test_physical_interface_excludes_tun_and_falls_back(monkeypatch):
 
     monkeypatch.setattr(tu.subprocess, "check_output", fake)
     assert tu.physical_interface() == "en0"
+
+
+def test_sweep_orphan_tun_stops_live_kernel(monkeypatch, tmp_path):
+    import os
+
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-abcd1234.pid"
+    pid_file.write_text(str(os.getpid()))
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: True)
+
+    stopped = tu.sweep_orphan_tun()
+
+    assert stopped == 1
+    assert (tmp_path / "bitzh-tun-abcd1234.pid.stop").exists()
+
+
+def test_sweep_orphan_tun_removes_dead(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-deadbeef.pid"
+    pid_file.write_text("99999999")
+    stop_file = tmp_path / "bitzh-tun-deadbeef.pid.stop"
+    stop_file.write_text("")
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: False)
+
+    stopped = tu.sweep_orphan_tun()
+
+    assert stopped == 0
+    assert not pid_file.exists()
+    assert not stop_file.exists()
+
+
+def test_sweep_orphan_tun_removes_launcher_and_log(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    sh = tmp_path / "bitzh-tun-launcher.sh"
+    log = tmp_path / "bitzh-tun-session.log"
+    sh.write_text("#!/bin/sh\n")
+    log.write_text("log\n")
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: False)
+
+    tu.sweep_orphan_tun()
+
+    assert not sh.exists()
+    assert not log.exists()

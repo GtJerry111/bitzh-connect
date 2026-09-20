@@ -15,6 +15,7 @@ GUI 断开时只需 request_stop 写标记文件——普通文件写，无需�
 同步版 spawn_elevated 会阻塞等待用户授权（可达数十秒），
 GUI 路径一律走 *_async 版本（QThreadPool 执行，结果信号回主线程）。
 """
+import glob
 import os
 import shlex
 import stat
@@ -237,6 +238,38 @@ def request_stop(stop_path: str) -> None:
             pass
     except OSError:
         pass
+
+
+def sweep_orphan_tun() -> int:
+    """清理异常退出残留的 TUN 内核与临时文件（启动时自愈）。
+
+    正常断开时 app 会写停止标记、root 守护脚本收掉内核并清理临时文件；app 被强杀
+    （关终端 / Ctrl-C / 崩溃）时内核与临时文件会残留。启动时：
+    - pid 仍存活 → 写 .stop，交给仍在等待的 root 守护脚本收掉；
+    - pid 已死 → 删掉残留的 pid/stop；
+    - 删掉残留的 launcher 脚本与日志（脚本内嵌命令行含密码，必须清）。
+    返回本次要求停止的内核数量。失败安静忽略（启动不应被清理问题阻断）。
+    """
+    stopped = 0
+    tmp = tempfile.gettempdir()
+    for pid_file in glob.glob(os.path.join(tmp, "bitzh-tun-*.pid")):
+        pid = read_pid(pid_file)
+        if pid is not None and _pid_alive(pid):
+            request_stop(pid_file + ".stop")
+            stopped += 1
+        else:
+            for suffix in ("", ".stop"):
+                try:
+                    os.remove(pid_file + suffix)
+                except OSError:
+                    pass
+    for pattern in ("bitzh-tun-*.sh", "bitzh-tun-*.log"):
+        for path in glob.glob(os.path.join(tmp, pattern)):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    return stopped
 
 
 # ---- 异步提权（GUI 路径专用）----
