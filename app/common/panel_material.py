@@ -19,6 +19,7 @@ DEFAULTS = {
     "glass_style": "regular",   # regular（乳白磨砂，参照图）/ clear（清透强折射）
     "corner_radius": 22.0,
     "light": {
+        "scrim": 0.0,
         "chip_fill": 0.579,
         "chip_border": 0.357,
         "chip_highlight": 0.236,
@@ -32,6 +33,7 @@ DEFAULTS = {
         "gap": 7,
     },
     "dark": {
+        "scrim": 0.30,
         "chip_fill": 0.10,
         "chip_border": 0.22,
         "chip_highlight": 0.18,
@@ -48,6 +50,7 @@ DEFAULTS = {
 
 # 滑杆范围（下限, 上限, 是否整数）——调参窗与校验共用单一事实源
 RANGES = {
+    "scrim": (0.0, 0.85, False),
     "chip_fill": (0.0, 1.0, False),
     "chip_border": (0.0, 1.0, False),
     "chip_highlight": (0.0, 1.0, False),
@@ -62,10 +65,12 @@ RANGES = {
 }
 
 # 存盘顺序（调参窗 UI 顺序）
-ORDER = ["chip_fill", "chip_border", "chip_highlight", "chip_hover", "chip_pressed",
-         "hairline", "row_hover", "row_pressed", "row_height", "pad", "gap"]
+ORDER = ["scrim", "chip_fill", "chip_border", "chip_highlight", "chip_hover",
+         "chip_pressed", "hairline", "row_hover", "row_pressed", "row_height",
+         "pad", "gap"]
 
 LABELS = {
+    "scrim": "底板纱层",
     "chip_fill": "chip 填充",
     "chip_border": "chip 描边",
     "chip_highlight": "chip 顶部高光",

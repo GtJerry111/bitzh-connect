@@ -265,6 +265,8 @@ class _Row(QWidget):
             _Row:hover {{ background: {hover}; }}
             _Row[pressed="true"] {{ background: {pressed}; }}
         """)
+        # 行标题显式取 ink（不依赖 palette，深浅色下都锁定可读性）
+        self.title.setStyleSheet(f"color: {theme.semantic_color('ink')};")
         self.value.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
 
 
@@ -746,10 +748,32 @@ class MenuBarPanel(QWidget):
         for btn in (self._open_btn, self._settings_btn, self._quit_btn):
             btn.set_material(m)
         self._refresh_nav_chips()
+        self.update()  # 底板纱层在 paintEvent 现取，重绘即可生效
 
     def _mode_material(self) -> dict:
         """当前深浅色对应的那套参数。"""
         return self._m["dark" if theme.is_dark() else "light"]
+
+    def paintEvent(self, event):
+        """底板纱层：在原生玻璃与内容之间压一层半透色，找回文字对比度。
+
+        系统 Regular 玻璃在深色模式下遇到浅壁纸会呈中灰，灰字（secondary_text）
+        压上去对比不足；这里允许按模式补一层黑/白沙。默认深色 0.30、浅色 0。
+        """
+        scrim = float(self._mode_material().get("scrim", 0.0))
+        if scrim <= 0:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        color = QColor(0, 0, 0) if theme.is_dark() else QColor(255, 255, 255)
+        color.setAlphaF(min(1.0, scrim))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        radius = float(self._m.get("corner_radius", 22.0))
+        painter.drawRoundedRect(
+            QRectF(0, 0, self.width(), self.height()), radius, radius
+        )
+        painter.end()
 
     def apply_material(self, params: dict):
         """整体替换材质参数并即时生效（调参窗入口）。"""
@@ -977,6 +1001,7 @@ class MenuBarPanel(QWidget):
 
         self._anim_gen = getattr(self, "_anim_gen", 0) + 1
         self._stop_hide_anim()
+        self._reset_stack_height()  # 清掉上一次页面切换遗留的 maximumHeight
         self._stack.setCurrentIndex(0)  # 每次展开回到主页（失焦收起重开是新鲜会话）
         self._sync_from_main()
         self._sync_metrics()
@@ -1024,6 +1049,7 @@ class MenuBarPanel(QWidget):
         gen = self._anim_gen
         self._stop_hide_anim()
         self._stop_show_anims()
+        self._reset_stack_height()  # 收起即复位，避免残留高度带到下次展开
         if reduce_motion() or not self.isVisible():
             self.hide()
             self.setWindowOpacity(1.0)
@@ -1065,6 +1091,24 @@ class MenuBarPanel(QWidget):
                     anim.stop()
             except RuntimeError:
                 pass
+
+    def _reset_stack_height(self):
+        """停掉在途的页面高度动画并复位 maximumHeight。
+
+        页面切换用 QPropertyAnimation 驱动 stack.maximumHeight，正常靠 finished
+        复位；若中途收起面板/被新动画顶替，动画被 stop 掉、finished 不触发，
+        maximumHeight 会停在中间值 → 再展开时内容被裁（底部按钮显示不全）。
+        展开/收起时无条件复位一次即可消除这个残留态。
+        """
+        anim = getattr(self._stack, "_page_height_anim", None)
+        self._stack._page_height_anim = None
+        if anim is not None:
+            try:
+                if isValid(anim):
+                    anim.stop()
+            except RuntimeError:
+                pass
+        self._stack.setMaximumHeight(16777215)
 
     def _activate(self):
         """Accessory 策略下抢键盘焦点（Esc/点击控件依赖）。"""

@@ -398,6 +398,41 @@ def test_panel_material_load_falls_back_on_garbage(tmp_path, monkeypatch):
     assert panel_material.load() == panel_material.defaults()
 
 
+def test_reopen_recovers_from_stale_stack_height(panel, monkeypatch):
+    """回归：页面高度动画被中断留下 maximumHeight → 底部按钮被裁。
+
+    收起/展开时无条件复位，保证每次展开都是完整内容高度。
+    """
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    full = panel.height()
+
+    panel._stack.setMaximumHeight(40)  # 模拟动画残留
+    panel.adjustSize()
+    assert panel.height() < full  # 内容被裁
+
+    panel.hide_panel()
+    panel.show_panel(animated=False)
+    assert panel.height() == full
+    assert panel._stack.maximumHeight() > 1000
+
+
+def test_scrim_param_paints_without_error(panel, qapp):
+    """底板纱层：深色默认非 0，离屏渲染不抛异常。"""
+    from common import panel_material
+
+    params = panel_material.defaults()
+    assert params["dark"]["scrim"] > 0
+    assert params["light"]["scrim"] == 0
+    panel.apply_material(params)
+    from PySide6.QtGui import QPixmap
+
+    pm = QPixmap(panel.width(), panel.height())
+    pm.fill()
+    panel.render(pm)  # 走 paintEvent（含纱层）
+
+
 def test_panel_tuner_drives_real_panel_and_commits(panel, qapp, tmp_path, monkeypatch):
     """调参窗：滑杆实时改真面板；定稿写盘；关闭解除钉住。"""
     from common import panel_material as pm
