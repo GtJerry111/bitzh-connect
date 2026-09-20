@@ -547,3 +547,259 @@ git commit -m "docs: 回填 TUN 共存真机验证结论"
 - **Type consistency**：`capturing_tun_for(server_ip)`、`physical_interface()`、
   `build_command_args(window, command, tun_bind_interface=None)` 在测试与实现中签名一致；
   `_parse_route_get_interface` / `_parse_scutil_nwi` / `_parse_ip_route_dev` 前后一致。
+
+---
+
+## 追加任务（2026-09-20 真机反馈）
+
+真机验证发现：app 被**非正常终止**（关终端 / Ctrl-C / 崩溃）时，root 内核与校园路由会残留
+（要手动 `sudo pkill`）。正常点「断开」不受影响。追加两个任务自愈该问题。
+
+### Task 5: 启动时清理孤儿内核
+
+**Files:**
+- Modify: `app/utils/tun_utils.py`
+- Modify: `app/main.py`
+- Test: `tests/test_tun_utils.py`
+
+- [ ] **Step 1: 写失败测试**
+
+在 `tests/test_tun_utils.py` 末尾追加：
+
+```python
+def test_sweep_orphan_tun_stops_live_kernel(monkeypatch, tmp_path):
+    import os
+
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-abcd1234.pid"
+    pid_file.write_text(str(os.getpid()))
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: True)
+
+    stopped = tu.sweep_orphan_tun()
+
+    assert stopped == 1
+    assert (tmp_path / "bitzh-tun-abcd1234.pid.stop").exists()
+
+
+def test_sweep_orphan_tun_removes_dead(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    pid_file = tmp_path / "bitzh-tun-deadbeef.pid"
+    pid_file.write_text("99999999")
+    stop_file = tmp_path / "bitzh-tun-deadbeef.pid.stop"
+    stop_file.write_text("")
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: False)
+
+    stopped = tu.sweep_orphan_tun()
+
+    assert stopped == 0
+    assert not pid_file.exists()
+    assert not stop_file.exists()
+
+
+def test_sweep_orphan_tun_removes_launcher_and_log(monkeypatch, tmp_path):
+    import utils.tun_utils as tu
+
+    monkeypatch.setattr(tu.tempfile, "gettempdir", lambda: str(tmp_path))
+    sh = tmp_path / "bitzh-tun-launcher.sh"
+    log = tmp_path / "bitzh-tun-session.log"
+    sh.write_text("#!/bin/sh\n")
+    log.write_text("log\n")
+    monkeypatch.setattr(tu, "_pid_alive", lambda pid: False)
+
+    tu.sweep_orphan_tun()
+
+    assert not sh.exists()
+    assert not log.exists()
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `.venv/bin/python -m pytest tests/test_tun_utils.py -q -k sweep`
+Expected: FAIL（`AttributeError: module 'utils.tun_utils' has no attribute 'sweep_orphan_tun'`）
+
+- [ ] **Step 3: 实现**
+
+`app/utils/tun_utils.py` 顶部 `import os` 下方补 `import glob`；在 `request_stop` 之后插入：
+
+```python
+def sweep_orphan_tun() -> int:
+    """清理异常退出残留的 TUN 内核与临时文件（启动时自愈）。
+
+    正常断开时 app 会写停止标记、root 守护脚本收掉内核并清理临时文件；app 被强杀
+    （关终端 / Ctrl-C / 崩溃）时内核与临时文件会残留。启动时：
+    - pid 仍存活 → 写 .stop，交给仍在等待的 root 守护脚本收掉；
+    - pid 已死 → 删掉残留的 pid/stop；
+    - 删掉残留的 launcher 脚本与日志（脚本内嵌命令行含密码，必须清）。
+    返回本次要求停止的内核数量。失败安静忽略（启动不应被清理问题阻断）。
+    """
+    stopped = 0
+    tmp = tempfile.gettempdir()
+    for pid_file in glob.glob(os.path.join(tmp, "bitzh-tun-*.pid")):
+        pid = read_pid(pid_file)
+        if pid is not None and _pid_alive(pid):
+            request_stop(pid_file + ".stop")
+            stopped += 1
+        else:
+            for suffix in ("", ".stop"):
+                try:
+                    os.remove(pid_file + suffix)
+                except OSError:
+                    pass
+    for pattern in ("bitzh-tun-*.sh", "bitzh-tun-*.log"):
+        for path in glob.glob(os.path.join(tmp, pattern)):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    return stopped
+```
+
+`app/main.py`：顶部 import 区加 `from utils.tun_utils import sweep_orphan_tun`；
+`app = QApplication()` 之后、`window = MainWindow()` 之前插入：
+
+```python
+    # 启动自愈：清掉上次异常退出残留的 TUN 内核/临时文件（含内嵌密码的 launcher）
+    sweep_orphan_tun()
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `.venv/bin/python -m pytest tests/test_tun_utils.py -q`
+Expected: PASS
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add app/utils/tun_utils.py app/main.py tests/test_tun_utils.py
+git commit -m "feat(tun): 启动时清理异常退出残留的 TUN 内核与临时文件"
+```
+
+### Task 6: 退出信号处理
+
+**Files:**
+- Create: `app/utils/shutdown.py`
+- Modify: `app/main.py`
+- Test: `tests/test_shutdown.py`
+
+- [ ] **Step 1: 写失败测试**
+
+新建 `tests/test_shutdown.py`：
+
+```python
+"""退出信号处理：SIGINT/SIGTERM/SIGHUP → 置标志，QTimer 轮询触发优雅退出。"""
+import signal
+
+
+def test_install_exit_signal_handlers_triggers_on_signal(qtbot):
+    from utils.shutdown import install_exit_signal_handlers
+
+    fired = []
+    saved = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    timer = install_exit_signal_handlers(lambda: fired.append(True))
+    try:
+        signal.raise_signal(signal.SIGINT)
+        qtbot.waitUntil(lambda: fired == [True], timeout=2000)
+    finally:
+        timer.stop()
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def test_install_exit_signal_handlers_survives_unsupported_signal(monkeypatch, qtbot):
+    import utils.shutdown as sd
+
+    def boom(sig, handler):
+        raise ValueError("not main thread")
+
+    monkeypatch.setattr(sd.signal, "signal", boom)
+    timer = sd.install_exit_signal_handlers(lambda: None)
+    timer.stop()  # 安装全失败也不崩、仍返回可用 timer
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `.venv/bin/python -m pytest tests/test_shutdown.py -q`
+Expected: FAIL（`ModuleNotFoundError: No module named 'utils.shutdown'`）
+
+- [ ] **Step 3: 实现**
+
+新建 `app/utils/shutdown.py`：
+
+```python
+# app/utils/shutdown.py
+"""退出信号处理：把 SIGINT/SIGTERM/SIGHUP 转成一次优雅退出（走 window.quit_app）。
+
+Qt 的 C++ 事件循环不会即时执行 Python 信号处理器——处理器只置标志，由 QTimer
+轮询在事件循环里触发回调（200ms 延迟换实现简单，退出路径不敏感）。
+"""
+import signal
+
+from PySide6.QtCore import QTimer
+
+_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+def install_exit_signal_handlers(on_signal, parent=None) -> QTimer:
+    """安装退出信号处理器，返回需保活的 QTimer（挂 parent 上随其生命周期）。
+
+    on_signal 在事件循环里触发（可重入性由调用方 quit_app 自身保证）。
+    非主线程/平台不支持的信号安装失败时安静跳过。
+    """
+    state = {"fired": False}
+
+    def _handler(_signum, _frame):
+        state["fired"] = True
+
+    for sig in _SIGNALS:
+        try:
+            signal.signal(sig, _handler)
+        except (ValueError, OSError):
+            pass
+
+    timer = QTimer(parent)
+    timer.setInterval(200)
+
+    def _poll():
+        if state["fired"]:
+            timer.stop()
+            on_signal()
+
+    timer.timeout.connect(_poll)
+    timer.start()
+    return timer
+```
+
+`app/main.py`：顶部加 `from utils.shutdown import install_exit_signal_handlers`；
+`window = MainWindow()` 之后插入（`_exit_timer` 全局存活，parent=window 兜底）：
+
+```python
+    # 关闭终端/Ctrl-C/kill 时走一次优雅退出（写停止标记、收掉 root 内核）
+    _exit_timer = install_exit_signal_handlers(window.quit_app, parent=window)
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `.venv/bin/python -m pytest tests/test_shutdown.py -q`
+Expected: PASS
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add app/utils/shutdown.py app/main.py tests/test_shutdown.py
+git commit -m "feat: 退出信号（SIGINT/SIGTERM/SIGHUP）走优雅退出，避免 TUN 内核孤儿"
+```
+
+### Task 7: 追加验证（全量 + 真机）
+
+- [ ] **Step 1: 全量单测**：`.venv/bin/python -m pytest -q` → 全绿。
+- [ ] **Step 2: 真机**：
+  1. 先确保无残留：`pgrep -fl zju-connect`（无输出）；
+  2. 启动 app、连接（FlClash TUN 开）；
+  3. **直接 Ctrl-C / 关终端**（不走「断开」）；
+  4. 重新启动 app → 应自动把上次残留的内核收掉（日志/进程验证），`route -n get 10.8.18.32` 先残留再由 sweep 清掉。
+  5. 再测一次信号：连接后 `kill <app_pid>`（SIGTERM）→ 内核与路由应被回收。
+- [ ] **Step 3: 回填 spec 结论（见 spec §8）。**
