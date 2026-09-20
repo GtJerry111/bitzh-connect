@@ -74,6 +74,9 @@ def _draw_icon(painter: QPainter, kind: str):
     elif kind == "chevron_right":
         painter.drawLine(QPointF(9, 5), QPointF(16, 12))
         painter.drawLine(QPointF(16, 12), QPointF(9, 19))
+    elif kind == "chevron_left":
+        painter.drawLine(QPointF(15, 5), QPointF(8, 12))
+        painter.drawLine(QPointF(8, 12), QPointF(15, 19))
 
 
 class _Icon(QWidget):
@@ -388,6 +391,7 @@ class MenuBarPanel(QWidget):
         super().__init__()
         self._main = main_window
         self._hint_active = False
+        self._mode_pending = False  # 模式页"正在重连"提示的挂起标记
         self._m = panel_material.load()  # 材质参数（调参窗可实时替换）
         self._tuner_pinned = False       # 调参期间取消失焦自动收起
         self.setWindowFlags(
@@ -542,19 +546,22 @@ class MenuBarPanel(QWidget):
         self._stack.addWidget(self._build_nav_page())
         self._stack.addWidget(self._build_mode_page())
 
-    def _make_page_header(self, icon_kind: str, title: str):
-        """二级页标题卡：图标 + 标题（DemiBold）+ ⌄，整行点击返回主页。"""
+    def _make_page_header(self, title: str):
+        """二级页标题卡：行首返回箭头 + 标题（DemiBold），整行点击返回主页。
+
+        返回一律用 chevron_left（macOS popover 惯例）；此前用行尾 chevron_down
+        与主页前进用的 chevron_right 同位置、方向语义还相反。
+        """
         card = QWidget()
         card.setObjectName("PanelCard")
         card.setAttribute(Qt.WA_StyledBackground, True)
         lay = QVBoxLayout(card)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.setSpacing(0)
-        row = _Row(icon_kind, title)
+        row = _Row("chevron_left", title)
         font = row.title.font()
         font.setWeight(QFont.DemiBold)
         row.title.setFont(font)
-        row.set_trailing(_Icon("chevron_down", 10))
         row.clicked.connect(lambda: self._switch_page(0))
         lay.addWidget(row)
         return card
@@ -565,7 +572,7 @@ class MenuBarPanel(QWidget):
         v = QVBoxLayout(page)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(6)
-        self._nav_header = self._make_page_header("grid", "校内导航")
+        self._nav_header = self._make_page_header("校内导航")
         v.addWidget(self._nav_header)
         self._nav_card = QWidget()
         self._nav_card.setObjectName("PanelCard")
@@ -592,12 +599,15 @@ class MenuBarPanel(QWidget):
         return page
 
     def _build_mode_page(self):
-        """模式页：标题卡 + radio 选择卡（只剩模式选择；对标参考图圆点列表）。"""
+        """模式页：标题卡 + radio 选择卡 + 切换结果提示（只剩模式选择）。
+
+        选完不自动返回主页：切模式可能触发断线重连，得让用户看见结果再自己走。
+        """
         page = QWidget()
         v = QVBoxLayout(page)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(6)
-        self._mode_header = self._make_page_header("swap", "连接模式")
+        self._mode_header = self._make_page_header("连接模式")
         v.addWidget(self._mode_header)
         self._mode_card = QWidget()
         self._mode_card.setObjectName("PanelCard")
@@ -611,6 +621,11 @@ class MenuBarPanel(QWidget):
             radio.clicked.connect(lambda _checked=False, i=idx: self._on_mode_radio(i))
             col.addWidget(radio)
             self._mode_radios.append(radio)
+        self._mode_hint = QLabel("")
+        self._mode_hint.setWordWrap(True)
+        self._mode_hint.setContentsMargins(14, 2, 14, 8)
+        self._mode_hint.setVisible(False)
+        col.addWidget(self._mode_hint)
         v.addWidget(self._mode_card)
         return page
 
@@ -772,6 +787,7 @@ class MenuBarPanel(QWidget):
         self._set_stats_visible(state == "connected")
         self._sync_toggle(self._main.connect_button.isChecked())
         self._sync_mode_label()
+        self._sync_mode_hint(state)
 
     def _sync_toggle(self, checked: bool):
         # 同态 setChecked 不发信号，不回环；异态经 toggled 走 knob 动画
@@ -845,6 +861,8 @@ class MenuBarPanel(QWidget):
             return
         if index == 2:
             self._sync_mode_radios()  # 进模式页前同步选中态
+            if not self._mode_pending:
+                self._set_mode_hint("")  # 上次的结果提示不带到这次
         if reduce_motion():
             stack.setCurrentIndex(index)
             self.adjustSize()
@@ -885,11 +903,42 @@ class MenuBarPanel(QWidget):
         fade.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def _on_mode_radio(self, index: int):
-        """radio 选择 → 切换模式（已连接走 bounce 重连）；稍停让勾选入眼再回主页。"""
+        """radio 选择 → 切换模式；留在本页给出结果，不自动滑回主页。
+
+        已连接时切模式会断线重连（set_connection_mode → bounce），所以这里把
+        "正在重连" 明说，并在 _sync_mode_hint 里跟到终态；用户自己按返回键/点标题走。
+        """
+        was_connected = self._main.connect_button.isChecked()
         self._main.set_connection_mode(index == 1)
         self._sync_mode_radios()
         self._sync_mode_label()
-        QTimer.singleShot(250, lambda: self._switch_page(0))
+        name = "TUN 全局路由" if index else "代理"
+        self._mode_pending = bool(was_connected)
+        if was_connected:
+            self._set_mode_hint(f"已切换到{name}，正在重新连接…")
+        else:
+            self._set_mode_hint(f"已切换到{name}")
+
+    def _set_mode_hint(self, text: str, error: bool = False):
+        self._mode_hint.setText(text)
+        color = theme.semantic_color("error" if error else "secondary_text")
+        self._mode_hint.setStyleSheet(f"color: {color};")
+        self._mode_hint.setVisible(bool(text))
+        self.adjustSize()
+
+    def _sync_mode_hint(self, state: str):
+        """模式页切模式后的结果回填（重连成功/失败）。"""
+        if not getattr(self, "_mode_pending", False):
+            return
+        if state == "connected":
+            self._mode_pending = False
+            self._set_mode_hint("已切换并重新连接")
+        elif state == "error":
+            self._mode_pending = False
+            self._set_mode_hint("重连失败，可在主页手动连接", error=True)
+        else:
+            # 断线→重连中间态（idle/working）：保持"正在重新连接…"文案
+            pass
 
     def _sync_mode_radios(self):
         tun = bool(self._main.tun_mode)

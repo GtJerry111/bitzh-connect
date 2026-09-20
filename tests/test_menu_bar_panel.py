@@ -179,21 +179,46 @@ def test_mode_row_opens_mode_page(panel, main, monkeypatch):
     assert panel._mode_radios[1].is_on() == bool(main.tun_mode)
 
 
-def test_mode_radio_switches_and_returns(panel, main, monkeypatch, qtbot):
-    """radio 选择 → set_connection_mode；250ms 后自动回主页。"""
+def test_mode_radio_switches_and_stays(panel, main, monkeypatch):
+    """radio 选择 → set_connection_mode；不自动返回主页，给出结果提示。"""
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
     panel.show_panel(animated=False)
     panel._switch_page(2)
-    old = main.tun_mode
+
     panel._mode_radios[0].clicked.emit()  # 代理
     assert main.tun_mode is False
-    qtbot.waitUntil(lambda: panel._stack.currentIndex() == 0, timeout=1500)
-    # 再选 TUN 还原
-    panel._switch_page(2)
-    panel._mode_radios[1].clicked.emit()
+    assert panel._stack.currentIndex() == 2  # 留在模式页等用户自己走
+    assert panel._mode_hint.text() == "已切换到代理"
+    assert not panel._mode_hint.isHidden()
+
+    panel._mode_radios[1].clicked.emit()  # TUN
     assert main.tun_mode is True
-    qtbot.waitUntil(lambda: panel._stack.currentIndex() == 0, timeout=1500)
+    assert panel._mode_hint.text() == "已切换到TUN 全局路由"
+    assert panel._stack.currentIndex() == 2
+
+    panel._esc.activated.emit()  # 手动返回
+    assert panel._stack.currentIndex() == 0
+
+
+def test_mode_switch_while_connected_reports_reconnect(panel, main, monkeypatch):
+    """已连接时切模式会走 bounce：提示"正在重新连接…"，成功后回填终态。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    monkeypatch.setattr(main, "set_connection_mode", lambda tun: setattr(main, "tun_mode", tun))
+    panel.show_panel(animated=False)
+    panel._switch_page(2)
+    from PySide6.QtCore import QSignalBlocker
+
+    with QSignalBlocker(main.connect_button):  # 只造"已连接"UI 态，不起真 worker
+        main.connect_button.setChecked(True)
+
+    panel._mode_radios[0].clicked.emit()
+    assert "正在重新连接" in panel._mode_hint.text()
+
+    main.status_panel.set_connected("10.0.0.1")
+    assert panel._mode_hint.text() == "已切换并重新连接"
+    assert panel._mode_pending is False
 
 
 def test_nav_row_opens_nav_page(panel, qtbot, monkeypatch):

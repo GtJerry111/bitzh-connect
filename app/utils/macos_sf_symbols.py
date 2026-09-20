@@ -25,6 +25,7 @@ SF_NAMES = {
     "window": "macwindow",
     "chevron_right": "chevron.right",
     "chevron_down": "chevron.down",
+    "chevron_left": "chevron.left",
 }
 
 _CACHE = {}
