@@ -282,7 +282,10 @@ class AdvancedSettingsDialog(QDialog):
             # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
             self.tun_mode_switch.setEnabled(False)
         advanced_layout.addWidget(self.tun_mode_switch)
-        tun_note = "所有流量（含 SSH 等裸 TCP）都走 VPN，默认开启；需要管理员授权；与 Clash TUN 模式互斥"
+        tun_note = (
+            "所有流量（含 SSH 等裸 TCP）都走 VPN，默认开启；需要管理员授权；"
+            "可与 Clash/FlClash 的 TUN 共存（按 IP 直连校园网；对方需未开启严格路由）"
+        )
         if system() == "Windows":
             tun_note += "（本期仅 macOS/Linux）"
         advanced_layout.addWidget(self._description(tun_note))
