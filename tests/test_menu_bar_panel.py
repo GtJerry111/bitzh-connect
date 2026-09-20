@@ -129,6 +129,20 @@ def test_esc_hides_panel(panel, qtbot, monkeypatch):
     assert not panel.isVisible()
 
 
+def test_esc_on_subpage_returns_home(panel, qtbot, monkeypatch):
+    """Esc：二级页 → 返回主页（不收起）；主页 → 收起。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    panel._nav_row.clicked.emit()
+    assert panel._stack.currentIndex() == 1
+    panel._esc.activated.emit()
+    assert panel._stack.currentIndex() == 0
+    assert panel.isVisible()  # 返回主页而非收起
+    panel._esc.activated.emit()
+    assert not panel.isVisible()
+
+
 def test_hide_on_deactivate(panel, qtbot, monkeypatch):
     from PySide6.QtCore import QEvent
 
@@ -151,25 +165,47 @@ def test_show_panel_anchors_on_screen(panel, qtbot, monkeypatch):
     panel.hide_panel()
 
 
-def test_mode_row_fallback_toggles_mode(panel, main, monkeypatch):
-    """原生菜单不可用（offscreen 抛 RuntimeError）→ 点击直接切换模式。"""
-    old = main.tun_mode
-    panel._on_mode_row()
-    assert main.tun_mode == (not old)
-    panel._on_mode_row()
-    assert main.tun_mode == old
-
-
-def test_nav_expand_toggle(panel, qtbot, monkeypatch):
+def test_mode_row_opens_mode_page(panel, main, monkeypatch):
+    """模式行点击 → 模式页（内联聚焦页，radio 同步当前模式）。"""
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
     panel.show_panel(animated=False)
-    assert panel._nav_area.isHidden()
+    panel._mode_row.clicked.emit()
+    assert panel._stack.currentIndex() == 2
+    # radio 选中态镜像当前模式
+    assert panel._mode_radios[1].is_on() == bool(main.tun_mode)
+
+
+def test_mode_radio_switches_and_returns(panel, main, monkeypatch, qtbot):
+    """radio 选择 → set_connection_mode；250ms 后自动回主页。"""
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    panel._switch_page(2)
+    old = main.tun_mode
+    panel._mode_radios[0].clicked.emit()  # 代理
+    assert main.tun_mode is False
+    qtbot.waitUntil(lambda: panel._stack.currentIndex() == 0, timeout=1500)
+    # 再选 TUN 还原
+    panel._switch_page(2)
+    panel._mode_radios[1].clicked.emit()
+    assert main.tun_mode is True
+    qtbot.waitUntil(lambda: panel._stack.currentIndex() == 0, timeout=1500)
+
+
+def test_nav_row_opens_nav_page(panel, qtbot, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    assert panel._stack.currentIndex() == 0
     panel._nav_row.clicked.emit()
-    assert not panel._nav_area.isHidden()
-    assert panel._nav_chevron._angle == 270.0
-    panel._nav_row.clicked.emit()
-    assert panel._nav_area.isHidden()
+    assert panel._stack.currentIndex() == 1
+    # 标题行返回主页
+    from views.menu_bar_panel import _Row
+
+    header_row = panel._nav_header.findChildren(_Row)[0]
+    header_row.clicked.emit()
+    assert panel._stack.currentIndex() == 0
 
 
 def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
@@ -181,7 +217,7 @@ def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
         lambda url: opened.append(url),
     )
     panel._nav_row.clicked.emit()
-    first_chip = panel._nav_area.findChildren(QPushButton)[0]
+    first_chip = panel._nav_card.findChildren(QPushButton)[0]
     first_chip.click()
     assert opened and str(opened[0].url()).startswith("http")
 

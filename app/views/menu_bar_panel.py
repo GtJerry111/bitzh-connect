@@ -11,7 +11,8 @@
 from platform import system
 
 from PySide6.QtCore import (
-    QEasingCurve, QEvent, QPointF, QRectF, Qt, QTimer, QUrl, QVariantAnimation, Signal,
+    QEasingCurve, QEvent, QPointF, QPropertyAnimation, QRectF, Qt, QTimer, QUrl,
+    Signal,
 )
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
@@ -104,44 +105,79 @@ class _Icon(QWidget):
         painter.end()
 
 
-class _SfChevron(QWidget):
-    """SF chevron.down 旋转折叠指示：与行尾 chevron.right 同字重（自绘细线版粗细不搭）。
+class _RadioRow(QWidget):
+    """radio 行（参考图圆点列表）：左圆点 + 名称 + 右侧说明，整行可点。
 
-    角度语义沿用旧 Chevron：90=下（收起），270=上（展开），由外部 QVariantAnimation 驱动。
+    全 QPainter 自绘（圆点/文字/hover 底），颜色现取主题（深浅色 update 即可）。
     """
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(12, 12)
-        self._angle = 90.0
+    clicked = Signal()
 
-    def set_angle(self, deg: float):
-        self._angle = deg
+    def __init__(self, title: str, sub: str = "", parent=None):
+        super().__init__(parent)
+        self._title = title
+        self._sub = sub
+        self._on = False
+        self._hover = False
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(32)
+
+    def set_on(self, on: bool):
+        if on != self._on:
+            self._on = on
+            self.update()
+
+    def is_on(self) -> bool:
+        return self._on
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+
+    def enterEvent(self, event):
+        self._hover = True
         self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hover = False
+        self.update()
+        super().leaveEvent(event)
 
     def paintEvent(self, event):
-        pm = sf_symbol_pixmap(
-            "chevron_down", self.width(), theme.semantic_color("secondary_text")
-        )
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        if pm is not None:
-            painter.save()
-            painter.translate(self.width() / 2, self.height() / 2)
-            painter.rotate(self._angle - 90.0)  # 90°=基准（向下）
-            painter.drawPixmap(QPointF(-self.width() / 2, -self.height() / 2), pm)
-            painter.restore()
+        w, h = self.width(), self.height()
+        if self._hover:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(theme.qcolor("accent", 0.08))
+            painter.drawRoundedRect(QRectF(0, 0, w, h), 8, 8)
+        # 圆点：选中 = accent 实心 + 白内点；未选 = secondary 细环
+        cx, cy = 6 + 8.5, h / 2
+        if self._on:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(theme.qcolor("accent"))
+            painter.drawEllipse(QPointF(cx, cy), 8.5, 8.5)
+            painter.setBrush(QColor("#FFFFFF"))
+            painter.drawEllipse(QPointF(cx, cy), 3.2, 3.2)
         else:
-            # 回退自绘细线 chevron（SF 不可用时）
-            pen = QPen(QColor(theme.semantic_color("secondary_text")))
+            pen = QPen(theme.qcolor("secondary_text"))
             pen.setWidthF(1.5)
-            pen.setCapStyle(Qt.RoundCap)
-            pen.setJoinStyle(Qt.RoundJoin)
             painter.setPen(pen)
-            painter.translate(6, 6)
-            painter.rotate(self._angle)
-            painter.drawLine(QPointF(-1.6, -4.0), QPointF(2.4, 0.0))
-            painter.drawLine(QPointF(2.4, 0.0), QPointF(-1.6, 4.0))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(QPointF(cx, cy), 7.75, 7.75)
+        painter.setPen(theme.qcolor("ink"))
+        font = painter.font()
+        font.setPointSize(12.5)
+        painter.setFont(font)
+        painter.drawText(QRectF(30, 0, w - 30, h), Qt.AlignVCenter, self._title)
+        if self._sub:
+            sub_font = painter.font()
+            sub_font.setPointSize(10)
+            painter.setFont(sub_font)
+            painter.setPen(theme.qcolor("secondary_text"))
+            painter.drawText(
+                QRectF(0, 0, w - 8, h), Qt.AlignRight | Qt.AlignVCenter, self._sub
+            )
         painter.end()
 
 
@@ -228,22 +264,25 @@ class _GlassButton(QAbstractButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         dark = theme.is_dark()
-        # 填充：常态 = 二级材质；hover 微亮；pressed 加深
-        if self.isDown():
-            fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
-        elif self._hover:
-            fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
-        else:
-            fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
-        # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
-        border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
         w, h = self.width(), self.height()
-        pen = QPen(border)
-        pen.setWidthF(1.0)
-        painter.setPen(pen)
-        painter.setBrush(fill)
-        # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
-        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
+        # 有玻璃件（clear 液态玻璃）时材质归原生：只画内容；
+        # 无玻璃件（旧系统/offscreen）自绘底：填充 + 发丝描边
+        if getattr(self, "_glass_piece", None) is None:
+            # 填充：常态 = 二级材质；hover 微亮；pressed 加深
+            if self.isDown():
+                fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
+            elif self._hover:
+                fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
+            else:
+                fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
+            # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
+            border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
+            pen = QPen(border)
+            pen.setWidthF(1.0)
+            painter.setPen(pen)
+            painter.setBrush(fill)
+            # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
+            painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
         # 内容（图标 + 可选文字）整体居中；图标 SF Symbols 优先，回退自绘
         ink_name = theme.semantic_color("ink")
         ink = QColor(ink_name)
@@ -282,7 +321,6 @@ class MenuBarPanel(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self._main = main_window
-        self._nav_expanded = False
         self._hint_active = False
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
@@ -306,36 +344,73 @@ class MenuBarPanel(QWidget):
 
         self._esc = QShortcut(QKeySequence("Esc"), self)
         self._esc.setContext(Qt.WindowShortcut)
-        self._esc.activated.connect(self.hide_panel)
+        self._esc.activated.connect(self._on_esc)
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
-        from utils.macos_glass import (
-            GLASS_STYLE_CLEAR, GLASS_STYLE_REGULAR, install_glass,
-        )
+        from utils.macos_glass import GLASS_STYLE_REGULAR, install_glass
 
-        # 玻璃材质跟随设置（默认 Clear 清透强折射 + 官方交互光学响应）；
-        # 设置里切成"标准"后由 MainWindow.set_glass_style 实时换肤
-        glass_style = (
-            GLASS_STYLE_CLEAR
-            if getattr(self._main, "glass_style", "clear") == "clear"
-            else GLASS_STYLE_REGULAR
-        )
-        if not install_glass(
-            self, corner_radius=22.0, style=glass_style, interactive=True
-        ):
+        # 材质分层（参考图定稿）：底板 = regular 乳白玻璃（整窗），
+        # 卡片/工具条按钮 = clear 玻璃件（独立折射高光，官方交互光学响应）
+        if not install_glass(self, corner_radius=22.0, style=GLASS_STYLE_REGULAR):
             from utils.macos_vibrancy import install_vibrancy
 
             install_vibrancy(self, corner_radius=22.0)
+        self._install_glass_pieces()
         # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
         from utils.macos_panel_shape import round_panel_window
 
         round_panel_window(self)
+        self.installEventFilter(self)  # LayoutRequest/Resize → 玻璃件几何跟随
 
-    # ---- 结构 ----
+    def _install_glass_pieces(self):
+        """卡片与工具条按钮安装 clear 玻璃件；无底板/旧系统时安静回退 QSS 卡面。"""
+        from utils.macos_glass import install_glass_piece
+
+        self._glass_targets = [
+            (self.conn_card, 14.0), (self._rows, 14.0),
+            (self._nav_header, 14.0), (self._nav_card, 14.0),
+            (self._mode_header, 14.0), (self._mode_card, 14.0),
+            (self._open_btn, 14.0), (self._settings_btn, 14.0),
+            (self._quit_btn, 14.0),
+        ]
+        for w, radius in self._glass_targets:
+            install_glass_piece(self, w, corner_radius=radius)
+
+    def _sync_glass_pieces(self):
+        from utils.macos_glass import sync_glass_piece
+
+        for w, _radius in getattr(self, "_glass_targets", []):
+            sync_glass_piece(self, w)
+
+    def eventFilter(self, obj, event):
+        """布局/尺寸变化 → 玻璃件 frame 跟随。
+
+        Resize 时布局已完成 → 立即同步；LayoutRequest 发布局前 → 事件循环
+        下一轮同步（singleShot(0) 让布局先跑完，几何才正确）。
+        """
+        if obj is self:
+            if event.type() == QEvent.Resize:
+                self._sync_glass_pieces()
+            elif event.type() == QEvent.LayoutRequest:
+                QTimer.singleShot(0, self._sync_glass_pieces)
+        return super().eventFilter(obj, event)
+
+    # ---- 结构（QStackedWidget 三页：主页 / 导航页 / 模式页） ----
 
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(6)
+        root.setSpacing(0)
+
+        from PySide6.QtWidgets import QStackedWidget
+
+        self._stack = QStackedWidget(self)
+        root.addWidget(self._stack)
+
+        # ===== 主页 =====
+        page_main = QWidget()
+        main = QVBoxLayout(page_main)
+        main.setContentsMargins(0, 0, 0, 0)
+        main.setSpacing(6)
 
         # 连接卡
         self.conn_card = QWidget()
@@ -382,9 +457,9 @@ class MenuBarPanel(QWidget):
         stats_box.addLayout(row)
         self._stats_area.setVisible(False)
         card.addWidget(self._stats_area)
-        root.addWidget(self.conn_card)
+        main.addWidget(self.conn_card)
 
-        # 行区包半透卡（clear 玻璃上裸行被亮背景冲刷；行间 0.5px hairline）
+        # 行卡（两个导航入口，› 二级页语义；行间 0.5px hairline）
         self._rows = QWidget()
         self._rows.setObjectName("PanelCard")
         self._rows.setAttribute(Qt.WA_StyledBackground, True)
@@ -393,44 +468,17 @@ class MenuBarPanel(QWidget):
         rows.setSpacing(0)
         self._mode_row = _Row("swap", "连接模式")
         self._mode_row.set_trailing(_Icon("chevron_right", 10))
-        self._mode_row.clicked.connect(self._on_mode_row)
+        self._mode_row.clicked.connect(lambda: self._switch_page(2))
         rows.addWidget(self._mode_row)
-        # 裸行间 0.5px hairline：颜色统一由 _apply_styles 按当前主题发放
+        # 行间 0.5px hairline：颜色统一由 _apply_styles 按当前主题发放
         self._row_sep = QFrame()
         self._row_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._row_sep)
         self._nav_row = _Row("grid", "校内导航")
-        self._nav_chevron = _SfChevron()
-        self._nav_chevron.set_angle(90.0)  # 收起态朝下（展开器语义）
-        self._nav_row.set_trailing(self._nav_chevron)
-        self._nav_row.clicked.connect(self._toggle_nav)
+        self._nav_row.set_trailing(_Icon("chevron_right", 10))
+        self._nav_row.clicked.connect(lambda: self._switch_page(1))
         rows.addWidget(self._nav_row)
-        # 导航展开区：分组小标题 + 双列 chip（单字圆标 + 短名，App 纯排版语言）
-        self._nav_area = QWidget()
-        nav = QVBoxLayout(self._nav_area)
-        nav.setContentsMargins(6, 0, 6, 4)
-        nav.setSpacing(4)
-        self._nav_badges = []
-        self._nav_group_labels = []  # 组标题：_refresh_nav_chips 随主题重设颜色
-        for gi, (group_name, items) in enumerate(NAV_GROUPS):
-            label = QLabel(group_name)
-            label.setStyleSheet(
-                f"color: {theme.semantic_color('secondary_text')};"
-                "font-size: 10px; padding-left: 4px;"
-            )
-            if gi:
-                label.setContentsMargins(0, 6, 0, 0)
-            self._nav_group_labels.append(label)
-            nav.addWidget(label)
-            for i in range(0, len(items), 2):
-                chip_row = QHBoxLayout()
-                chip_row.setSpacing(4)
-                for glyph, name, url, tip in items[i : i + 2]:
-                    chip_row.addWidget(self._make_chip(glyph, name, url, tip), 1)
-                nav.addLayout(chip_row)
-        self._nav_area.setVisible(False)
-        rows.addWidget(self._nav_area)
-        root.addWidget(self._rows)
+        main.addWidget(self._rows)
 
         # 底部工具条（自绘玻璃 chip：QSS 半透描边在透明底窗口上抗锯齿失真）
         bar = QHBoxLayout()
@@ -445,7 +493,83 @@ class MenuBarPanel(QWidget):
         self._quit_btn.clicked.connect(self._main.quit_app)
         bar.addWidget(self._settings_btn)
         bar.addWidget(self._quit_btn)
-        root.addLayout(bar)
+        main.addLayout(bar)
+
+        self._stack.addWidget(page_main)
+        self._stack.addWidget(self._build_nav_page())
+        self._stack.addWidget(self._build_mode_page())
+
+    def _make_page_header(self, icon_kind: str, title: str):
+        """二级页标题卡：图标 + 标题（DemiBold）+ ⌄，整行点击返回主页。"""
+        card = QWidget()
+        card.setObjectName("PanelCard")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(0)
+        row = _Row(icon_kind, title)
+        font = row.title.font()
+        font.setWeight(QFont.DemiBold)
+        row.title.setFont(font)
+        row.set_trailing(_Icon("chevron_down", 10))
+        row.clicked.connect(lambda: self._switch_page(0))
+        lay.addWidget(row)
+        return card
+
+    def _build_nav_page(self):
+        """导航页：标题卡 + 站点 chips 卡（只剩导航内容）。"""
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(6)
+        self._nav_header = self._make_page_header("grid", "校内导航")
+        v.addWidget(self._nav_header)
+        self._nav_card = QWidget()
+        self._nav_card.setObjectName("PanelCard")
+        self._nav_card.setAttribute(Qt.WA_StyledBackground, True)
+        nav = QVBoxLayout(self._nav_card)
+        nav.setContentsMargins(8, 8, 8, 8)
+        nav.setSpacing(4)
+        # 分组小标题 + 双列 chip（单字圆标 + 短名，App 纯排版语言）
+        self._nav_badges = []
+        self._nav_group_labels = []  # 组标题：_refresh_nav_chips 随主题重设颜色
+        for gi, (group_name, items) in enumerate(NAV_GROUPS):
+            label = QLabel(group_name)
+            if gi:
+                label.setContentsMargins(0, 6, 0, 0)
+            self._nav_group_labels.append(label)
+            nav.addWidget(label)
+            for i in range(0, len(items), 2):
+                chip_row = QHBoxLayout()
+                chip_row.setSpacing(4)
+                for glyph, name, url, tip in items[i : i + 2]:
+                    chip_row.addWidget(self._make_chip(glyph, name, url, tip), 1)
+                nav.addLayout(chip_row)
+        v.addWidget(self._nav_card)
+        return page
+
+    def _build_mode_page(self):
+        """模式页：标题卡 + radio 选择卡（只剩模式选择；对标参考图圆点列表）。"""
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(6)
+        self._mode_header = self._make_page_header("swap", "连接模式")
+        v.addWidget(self._mode_header)
+        self._mode_card = QWidget()
+        self._mode_card.setObjectName("PanelCard")
+        self._mode_card.setAttribute(Qt.WA_StyledBackground, True)
+        col = QVBoxLayout(self._mode_card)
+        col.setContentsMargins(4, 4, 4, 4)
+        col.setSpacing(0)
+        self._mode_radios = []
+        for idx, (name, sub) in enumerate((("代理", "HTTP/SOCKS5"), ("TUN 全局路由", "默认"))):
+            radio = _RadioRow(name, sub)
+            radio.clicked.connect(lambda _checked=False, i=idx: self._on_mode_radio(i))
+            col.addWidget(radio)
+            self._mode_radios.append(radio)
+        v.addWidget(self._mode_card)
+        return page
 
     def _add_stat(self, row, caption: str):
         col = QVBoxLayout()
@@ -495,7 +619,7 @@ class MenuBarPanel(QWidget):
         return chip
 
     def _refresh_nav_chips(self):
-        for chip in self._nav_area.findChildren(QPushButton):
+        for chip in self._nav_card.findChildren(QPushButton):
             chip.setStyleSheet(f"""
                 QPushButton[navchip="true"] {{
                     border: none; border-radius: 6px;
@@ -533,9 +657,18 @@ class MenuBarPanel(QWidget):
         self._sync_from_main()            # _status/_dot 颜色按新主题重解析
 
     def _apply_styles(self):
-        card_qss = f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
-        self.conn_card.setStyleSheet(card_qss)
-        self._rows.setStyleSheet(card_qss)  # 行区卡：clear 玻璃上裸行的可读性兜底
+        # 材质分层：有玻璃件的卡片 Qt 侧全透（折射高光归原生 clear 玻璃件）；
+        # 无玻璃件（旧系统毛玻璃/offscreen）保留 QSS 半透卡兜底
+        for card in (self.conn_card, self._rows, self._nav_header, self._nav_card,
+                     self._mode_header, self._mode_card):
+            if getattr(card, "_glass_piece", None) is not None:
+                card.setStyleSheet(
+                    "QWidget#PanelCard { background: transparent; border: none; }"
+                )
+            else:
+                card.setStyleSheet(
+                    f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
+                )
         # 分隔线随主题重算（面板懒创建且永驻，不能停留在旧主题色）
         self._card_hairline.setStyleSheet(
             f"color: {theme.with_alpha('separator', 0.6)};"
@@ -628,56 +761,76 @@ class MenuBarPanel(QWidget):
         )
         self._sync_from_main()
 
-    def _on_mode_row(self):
-        """原生 NSMenu 弹出；模块未实装（Task 5 前）或桥接失败 → 兜底直接切换。
+    def _switch_page(self, index: int):
+        """主页(0) ↔ 导航页(1) / 模式页(2)：切换 + 高度动画（顶边钉住）+ 新页淡入。
 
-        popup_menu 用局部导入：Task 5 才创建该模块，顶层导入会让 Task 3 无法运行。
+        高度用 QPropertyAnimation 驱动 stack maximumHeight（共享 on_frame 重锚定
+        纪律——animated_height_toggle 只覆盖 0↔max 语义，页面切换是任意两值）。
         """
-        items = ["代理", "TUN 全局路由"]
-        checked = 1 if self._main.tun_mode else 0
-        try:
-            from utils.macos_menu_popup import popup_menu
-
-            choice = popup_menu(items, checked, self._mode_row.mapToGlobal(
-                self._mode_row.rect().bottomRight()))
-        except Exception:
-            # 原生菜单不可用：退化为点击直接切换
-            self._main.set_connection_mode(not self._main.tun_mode)
+        stack = self._stack
+        if index == stack.currentIndex():
             return
-        if choice is not None and choice != checked:
-            self._main.set_connection_mode(choice == 1)
-        self._sync_mode_label()
-
-    def _toggle_nav(self):
-        """校内导航内联展开（分组双列 chips + chevron 旋转 + 高度动画）。"""
-        self._nav_expanded = not self._nav_expanded
-        angle = 270.0 if self._nav_expanded else 90.0
+        if index == 2:
+            self._sync_mode_radios()  # 进模式页前同步选中态
         if reduce_motion():
-            self._nav_chevron.set_angle(angle)
+            stack.setCurrentIndex(index)
+            self.adjustSize()
+            self._sync_glass_pieces()
+            return
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+        new_page = stack.widget(index)
+        start_h = stack.height()
+        stack.setCurrentIndex(index)
+        end_h = max(stack.sizeHint().height(), 1)
+        # 高度动画：顶边钉住，向下伸缩
+        anim = QPropertyAnimation(stack, b"maximumHeight", self)
+        anim.setDuration(250)
+        anim.setStartValue(start_h)
+        anim.setEndValue(end_h)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.valueChanged.connect(lambda _v: self.adjustSize())
+
+        def _height_finish():
+            if getattr(stack, "_page_height_anim", None) is not anim:
+                return  # 被新动画顶替的旧动画不得决定终态
+            stack.setMaximumHeight(16777215)
+            self.adjustSize()  # 终态重锚定（掉帧兜底，同 motion_utils 纪律）
+
+        anim.finished.connect(_height_finish)
+        stack._page_height_anim = anim  # 身份守卫 + 防 GC
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        # 新页淡入（终态移除效果：常驻 QGraphicsOpacityEffect 会关文字子像素渲染）
+        effect = QGraphicsOpacityEffect(new_page)
+        new_page.setGraphicsEffect(effect)
+        fade = QPropertyAnimation(effect, b"opacity", self)
+        fade.setDuration(200)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(QEasingCurve.OutCubic)
+        fade.finished.connect(lambda: new_page.setGraphicsEffect(None))
+        self._page_fade = fade  # 防 GC
+        fade.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        self._sync_glass_pieces()
+
+    def _on_mode_radio(self, index: int):
+        """radio 选择 → 切换模式（已连接走 bounce 重连）；稍停让勾选入眼再回主页。"""
+        self._main.set_connection_mode(index == 1)
+        self._sync_mode_radios()
+        self._sync_mode_label()
+        QTimer.singleShot(250, lambda: self._switch_page(0))
+
+    def _sync_mode_radios(self):
+        tun = bool(self._main.tun_mode)
+        for i, radio in enumerate(self._mode_radios):
+            radio.set_on((i == 1) == tun)
+
+    def _on_esc(self):
+        """Esc：二级页 → 返回主页；主页 → 收起面板。"""
+        if self._stack.currentIndex() == 0:
+            self.hide_panel()
         else:
-            # 可打断：先停旧动画再从当前展示角度重启（同 ToggleSwitch._animate_knob）
-            old = getattr(self, "_nav_anim", None)
-            if old is not None:
-                self._nav_anim = None
-                if isValid(old):
-                    old.stop()
-            anim = QVariantAnimation(self)
-            anim.setDuration(150)
-            anim.setStartValue(self._nav_chevron._angle)
-            anim.setEndValue(angle)
-            anim.setEasingCurve(QEasingCurve.OutCubic)
-            anim.valueChanged.connect(self._nav_chevron.set_angle)
-            self._nav_anim = anim
-            anim.start()
-        # 收起去 fade 提速 200ms：fade 会让透明度效果对 10 个 chip 逐帧栅格化，
-        # 叠加每帧窗口缩放 + 玻璃背景重采样即掉帧抽搐（展开从 0 长起不卡，收起
-        # 全量栅格化才卡——不对称根因）；展开保留 fade（从 0 长起，硬切突兀）
-        animated_height_toggle(
-            self._nav_area, self._nav_expanded,
-            max_height=max(self._nav_area.sizeHint().height(), 1),
-            duration=250 if self._nav_expanded else 200,
-            fade=self._nav_expanded, on_frame=self.adjustSize,
-        )
+            self._switch_page(0)
 
     def _open_settings(self):
         from views.menu_utils import show_advanced_settings
@@ -704,6 +857,7 @@ class MenuBarPanel(QWidget):
 
         self._anim_gen = getattr(self, "_anim_gen", 0) + 1
         self._stop_hide_anim()
+        self._stack.setCurrentIndex(0)  # 每次展开回到主页（失焦收起重开是新鲜会话）
         self._sync_from_main()
         self._sync_metrics()
         self.adjustSize()
@@ -716,6 +870,7 @@ class MenuBarPanel(QWidget):
             screen = QApplication.primaryScreen()
         geo = panel_geometry(icon_rect, screen.availableGeometry(), self.size())
         self.move(geo.topLeft())
+        self._sync_glass_pieces()  # 页面复位/尺寸就位后同步玻璃件 frame
         animated = animated and not reduce_motion()
         if not animated:
             self.setWindowOpacity(1.0)

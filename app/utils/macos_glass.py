@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication
 from utils.macos_vibrancy import _nsview_of
 
 _NS_WINDOW_BELOW = -1    # NSWindowOrderingMode
+_NS_WINDOW_ABOVE = 1
 _AUTORESIZE = 2 | 16     # WidthSizable | HeightSizable
 # NSGlassEffectView.Style：0=Regular（乳白标准玻璃）1=Clear（清透强折射，壁纸渗色多）
 GLASS_STYLE_REGULAR = 0
@@ -88,13 +89,90 @@ def install_glass(
 
 
 def remove_glass(window) -> None:
-    """移除玻璃（切回浮动模式时调用；未安装时安静返回）。"""
+    """移除玻璃（未安装时安静返回）。"""
     glass = getattr(window, "_glass_view", None)
     if glass is None:
         return
     window._glass_view = None
     try:
         glass.removeFromSuperview()
+    except Exception:
+        pass
+
+
+# ---- 玻璃件（clear 玻璃元素：卡片/按钮，置于底板之上、Qt 内容之下） ----
+
+
+def install_glass_piece(window, widget, corner_radius: float = 14.0,
+                        interactive: bool = True) -> bool:
+    """为窗口内 widget 区域安装 clear 玻璃件（液态玻璃元素，对标参考图卡片/按钮）。
+
+    z-order：底板（regular）在下，玻璃件在其上，Qt 内容（contentView）最上——
+    因此 widget 自身须保持透明（QSS 填充只作回退）。frame 跟随 widget 几何，
+    由调用方在布局变化时驱动 sync_glass_piece（面板在 LayoutRequest 统一同步）。
+    深浅色跟随底板（同窗口 NSAppearance 由 update_glass_appearance 统一管理）。
+
+    返回是否成功；失败（无底板/非 cocoa/桥接异常）安静回退——widget 的
+    QSS 填充继续承担材质。
+    """
+    if not glass_available():
+        return False
+    base = getattr(window, "_glass_view", None)
+    if base is None:
+        return False  # 无底板不装玻璃件（材质层级不成立）
+    try:
+        import objc
+
+        view = _nsview_of(window)
+        content = view.window().contentView()
+        host = content.superview()
+        if host is None:
+            return False
+        piece = objc.lookUpClass("NSGlassEffectView").alloc().init()
+        piece.setStyle_(GLASS_STYLE_CLEAR)
+        piece.setCornerRadius_(corner_radius)
+        piece.setEffectIsInteractive_(interactive)
+        # 底板之上、contentView 之下
+        host.addSubview_positioned_relativeTo_(piece, _NS_WINDOW_ABOVE, base)
+        widget._glass_piece = piece  # 防 GC + 供同步/移除
+        sync_glass_piece(window, widget)
+        return True
+    except Exception:
+        return False
+
+
+def sync_glass_piece(window, widget) -> None:
+    """Qt 几何 → Cocoa frame（y 向上翻转）+ 显隐跟随。
+
+    widget.geometry() 是相对其父级（页面/容器）的坐标，必须 mapTo 窗口坐标系——
+    页面/Stack/根布局的偏移漏算会让玻璃件与内容错位。
+    """
+    piece = getattr(widget, "_glass_piece", None)
+    if piece is None:
+        return
+    try:
+        from PySide6.QtCore import QPoint
+
+        view = _nsview_of(window)
+        content = view.window().contentView()
+        host = content.superview()
+        host_h = host.frame().size.height
+        pos = widget.mapTo(window, QPoint(0, 0))
+        piece.setHidden_(not widget.isVisibleTo(window))
+        piece.setFrame_(((pos.x(), host_h - pos.y() - widget.height()),
+                         (widget.width(), widget.height())))
+    except Exception:
+        pass
+
+
+def remove_glass_piece(widget) -> None:
+    """移除玻璃件（未安装时安静返回）。"""
+    piece = getattr(widget, "_glass_piece", None)
+    if piece is None:
+        return
+    widget._glass_piece = None
+    try:
+        piece.removeFromSuperview()
     except Exception:
         pass
 

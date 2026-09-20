@@ -14,17 +14,17 @@ from utils.motion_utils import reduce_motion
 
 
 class SegmentedModeSwitch(QWidget):
-    """分段选择器（默认：0=代理模式，1=TUN 模式；segments 参数可复用为任意选项组）。"""
+    """两段分段选择器：0=代理模式，1=TUN 模式（全局路由）。"""
 
     currentChanged = Signal(int)
 
-    def __init__(self, segments=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(30)
         self.setCursor(Qt.PointingHandCursor)
         self._current = 0
         self._pill_pos = 0.0  # 药丸位置（0.0~1.0，段索引浮点，动画驱动）
-        self._segments = list(segments) if segments else ["代理模式", "TUN 模式"]
+        self._segments = ["代理模式", "TUN 模式"]
         self._pressed = False  # 按压下沉反馈（paintEvent 整体下移 1px）
 
     def currentIndex(self) -> int:

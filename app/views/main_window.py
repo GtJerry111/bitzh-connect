@@ -536,26 +536,6 @@ class MainWindow(QMainWindow):
             self.output_text.append("[BITZH Connect] 正在切换连接模式，重新连接…\n")
             self._bounce_connection()
 
-    def set_glass_style(self, style: str):
-        """面板玻璃材质切换：清透(clear) / 标准(regular)。
-
-        持久化由设置对话框 accept 统一保存；此处负责属性 + 已创建面板的
-        实时换肤（NSGlassEffectView.setStyle_，无需重建）。
-        """
-        self.glass_style = "clear" if style == "clear" else "regular"
-        panel = getattr(self, "_menu_bar_panel", None)
-        glass = getattr(panel, "_glass_view", None) if panel is not None else None
-        if glass is None or system() != "Darwin":
-            return
-        try:
-            from utils.macos_glass import GLASS_STYLE_CLEAR, GLASS_STYLE_REGULAR
-
-            glass.setStyle_(
-                GLASS_STYLE_CLEAR if self.glass_style == "clear" else GLASS_STYLE_REGULAR
-            )
-        except Exception:
-            pass
-
     def toggle_panel(self):
         """状态栏图标左键：快捷面板展开 ↔ 收起（懒创建）。"""
         if self._menu_bar_panel is None:
