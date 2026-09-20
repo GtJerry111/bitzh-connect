@@ -153,12 +153,20 @@ TUN；同时希望保留 FlClash（mihomo 内核）的 TUN 上外网。两者要
 **根因**：正常断开时 app 写停止标记，root 守护脚本收掉内核并清理临时文件；非正常终止
 时无人写标记，守护脚本一直等待，内核成孤儿。
 
-**方案（两个都做）**：
+**方案（三个都做）**：
 1. **退出信号处理**（`app/utils/shutdown.py`）：接管 `SIGINT`/`SIGTERM`/`SIGHUP`，
    处理器只置标志，`QTimer`（200ms）在 Qt 事件循环里触发 `window.quit_app` → 写停止标记。
 2. **启动自愈扫描**（`sweep_orphan_tun()`）：启动时扫 `TMPDIR/bitzh-tun-*.pid`——
    pid 存活则写 `.stop` 交给仍在等待的 root 守护脚本；pid 已死则删残留，
    并清理 launcher 脚本/日志（脚本内嵌命令行含密码，必须删）。
+3. **单实例锁**（`app/utils/single_instance.py`，QLockFile）：第二次启动直接退出。
+   否则启动清扫会误伤「另一个实例正在用的内核」（杀内核 + 删其日志）。
+   锁带陈旧检测，崩溃后可重新启动。
 
-覆盖：Ctrl-C、关终端（SIGHUP）、kill（SIGTERM）、崩溃/断电（靠启动扫描）。
-多实例并存不在目标内（单实例假设）。
+**清扫加固**（评审 Important/Minor）：
+- Windows 直接返回 0（`_pid_alive` 在 Windows 是破坏性的 `TerminateProcess`）；
+- 跳过非本人 uid 的残留文件（Linux 共用 `/tmp` 的跨用户杀伤面）；
+- 只删「能解析出且已死」的 pid 文件；空/损坏的 pid 文件保守保留
+  （可能内核刚 spawn、launcher 尚未写入 pid，删了会导致内核永久不可停）。
+
+覆盖：Ctrl-C、关终端（SIGHUP）、kill（SIGTERM）、崩溃/断电（靠启动扫描）、重复启动（锁）。
