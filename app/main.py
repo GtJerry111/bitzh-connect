@@ -8,6 +8,7 @@ from common.constants import APP_NAME
 if system() == "Darwin":
     from utils.macos_utils import hide_dock_icon
 from common import resources
+from utils.shutdown import install_exit_signal_handlers
 from utils.single_instance import acquire_single_instance_lock
 from utils.tun_utils import sweep_orphan_tun
 from views.main_window import MainWindow
@@ -36,6 +37,8 @@ if __name__ == "__main__":
     # 启动自愈：清掉上次异常退出残留的 TUN 内核/临时文件（含内嵌密码的 launcher）
     sweep_orphan_tun()
     window = MainWindow()
+    # 关闭终端/Ctrl-C/kill 时走一次优雅退出（写停止标记、收掉 root 内核）
+    _exit_timer = install_exit_signal_handlers(window.quit_app, parent=window)
 
     if system() == "Windows":
         font = app.font()
