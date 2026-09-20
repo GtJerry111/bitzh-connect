@@ -60,3 +60,14 @@ def test_tun_mode_forced_off_on_windows(monkeypatch):
     w = SimpleNamespace()
     load_settings(w)
     assert w.tun_mode is False
+
+
+def test_tun_bind_interface_appended_when_present():
+    args = build_command_args(_fake_window(tun_mode=True), "zju-connect", "en0")
+    assert "-bind-interface" in args
+    assert args[args.index("-bind-interface") + 1] == "en0"
+
+
+def test_tun_bind_interface_absent_by_default():
+    args = build_command_args(_fake_window(tun_mode=True), "zju-connect")
+    assert "-bind-interface" not in args

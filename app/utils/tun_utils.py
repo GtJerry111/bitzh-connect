@@ -1,5 +1,5 @@
 # app/utils/tun_utils.py
-"""TUN 模式支持：提权启动内核、停止标记、pid 管理、冲突检测。
+"""TUN 模式支持：提权启动内核、停止标记、pid 管理、共存探测。
 
 提权方案（本期最简，后续可换 SMAppServices 特权助手）：
 - macOS：osascript do shell script ... with administrator privileges（仅连接时弹一次授权框）
@@ -128,38 +128,6 @@ def physical_interface() -> str | None:
         return name if name and not _is_tun_name(name) else None
     except Exception:
         return None
-
-
-def check_tun_conflict() -> str | None:
-    """默认路由已在虚拟网卡上（如 Clash TUN）→ 返回该网卡名；否则 None。
-
-    判定规则：macOS 看 utun*；Linux 看 tun*/utun* 前缀（OpenVPN 的 tun0 也算——
-    它同样是 TUN VPN，全局路由必然打架；WireGuard 的 wg0 不误伤）。
-    Windows 本期不做检测（TUN 硬守卫不可达）。
-    """
-    if system() == "Darwin":
-        try:
-            out = subprocess.check_output(["netstat", "-rn", "-f", "inet"], text=True)
-            for line in out.splitlines():
-                parts = line.split()
-                if parts and parts[0] == "default" and parts[-1].startswith("utun"):
-                    return parts[-1]
-        except Exception:
-            return None
-    elif system() == "Linux":
-        try:
-            out = subprocess.check_output(
-                ["ip", "route", "show", "default"], text=True
-            )
-            for line in out.splitlines():
-                parts = line.split()
-                if parts and parts[0] == "default" and "dev" in parts:
-                    dev = parts[parts.index("dev") + 1]
-                    if dev.startswith(("tun", "utun")):
-                        return dev
-        except Exception:
-            return None
-    return None
 
 
 def write_launcher(

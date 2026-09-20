@@ -136,30 +136,36 @@ def test_empty_credentials_rolls_back_fake_connected_state(qtbot):
     assert win.tray_connect_action.isChecked() is False
 
 
-def test_tun_conflict_aborts_before_spawn(qtbot, monkeypatch):
-    """TUN 冲突早退：不创建 worker、不触发提权，按钮/输入框/托盘复位且仪表盘提示冲突网卡"""
+def test_tun_coexist_binds_physical_interface_no_abort(qtbot, monkeypatch):
+    """TUN 共存：他方 TUN 截走服务器路由时，底层绑定物理网卡并继续（不再早退）"""
+    import utils.connection_utils as cu
+
     win = _make_window(qtbot)
     win.username_input.setText("u")
     win.password_input.setText("p")
     win.tun_mode = True
-    monkeypatch.setattr("utils.connection_utils.check_tun_conflict", lambda: "utun9")
-    spawned = []
+    monkeypatch.setattr("utils.connection_utils.capturing_tun_for", lambda ip: "utun9")
+    monkeypatch.setattr("utils.connection_utils.physical_interface", lambda: "en0")
     monkeypatch.setattr(
-        "utils.connection_utils.spawn_elevated_async",
-        lambda *a, **k: spawned.append(True),
+        "utils.connection_utils.spawn_elevated_async", lambda *a, **k: None
     )
+    seen = {}
+    real = cu.build_command_args
 
-    win.connect_button.setChecked(True)  # 模拟点"连接"
+    def spy(window, command, tun_bind_interface=None):
+        seen["bind"] = tun_bind_interface
+        return real(window, command, tun_bind_interface)
 
-    assert spawned == []  # 早退绝不能触发真实提权（开发机会弹授权框）
-    assert win.worker is None
-    assert win.connect_button.isChecked() is False
-    assert win.connect_button.text() == "连接"
-    assert win.username_input.isEnabled()
-    assert win.password_input.isEnabled()
-    assert win.status_panel.status_text.text() == "未连接"
-    assert win.status_panel.subtitle.text() == "与 utun9 的 TUN 冲突"
-    assert win.tray_connect_action.isChecked() is False
+    monkeypatch.setattr("utils.connection_utils.build_command_args", spy)
+
+    win.connect_button.setChecked(True)
+
+    assert seen["bind"] == "en0"          # 绑定参数已传到参数构建
+    assert win.worker is not None          # 未早退
+    assert "共存模式" in win.output_text.toPlainText()
+
+    win.connect_button.setChecked(False)   # 收尾，避免残留 worker
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
 
 
 def test_windows_tun_hard_guard(qtbot, monkeypatch):
@@ -191,7 +197,7 @@ def test_stale_spawn_done_stops_orphan_kernel(qtbot, monkeypatch):
     win.username_input.setText("u")
     win.password_input.setText("p")
     win.tun_mode = True
-    monkeypatch.setattr("utils.connection_utils.check_tun_conflict", lambda: None)
+    monkeypatch.setattr("utils.connection_utils.capturing_tun_for", lambda ip: None)
     callbacks = []
     monkeypatch.setattr(
         "utils.connection_utils.spawn_elevated_async",

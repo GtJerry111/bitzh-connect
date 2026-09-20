@@ -6,7 +6,8 @@ from PySide6.QtCore import QSignalBlocker
 from .set_proxy import CommandWorker
 from .log_parser import parse_client_ip, is_auth_failure, is_server_kick, is_rsa_material
 from .tun_utils import (
-    check_tun_conflict,
+    capturing_tun_for,
+    physical_interface,
     write_launcher,
     spawn_elevated_async,
     request_stop,
@@ -122,7 +123,7 @@ def handle_connection_finished(window, exit_code):
     window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
 
 
-def build_command_args(window, command):
+def build_command_args(window, command, tun_bind_interface=None):
     """根据窗口配置构建 zju-connect 命令行参数。
 
     注意：严禁对参数做 shell 引号处理——subprocess 传 list 不经 shell，
@@ -165,6 +166,8 @@ def build_command_args(window, command):
     if getattr(window, "tun_mode", False):
         command_args.append("-tun-mode")
         command_args.append("-add-route")
+        if tun_bind_interface:
+            command_args.extend(["-bind-interface", tun_bind_interface])
 
     command_args.append("-disable-zju-config")
     command_args.append("-skip-domain-resource")
@@ -221,20 +224,32 @@ def start_connection(window):
         if os.path.exists(command):
             os.chmod(command, 0o755)
 
-    command_args = build_command_args(window, command)
+    # 共存模式：他方 TUN（Clash/FlClash）常不抢默认路由，而是用明细路由把 VPN
+    # 服务器 IP 截进自己的 utun——此时把内核底层连接显式绑到物理网卡，硬件层绕过
+    # 对方路由，两 TUN 各管各的。探测不到物理网卡则告警但仍继续（不阻断连接）。
+    tun_bind_interface = None
+    if getattr(window, "tun_mode", False) and system() != "Windows":
+        captured = capturing_tun_for(window.server_address)
+        if captured:
+            tun_bind_interface = physical_interface()
+            if tun_bind_interface:
+                window.output_text.append(
+                    f"[BITZH Connect] 检测到 {captured} 占用服务器路由，已启用共存模式"
+                    f"（底层绑定 {tun_bind_interface}）\n"
+                )
+            else:
+                window.output_text.append(
+                    f"[BITZH Connect] 检测到 {captured} 占用服务器路由，但未识别到物理网卡；"
+                    f"若连不上请先关闭 {captured}\n"
+                )
+
+    command_args = build_command_args(window, command, tun_bind_interface)
     window.output_text.append(f"Running command: {' '.join(mask_command_args(command_args))}\n")
 
     if getattr(window, "tun_mode", False):
         # 纵深防御：面板开关在 Windows 已置灰，此处硬守卫防编程绕过（.bat 链路本期未验证）
         if system() == "Windows":
             _reset_connect_ui(window, "本期暂不支持 Windows TUN")
-            return
-        conflict = check_tun_conflict()
-        if conflict:
-            window.output_text.append(
-                f"[BITZH Connect] 检测到默认路由已在虚拟网卡 {conflict}（如 Clash TUN），请先关闭再连\n"
-            )
-            _reset_connect_ui(window, f"与 {conflict} 的 TUN 冲突")
             return
         # 注意：os 已在模块顶部导入，函数内重复 import 会把 os 变成本地变量，
         # 导致函数前段 os.path 用法 UnboundLocalError——这里只补 tempfile
