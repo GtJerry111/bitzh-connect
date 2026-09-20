@@ -60,4 +60,14 @@ if __name__ == "__main__":
     if system() == "Darwin":
         hide_dock_icon(window.hide_dock_icon)
 
+    # 真机调参入口（开发用）：BITZH_PANEL_TUNER=1 uv run app/main.py
+    import os
+
+    if os.environ.get("BITZH_PANEL_TUNER") == "1":
+        from views.panel_tuner import PanelTuner
+
+        window.toggle_panel()  # 确保面板创建并展开
+        _tuner = PanelTuner(window._menu_bar_panel)
+        _tuner.show()
+
     app.exec()

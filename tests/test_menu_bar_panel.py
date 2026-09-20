@@ -16,10 +16,13 @@ def main(qtbot):
 
 @pytest.fixture
 def panel(main, qtbot):
+    from common import panel_material
     from views.menu_bar_panel import MenuBarPanel
 
     p = MenuBarPanel(main)
     qtbot.addWidget(p)
+    # 材质参数会从磁盘读（真机调参留档），测试里固定回默认值保证确定性
+    p.apply_material(panel_material.defaults())
     return p
 
 
@@ -266,19 +269,128 @@ def test_nav_group_label_refreshes_on_theme_change(panel, qapp):
 
 
 def test_panel_hairline_refreshes_on_theme_change(panel, qapp):
-    """回归（I1）：切深浅色后面板分隔线颜色随之刷新，不停留旧主题色。"""
+    """回归（I1）：切深浅色后面板分隔线颜色随之刷新，不停留旧主题色。
+
+    alpha 现在来自材质参数（panel_material.hairline），浅深各一套。
+    """
     from common import theme
 
+    alpha = panel._m["light"]["hairline"]
     theme.set_appearance("light")
     try:
-        light = theme.with_alpha("separator", 0.6)
-        assert light == "rgba(209,209,214,0.6)"  # 锁住浅色换算，避免断言空转
+        light = theme.with_alpha("separator", alpha)
+        assert light.startswith("rgba(209,209,214,")  # 锁住浅色换算，避免断言空转
         assert light in panel._card_hairline.styleSheet()
 
         theme.set_appearance("dark")
-        dark = theme.with_alpha("separator", 0.6)
-        assert dark == "rgba(58,58,60,0.6)"  # 锁住深色 token 值
+        dark_alpha = panel._m["dark"]["hairline"]
+        dark = theme.with_alpha("separator", dark_alpha)
+        assert dark.startswith("rgba(58,58,60,")  # 锁住深色 token
         assert dark in panel._card_hairline.styleSheet()
-        assert theme.with_alpha("separator", 0.4) in panel._row_sep.styleSheet()
+        assert theme.with_alpha("separator", dark_alpha * 0.75) in panel._row_sep.styleSheet()
     finally:
         theme.set_appearance("system")
+
+
+def test_apply_material_changes_geometry(panel, qapp):
+    """调参入口：材质参数即时驱动面板几何（行高/内边距/块间距）。"""
+    from common import panel_material, theme
+
+    params = panel_material.defaults()
+    params["light"]["row_height"] = 40
+    params["light"]["pad"] = 16
+    params["light"]["gap"] = 12
+    theme.set_appearance("light")
+    try:
+        panel.apply_material(params)
+        assert panel._root_layout.contentsMargins().left() == 16
+        assert panel._main_layout.spacing() == 12
+        assert panel._mode_row.height() == 40
+    finally:
+        theme.set_appearance("system")
+
+
+def test_row_click_emits_on_release_inside(panel):
+    """按下并释放在行内才触发点击；拖出取消（与系统控件一致）。"""
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    fired = []
+    panel._mode_row.clicked.connect(lambda: fired.append(1))
+
+    def _mouse(kind, pos):
+        return QMouseEvent(
+            kind, QPointF(*pos), panel._mode_row.mapToGlobal(QPointF(*pos)),
+            Qt.LeftButton, Qt.LeftButton, Qt.NoModifier,
+        )
+
+    inside = (10, 10)
+    panel._mode_row.mousePressEvent(_mouse(QEvent.MouseButtonPress, inside))
+    panel._mode_row.mouseReleaseEvent(_mouse(QEvent.MouseButtonRelease, inside))
+    assert fired == [1]
+
+    panel._mode_row.mousePressEvent(_mouse(QEvent.MouseButtonPress, inside))
+    panel._mode_row.mouseReleaseEvent(_mouse(QEvent.MouseButtonRelease, (9999, 9999)))
+    assert fired == [1]  # 释放在行外不算点击
+
+
+def test_pinned_panel_ignores_deactivate(panel, monkeypatch):
+    """调参期间钉住：失焦不收起。"""
+    from PySide6.QtCore import QEvent
+
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    panel.show_panel(animated=False)
+    panel.set_pinned(True)
+    panel.event(QEvent(QEvent.WindowDeactivate))
+    assert panel.isVisible()
+    panel.set_pinned(False)
+    panel.event(QEvent(QEvent.WindowDeactivate))
+    assert not panel.isVisible()
+
+
+def test_panel_material_roundtrip(tmp_path, monkeypatch):
+    """材质参数写盘/读回（调参窗定稿路径）。"""
+    from common import panel_material
+
+    monkeypatch.setattr(panel_material, "_path", lambda: tmp_path / "m.json")
+    params = panel_material.defaults()
+    params["glass_style"] = "clear"
+    params["corner_radius"] = 18.0
+    params["dark"]["chip_fill"] = 0.33
+    panel_material.save(params)
+    loaded = panel_material.load()
+    assert loaded["glass_style"] == "clear"
+    assert loaded["corner_radius"] == 18.0
+    assert loaded["dark"]["chip_fill"] == 0.33
+
+
+def test_panel_material_load_falls_back_on_garbage(tmp_path, monkeypatch):
+    from common import panel_material
+
+    bad = tmp_path / "m.json"
+    bad.write_text("{not json")
+    monkeypatch.setattr(panel_material, "_path", lambda: bad)
+    assert panel_material.load() == panel_material.defaults()
+
+
+def test_panel_tuner_drives_real_panel_and_commits(panel, qapp, tmp_path, monkeypatch):
+    """调参窗：滑杆实时改真面板；定稿写盘；关闭解除钉住。"""
+    from common import panel_material as pm
+    from views.panel_tuner import PanelTuner
+
+    monkeypatch.setattr(pm, "_path", lambda: tmp_path / "m.json")
+    monkeypatch.setattr(
+        "views.menu_bar_panel.reduce_motion", lambda: True,
+    )
+    tuner = PanelTuner(panel)
+    assert panel._tuner_pinned is True
+
+    tuner._rows["row_height"]["slider"].setValue(900)  # 24→44 区间的 90%
+    assert panel._m["light"]["row_height"] == 42
+
+    tuner._commit()
+    assert (tmp_path / "m.json").exists()
+    assert pm.load()["light"]["row_height"] == 42
+
+    tuner.close()
+    assert panel._tuner_pinned is False

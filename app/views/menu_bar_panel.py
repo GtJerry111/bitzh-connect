@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from common import theme
+from common import panel_material, theme
 from common.constants import NAV_GROUPS
 from utils.macos_sf_symbols import sf_symbol_pixmap
 from utils.motion_utils import animated_height_toggle, reduce_motion
@@ -119,6 +119,8 @@ class _RadioRow(QWidget):
         self._sub = sub
         self._on = False
         self._hover = False
+        self._pressed = False
+        self._m = panel_material.defaults()["light"]
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(32)
 
@@ -130,8 +132,22 @@ class _RadioRow(QWidget):
     def is_on(self) -> bool:
         return self._on
 
+    def set_material(self, m: dict):
+        self._m = m
+        self.setFixedHeight(int(m.get("row_height", 32)))
+        self.update()
+
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        self._pressed = True
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        was_pressed = self._pressed
+        self._pressed = False
+        self.update()
+        # 按下并释放在行内才触发（拖出取消，与系统控件一致）
+        if was_pressed and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
 
     def enterEvent(self, event):
         self._hover = True
@@ -147,9 +163,15 @@ class _RadioRow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        if self._hover:
+        if self._pressed:
+            fill = theme.qcolor("accent", self._m.get("row_pressed", 0.24))
+        elif self._hover:
+            fill = theme.qcolor("accent", self._m.get("row_hover", 0.16))
+        else:
+            fill = None
+        if fill is not None:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(theme.qcolor("accent", 0.08))
+            painter.setBrush(fill)
             painter.drawRoundedRect(QRectF(0, 0, w, h), 8, 8)
         # 圆点：选中 = accent 实心 + 白内点；未选 = secondary 细环
         cx, cy = 6 + 8.5, h / 2
@@ -190,6 +212,7 @@ class _Row(QWidget):
         super().__init__(parent)
         self.setCursor(Qt.PointingHandCursor)
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self._m = panel_material.defaults()["light"]
         self.setFixedHeight(33)
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 0, 6, 0)
@@ -208,13 +231,36 @@ class _Row(QWidget):
     def set_trailing(self, widget):
         self._trailing_slot.addWidget(widget)
 
+    def set_material(self, m: dict):
+        self._m = m
+        self.setFixedHeight(int(m.get("row_height", 33)))
+        self.refresh_theme()
+
     def mousePressEvent(self, event):
-        self.clicked.emit()
+        self.setProperty("pressed", True)
+        self._repolish()
+
+    def mouseReleaseEvent(self, event):
+        was_pressed = bool(self.property("pressed"))
+        self.setProperty("pressed", False)
+        self._repolish()
+        # 按下并释放在行内才触发（拖出取消，与系统控件一致）
+        if was_pressed and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+
+    def _repolish(self):
+        style = self.style()
+        style.unpolish(self)
+        style.polish(self)
+        self.update()
 
     def refresh_theme(self):
+        hover = theme.with_alpha("accent", self._m.get("row_hover", 0.16))
+        pressed = theme.with_alpha("accent", self._m.get("row_pressed", 0.24))
         self.setStyleSheet(f"""
             _Row {{ border-radius: 8px; }}
-            _Row:hover {{ background: {theme.with_alpha("accent", 0.08)}; }}
+            _Row:hover {{ background: {hover}; }}
+            _Row[pressed="true"] {{ background: {pressed}; }}
         """)
         self.value.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
 
@@ -234,12 +280,17 @@ class _GlassButton(QAbstractButton):
         self._icon_kind = icon_kind
         self._text = text
         self._hover = False
+        self._m = panel_material.defaults()["light"]
         self.setCursor(Qt.PointingHandCursor)
         if tooltip:
             self.setToolTip(tooltip)
         self.setFixedHeight(28)
         if not text:
             self.setFixedWidth(28)
+
+    def set_material(self, m: dict):
+        self._m = m
+        self.update()
 
     def sizeHint(self):
         from PySide6.QtCore import QSize
@@ -265,23 +316,39 @@ class _GlassButton(QAbstractButton):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        dark = theme.is_dark()
+        m = self._m
         w, h = self.width(), self.height()
-        # 填充：常态 = 二级材质；hover 微亮；pressed 加深
+        # 填充：清透玻璃片（半透白）；hover 变亮；pressed 更亮 + 内凹（无高光）
+        alpha = m.get("chip_fill", 0.26)
         if self.isDown():
-            fill = QColor(64, 64, 68, 170) if dark else QColor(255, 255, 255, 80)
+            alpha = m.get("chip_pressed", 0.62)
         elif self._hover:
-            fill = QColor(64, 64, 68, 160) if dark else QColor(255, 255, 255, 140)
-        else:
-            fill = QColor(64, 64, 68, 128) if dark else QColor(255, 255, 255, 107)
-        # 浅色：白描边在亮玻璃上不可见，用深色发丝线（Apple 玻璃对比惯例）
-        border = QColor(255, 255, 255, 36) if dark else QColor(60, 60, 67, 30)
+            alpha = m.get("chip_hover", 0.46)
+        fill = QColor(255, 255, 255, max(0, min(255, round(alpha * 255))))
+        border = QColor(
+            255, 255, 255,
+            max(0, min(255, round(m.get("chip_border", 0.65) * 255))),
+        )
+        rect = QRectF(0.5, 0.5, w - 1.0, h - 1.0)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(fill)
+        painter.drawRoundedRect(rect, h / 2, h / 2)
+        # 顶部内高光：同圆角描边裁到上半（玻璃片的"面"靠这条亮边立起来）
+        hl = m.get("chip_highlight", 0.85)
+        if hl > 0 and not self.isDown():
+            painter.save()
+            painter.setClipRect(QRectF(0, 0, w, h / 2))
+            pen = QPen(QColor(255, 255, 255, max(0, min(255, round(hl * 255)))))
+            pen.setWidthF(1.0)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(rect, h / 2, h / 2)
+            painter.restore()
         pen = QPen(border)
         pen.setWidthF(1.0)
         painter.setPen(pen)
-        painter.setBrush(fill)
-        # 0.5px 内缩：描边骑缝在边界上，避免外缘超出控件矩形被裁
-        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0), h / 2, h / 2)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect, h / 2, h / 2)
         # 内容（图标 + 可选文字）整体居中；图标 SF Symbols 优先，回退自绘
         ink_name = theme.semantic_color("ink")
         ink = QColor(ink_name)
@@ -321,6 +388,8 @@ class MenuBarPanel(QWidget):
         super().__init__()
         self._main = main_window
         self._hint_active = False
+        self._m = panel_material.load()  # 材质参数（调参窗可实时替换）
+        self._tuner_pinned = False       # 调参期间取消失焦自动收起
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
         )
@@ -345,18 +414,25 @@ class MenuBarPanel(QWidget):
         self._esc.setContext(Qt.WindowShortcut)
         self._esc.activated.connect(self._on_esc)
         self.winId()  # 真实化 NSWindow，供玻璃垫层安装
-        from utils.macos_glass import GLASS_STYLE_CLEAR, install_glass
+        from utils.macos_glass import (
+            GLASS_STYLE_CLEAR, GLASS_STYLE_REGULAR, install_glass,
+        )
 
-        # 底板玻璃 = clear（清透强折射、透出壁纸），对标 MenuPower「底板玻璃」的 Clear 档
-        # 并作为默认；卡片/按钮是 Qt 自绘的半透二级材质，叠在这层玻璃上（底透、控件实）
-        if not install_glass(self, corner_radius=22.0, style=GLASS_STYLE_CLEAR):
+        # 底板玻璃：磨砂 Regular（参照图）为默认；Clear 为清透强折射备选。
+        # 卡片/按钮是 Qt 自绘的半透材质，叠在这层玻璃上（底透、控件实）
+        style = (
+            GLASS_STYLE_CLEAR if self._m["glass_style"] == "clear"
+            else GLASS_STYLE_REGULAR
+        )
+        radius = self._m["corner_radius"]
+        if not install_glass(self, corner_radius=radius, style=style):
             from utils.macos_vibrancy import install_vibrancy
 
-            install_vibrancy(self, corner_radius=22.0)
+            install_vibrancy(self, corner_radius=radius)
         # 窗口 frame 同半径圆角：否则系统按矩形窗口算阴影，四角露出方形阴影残角
         from utils.macos_panel_shape import round_panel_window
 
-        round_panel_window(self)
+        round_panel_window(self, radius=radius)
 
     # ---- 结构（QStackedWidget 三页：主页 / 导航页 / 模式页） ----
 
@@ -364,6 +440,7 @@ class MenuBarPanel(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(0)
+        self._root_layout = root
 
         from PySide6.QtWidgets import QStackedWidget
 
@@ -375,6 +452,7 @@ class MenuBarPanel(QWidget):
         main = QVBoxLayout(page_main)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(6)
+        self._main_layout = main
 
         # 连接卡
         self.conn_card = QWidget()
@@ -447,6 +525,7 @@ class MenuBarPanel(QWidget):
         # 底部工具条（自绘玻璃 chip：QSS 半透描边在透明底窗口上抗锯齿失真）
         bar = QHBoxLayout()
         bar.setSpacing(7)
+        self._toolbar_layout = bar
         self._open_btn = _GlassButton("window", "打开主窗口")
         self._open_btn.clicked.connect(lambda: self._main.open_main_window())
         bar.addWidget(self._open_btn)
@@ -621,28 +700,63 @@ class MenuBarPanel(QWidget):
         self._sync_from_main()            # _status/_dot 颜色按新主题重解析
 
     def _apply_styles(self):
-        # 卡片/标题卡统一走 QSS 半透二级材质，叠在原生 clear 底板上
-        # （底透、控件实；不叠第二层原生玻璃，避免白泡与层级反转）
+        # C 方案：不再套卡片——整块面板只有一层底板材质，靠 hairline 分区、
+        # 行/按钮靠 hover·按下出形（卡片白膜会盖住玻璃折射，与底板互相拆台）
         for card in (self.conn_card, self._rows, self._nav_header, self._nav_card,
                      self._mode_header, self._mode_card):
             card.setStyleSheet(
-                f"QWidget#PanelCard {{ {theme.card_qss(glass=True)} }}"
+                "QWidget#PanelCard { background: transparent; border: none; }"
             )
-        # 分隔线随主题重算（面板懒创建且永驻，不能停留在旧主题色）
+        m = self._mode_material()
+        # 分隔线随主题与材质重算（面板懒创建且永驻，不能停留在旧值）
+        hairline = max(0.0, min(1.0, float(m.get("hairline", 0.13))))
         self._card_hairline.setStyleSheet(
-            f"color: {theme.with_alpha('separator', 0.6)};"
+            f"color: {theme.with_alpha('separator', hairline)};"
         )
-        self._row_sep.setStyleSheet(f"color: {theme.with_alpha('separator', 0.4)};")
-        self._mode_row.refresh_theme()
-        self._nav_row.refresh_theme()
+        self._row_sep.setStyleSheet(
+            f"color: {theme.with_alpha('separator', hairline * 0.75)};"
+        )
+        # 布局呼吸：内边距/块间距/行高全部来自材质参数（调参窗可实时改）
+        pad = int(m.get("pad", 10))
+        self._root_layout.setContentsMargins(pad, pad, pad, pad)
+        self._main_layout.setSpacing(int(m.get("gap", 6)))
+        for row in self.findChildren(_Row):
+            row.set_material(m)
+        for radio in self.findChildren(_RadioRow):
+            radio.set_material(m)
         if not self._hint_active:
             self._subtitle.setStyleSheet(
                 f"color: {theme.semantic_color('secondary_text')};"
             )
-        # 玻璃 chip 按钮颜色在 paintEvent 现取主题：深浅色切换触发重绘即可
         for btn in (self._open_btn, self._settings_btn, self._quit_btn):
-            btn.update()
+            btn.set_material(m)
         self._refresh_nav_chips()
+
+    def _mode_material(self) -> dict:
+        """当前深浅色对应的那套参数。"""
+        return self._m["dark" if theme.is_dark() else "light"]
+
+    def apply_material(self, params: dict):
+        """整体替换材质参数并即时生效（调参窗入口）。"""
+        from utils.macos_glass import (
+            GLASS_STYLE_CLEAR, GLASS_STYLE_REGULAR, update_glass,
+        )
+        from utils.macos_panel_shape import round_panel_window
+
+        self._m = params
+        style = (
+            GLASS_STYLE_CLEAR if params["glass_style"] == "clear"
+            else GLASS_STYLE_REGULAR
+        )
+        radius = params["corner_radius"]
+        update_glass(self, corner_radius=radius, style=style)
+        round_panel_window(self, radius=radius)
+        self._apply_styles()
+        self.adjustSize()
+
+    def set_pinned(self, pinned: bool):
+        """调参时钉住面板：关掉失焦自动收起。"""
+        self._tuner_pinned = bool(pinned)
 
     # ---- 状态镜像 ----
 
@@ -923,7 +1037,14 @@ class MenuBarPanel(QWidget):
                 pass
 
     def event(self, e):
-        """失焦自动收起（IME 候选窗不触发本事件，中文输入不误关）。"""
-        if e.type() == QEvent.WindowDeactivate and self.isVisible():
+        """失焦自动收起（IME 候选窗不触发本事件，中文输入不误关）。
+
+        调参期间（_tuner_pinned）不收起：否则一点滑杆面板就没了。
+        """
+        if (
+            e.type() == QEvent.WindowDeactivate
+            and self.isVisible()
+            and not self._tuner_pinned
+        ):
             self.hide_panel()
         return super().event(e)

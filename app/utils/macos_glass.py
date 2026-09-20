@@ -87,6 +87,20 @@ def install_glass(
         return False
 
 
+def update_glass(window, corner_radius=None, style=None) -> None:
+    """运行时改玻璃圆角/风格（调参窗用；未安装时安静返回）。"""
+    glass = getattr(window, "_glass_view", None)
+    if glass is None:
+        return
+    try:
+        if corner_radius is not None:
+            glass.setCornerRadius_(float(corner_radius))
+        if style is not None:
+            glass.setStyle_(int(style))
+    except Exception:
+        pass
+
+
 def remove_glass(window) -> None:
     """移除玻璃（未安装时安静返回）。"""
     glass = getattr(window, "_glass_view", None)
