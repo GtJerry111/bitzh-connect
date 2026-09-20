@@ -3,12 +3,21 @@
 
 Qt 的 C++ 事件循环不会即时执行 Python 信号处理器——处理器只置标志，由 QTimer
 轮询在事件循环里触发回调（200ms 延迟换实现简单，退出路径不敏感）。
+
+SIGHUP 为 Unix-only，故信号常量统一用 getattr 取，缺失平台（Windows）安静跳过，
+避免模块 import 期即 AttributeError。
 """
 import signal
 
 from PySide6.QtCore import QTimer
 
-_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+_SIGNALS = tuple(
+    s for s in (
+        getattr(signal, "SIGINT", None),
+        getattr(signal, "SIGTERM", None),
+        getattr(signal, "SIGHUP", None),
+    ) if s is not None
+)
 
 
 def install_exit_signal_handlers(on_signal, parent=None) -> QTimer:
