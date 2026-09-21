@@ -16,13 +16,10 @@ def main(qtbot):
 
 @pytest.fixture
 def panel(main, qtbot):
-    from common import panel_material
     from views.menu_bar_panel import MenuBarPanel
 
     p = MenuBarPanel(main)
     qtbot.addWidget(p)
-    # 材质参数会从磁盘读（真机调参留档），测试里固定回默认值保证确定性
-    p.apply_material(panel_material.defaults())
     return p
 
 
@@ -30,32 +27,6 @@ def test_panel_structure(panel):
     assert panel.width() == 300
     assert panel._toggle is not None
     assert panel._status.text() == "未连接"
-
-
-def test_toolbar_uses_glass_buttons(panel):
-    """工具条按钮为自绘玻璃 chip（QSS 半透描边在透明底窗口上出毛刺）。"""
-    from views.menu_bar_panel import _GlassButton
-
-    for btn in (panel._open_btn, panel._settings_btn, panel._quit_btn):
-        assert isinstance(btn, _GlassButton)
-    assert panel._settings_btn._icon_kind == "gear"  # 设置入口 = 齿轮按钮
-    assert panel._quit_btn.width() == 28  # 圆形 28×28
-    assert panel._open_btn.sizeHint().width() > 28  # pill 含文字，比圆钮宽
-
-
-def test_glass_button_paint_offscreen(panel, qtbot):
-    """自绘路径冒烟：hover/pressed 态离屏渲染不抛异常。"""
-    from PySide6.QtGui import QPixmap
-
-    btn = panel._settings_btn
-    pm = QPixmap(56, 56)
-    pm.fill()
-    btn._hover = True
-    btn.render(pm)  # render 即走 paintEvent
-    btn._hover = False
-    btn.setDown(True)
-    btn.render(pm)
-    btn.setDown(False)
 
 
 def test_mirror_connected(panel, main, monkeypatch):
@@ -132,20 +103,6 @@ def test_esc_hides_panel(panel, qtbot, monkeypatch):
     assert not panel.isVisible()
 
 
-def test_esc_on_subpage_returns_home(panel, qtbot, monkeypatch):
-    """Esc：二级页 → 返回主页（不收起）；主页 → 收起。"""
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    panel.show_panel(animated=False)
-    panel._nav_row.clicked.emit()
-    assert panel._stack.currentIndex() == 1
-    panel._esc.activated.emit()
-    assert panel._stack.currentIndex() == 0
-    assert panel.isVisible()  # 返回主页而非收起
-    panel._esc.activated.emit()
-    assert not panel.isVisible()
-
-
 def test_hide_on_deactivate(panel, qtbot, monkeypatch):
     from PySide6.QtCore import QEvent
 
@@ -168,72 +125,25 @@ def test_show_panel_anchors_on_screen(panel, qtbot, monkeypatch):
     panel.hide_panel()
 
 
-def test_mode_row_opens_mode_page(panel, main, monkeypatch):
-    """模式行点击 → 模式页（内联聚焦页，radio 同步当前模式）。"""
+def test_mode_row_fallback_toggles_mode(panel, main, monkeypatch):
+    """原生菜单不可用（offscreen 抛 RuntimeError）→ 点击直接切换模式。"""
+    old = main.tun_mode
+    panel._on_mode_row()
+    assert main.tun_mode == (not old)
+    panel._on_mode_row()
+    assert main.tun_mode == old
+
+
+def test_nav_expand_toggle(panel, qtbot, monkeypatch):
     monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
     monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
     panel.show_panel(animated=False)
-    panel._mode_row.clicked.emit()
-    assert panel._stack.currentIndex() == 2
-    # radio 选中态镜像当前模式
-    assert panel._mode_radios[1].is_on() == bool(main.tun_mode)
-
-
-def test_mode_radio_switches_and_stays(panel, main, monkeypatch):
-    """radio 选择 → set_connection_mode；不自动返回主页，给出结果提示。"""
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    panel.show_panel(animated=False)
-    panel._switch_page(2)
-
-    panel._mode_radios[0].clicked.emit()  # 代理
-    assert main.tun_mode is False
-    assert panel._stack.currentIndex() == 2  # 留在模式页等用户自己走
-    assert panel._mode_hint.text() == "已切换到代理"
-    assert not panel._mode_hint.isHidden()
-
-    panel._mode_radios[1].clicked.emit()  # TUN
-    assert main.tun_mode is True
-    assert panel._mode_hint.text() == "已切换到TUN 全局路由"
-    assert panel._stack.currentIndex() == 2
-
-    panel._esc.activated.emit()  # 手动返回
-    assert panel._stack.currentIndex() == 0
-
-
-def test_mode_switch_while_connected_reports_reconnect(panel, main, monkeypatch):
-    """已连接时切模式会走 bounce：提示"正在重新连接…"，成功后回填终态。"""
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    monkeypatch.setattr(main, "set_connection_mode", lambda tun: setattr(main, "tun_mode", tun))
-    panel.show_panel(animated=False)
-    panel._switch_page(2)
-    from PySide6.QtCore import QSignalBlocker
-
-    with QSignalBlocker(main.connect_button):  # 只造"已连接"UI 态，不起真 worker
-        main.connect_button.setChecked(True)
-
-    panel._mode_radios[0].clicked.emit()
-    assert "正在重新连接" in panel._mode_hint.text()
-
-    main.status_panel.set_connected("10.0.0.1")
-    assert panel._mode_hint.text() == "已切换并重新连接"
-    assert panel._mode_pending is False
-
-
-def test_nav_row_opens_nav_page(panel, qtbot, monkeypatch):
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    panel.show_panel(animated=False)
-    assert panel._stack.currentIndex() == 0
+    assert panel._nav_area.isHidden()
     panel._nav_row.clicked.emit()
-    assert panel._stack.currentIndex() == 1
-    # 标题行返回主页
-    from views.menu_bar_panel import _Row
-
-    header_row = panel._nav_header.findChildren(_Row)[0]
-    header_row.clicked.emit()
-    assert panel._stack.currentIndex() == 0
+    assert not panel._nav_area.isHidden()
+    assert panel._nav_chevron._angle == 270.0
+    panel._nav_row.clicked.emit()
+    assert panel._nav_area.isHidden()
 
 
 def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
@@ -245,7 +155,7 @@ def test_nav_chip_opens_url(panel, qtbot, monkeypatch):
         lambda url: opened.append(url),
     )
     panel._nav_row.clicked.emit()
-    first_chip = panel._nav_card.findChildren(QPushButton)[0]
+    first_chip = panel._nav_area.findChildren(QPushButton)[0]
     first_chip.click()
     assert opened and str(opened[0].url()).startswith("http")
 
@@ -294,49 +204,26 @@ def test_nav_group_label_refreshes_on_theme_change(panel, qapp):
 
 
 def test_panel_hairline_refreshes_on_theme_change(panel, qapp):
-    """回归（I1）：切深浅色后面板分隔线颜色随之刷新，不停留旧主题色。
-
-    alpha 现在来自材质参数（panel_material.hairline），浅深各一套。
-    """
+    """回归（I1）：切深浅色后面板分隔线颜色随之刷新，不停留旧主题色。"""
     from common import theme
 
-    alpha = panel._m["light"]["hairline"]
     theme.set_appearance("light")
     try:
-        light = theme.with_alpha("separator", alpha)
-        assert light.startswith("rgba(209,209,214,")  # 锁住浅色换算，避免断言空转
+        light = theme.with_alpha("separator", 0.6)
+        assert light == "rgba(209,209,214,0.6)"  # 锁住浅色换算，避免断言空转
         assert light in panel._card_hairline.styleSheet()
 
         theme.set_appearance("dark")
-        dark_alpha = panel._m["dark"]["hairline"]
-        dark = theme.with_alpha("separator", dark_alpha)
-        assert dark.startswith("rgba(58,58,60,")  # 锁住深色 token
+        dark = theme.with_alpha("separator", 0.6)
+        assert dark == "rgba(58,58,60,0.6)"  # 锁住深色 token 值
         assert dark in panel._card_hairline.styleSheet()
-        assert theme.with_alpha("separator", dark_alpha * 0.75) in panel._row_sep.styleSheet()
-    finally:
-        theme.set_appearance("system")
-
-
-def test_apply_material_changes_geometry(panel, qapp):
-    """调参入口：材质参数即时驱动面板几何（行高/内边距/块间距）。"""
-    from common import panel_material, theme
-
-    params = panel_material.defaults()
-    params["light"]["row_height"] = 40
-    params["light"]["pad"] = 16
-    params["light"]["gap"] = 12
-    theme.set_appearance("light")
-    try:
-        panel.apply_material(params)
-        assert panel._root_layout.contentsMargins().left() == 16
-        assert panel._main_layout.spacing() == 12
-        assert panel._mode_row.height() == 40
+        assert theme.with_alpha("separator", 0.4) in panel._row_sep.styleSheet()
     finally:
         theme.set_appearance("system")
 
 
 def test_row_click_emits_on_release_inside(panel):
-    """按下并释放在行内才触发点击；拖出取消（与系统控件一致）。"""
+    """行：按下并释放在行内才触发点击；拖出取消（与系统控件一致），并有按下态。"""
     from PySide6.QtCore import QEvent, QPointF, Qt
     from PySide6.QtGui import QMouseEvent
 
@@ -351,106 +238,23 @@ def test_row_click_emits_on_release_inside(panel):
 
     inside = (10, 10)
     panel._mode_row.mousePressEvent(_mouse(QEvent.MouseButtonPress, inside))
+    assert panel._mode_row.property("pressed") is True
     panel._mode_row.mouseReleaseEvent(_mouse(QEvent.MouseButtonRelease, inside))
     assert fired == [1]
+    assert panel._mode_row.property("pressed") is False
 
     panel._mode_row.mousePressEvent(_mouse(QEvent.MouseButtonPress, inside))
     panel._mode_row.mouseReleaseEvent(_mouse(QEvent.MouseButtonRelease, (9999, 9999)))
     assert fired == [1]  # 释放在行外不算点击
 
 
-def test_pinned_panel_ignores_deactivate(panel, monkeypatch):
-    """调参期间钉住：失焦不收起。"""
-    from PySide6.QtCore import QEvent
+def test_row_title_color_is_explicit_ink(panel):
+    """行标题显式取 ink（不依赖 palette）——深色磨砂底下仍可读。"""
+    from common import theme
 
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    panel.show_panel(animated=False)
-    panel.set_pinned(True)
-    panel.event(QEvent(QEvent.WindowDeactivate))
-    assert panel.isVisible()
-    panel.set_pinned(False)
-    panel.event(QEvent(QEvent.WindowDeactivate))
-    assert not panel.isVisible()
+    theme.set_appearance("dark")
+    try:
+        assert theme.semantic_color("ink") in panel._mode_row.title.styleSheet()
+    finally:
+        theme.set_appearance("system")
 
-
-def test_panel_material_roundtrip(tmp_path, monkeypatch):
-    """材质参数写盘/读回（调参窗定稿路径）。"""
-    from common import panel_material
-
-    monkeypatch.setattr(panel_material, "_path", lambda: tmp_path / "m.json")
-    params = panel_material.defaults()
-    params["glass_style"] = "clear"
-    params["corner_radius"] = 18.0
-    params["dark"]["chip_fill"] = 0.33
-    panel_material.save(params)
-    loaded = panel_material.load()
-    assert loaded["glass_style"] == "clear"
-    assert loaded["corner_radius"] == 18.0
-    assert loaded["dark"]["chip_fill"] == 0.33
-
-
-def test_panel_material_load_falls_back_on_garbage(tmp_path, monkeypatch):
-    from common import panel_material
-
-    bad = tmp_path / "m.json"
-    bad.write_text("{not json")
-    monkeypatch.setattr(panel_material, "_path", lambda: bad)
-    assert panel_material.load() == panel_material.defaults()
-
-
-def test_reopen_recovers_from_stale_stack_height(panel, monkeypatch):
-    """回归：页面高度动画被中断留下 maximumHeight → 底部按钮被裁。
-
-    收起/展开时无条件复位，保证每次展开都是完整内容高度。
-    """
-    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
-    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
-    panel.show_panel(animated=False)
-    full = panel.height()
-
-    panel._stack.setMaximumHeight(40)  # 模拟动画残留
-    panel.adjustSize()
-    assert panel.height() < full  # 内容被裁
-
-    panel.hide_panel()
-    panel.show_panel(animated=False)
-    assert panel.height() == full
-    assert panel._stack.maximumHeight() > 1000
-
-
-def test_scrim_param_paints_without_error(panel, qapp):
-    """底板纱层：深色默认非 0，离屏渲染不抛异常。"""
-    from common import panel_material
-
-    params = panel_material.defaults()
-    assert params["dark"]["scrim"] > 0
-    assert params["light"]["scrim"] == 0
-    panel.apply_material(params)
-    from PySide6.QtGui import QPixmap
-
-    pm = QPixmap(panel.width(), panel.height())
-    pm.fill()
-    panel.render(pm)  # 走 paintEvent（含纱层）
-
-
-def test_panel_tuner_drives_real_panel_and_commits(panel, qapp, tmp_path, monkeypatch):
-    """调参窗：滑杆实时改真面板；定稿写盘；关闭解除钉住。"""
-    from common import panel_material as pm
-    from views.panel_tuner import PanelTuner
-
-    monkeypatch.setattr(pm, "_path", lambda: tmp_path / "m.json")
-    monkeypatch.setattr(
-        "views.menu_bar_panel.reduce_motion", lambda: True,
-    )
-    tuner = PanelTuner(panel)
-    assert panel._tuner_pinned is True
-
-    tuner._rows["row_height"]["slider"].setValue(900)  # 24→44 区间的 90%
-    assert panel._m["light"]["row_height"] == 42
-
-    tuner._commit()
-    assert (tmp_path / "m.json").exists()
-    assert pm.load()["light"]["row_height"] == 42
-
-    tuner.close()
-    assert panel._tuner_pinned is False

@@ -31,7 +31,7 @@ def _cocoa_window(window):
     return ns_window, (content.superview() if content is not None else None)
 
 
-def round_panel_window(window, radius: float = _CORNER_RADIUS) -> bool:
+def round_panel_window(window) -> bool:
     """给窗口 frame 视图套圆角，使窗口阴影跟随玻璃圆角。返回是否成功。"""
     try:
         ns_window, host = _cocoa_window(window)
@@ -39,12 +39,11 @@ def round_panel_window(window, radius: float = _CORNER_RADIUS) -> bool:
             return False
         host.setWantsLayer_(True)
         layer = host.layer()
-        layer.setCornerRadius_(float(radius))
+        layer.setCornerRadius_(_CORNER_RADIUS)
         layer.setMasksToBounds_(True)
         ns_window.setOpaque_(False)
         ns_window.invalidateShadow()
         window._panel_frame_rounded = True
-        window._panel_frame_radius = float(radius)
         return True
     except Exception:
         return False
