@@ -103,7 +103,9 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 
 > [!NOTE]
 >
-> 1. TUN 模式需要管理员授权：macOS 仅连接时弹一次授权框（osascript），断开由 root 守护循环收标记杀进程、不再弹窗，Linux 通过 pkexec 提权；本期暂不支持 Windows
+> 1. TUN 模式需要管理员授权：**首次连接时安装一次特权服务**（自动完成，含清除 quarantine），
+>    之后每次连接不再需要密码；Linux 通过 pkexec 提权；本期暂不支持 Windows
+>    （若安装被取消，会自动回退为"每次连接授权一次"）
 > 2. 可与 Clash/FlClash 的 TUN 模式共存：本软件只加校园网明细路由，外网交给对方；
 >    检测到去 VPN 服务器的流量会被对方 TUN 截走时，会自动把内核底层连接绑定到物理网卡绕过
 >    （按 IP 直连校园网；对方开启「严格路由/strict-route」时仍需先关闭）

@@ -146,6 +146,20 @@ jobs:
 
           mv dist/main.app dist/BITZH\ Connect.app
 
+      - name: Build Privileged Helper (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          source .venv/bin/activate
+          python -m nuitka \
+            --onefile \
+            --assume-yes-for-downloads \
+            --macos-target-arch=${{ matrix.target_arch }} \
+            --output-dir=dist_helper \
+            --output-filename=bitzh-helper \
+            --remove-output \
+            app/privileged_helper/main.py
+          cp dist_helper/bitzh-helper "dist/BITZH Connect.app/Contents/MacOS/bitzh-helper"
+
       - name: Create DMG (macOS)
         if: runner.os == 'macOS'
         run: |
