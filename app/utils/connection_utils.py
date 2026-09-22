@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from platform import system
 import gc
 from PySide6.QtCore import QSignalBlocker
@@ -289,6 +290,20 @@ def start_connection(window):
         # 优先走已安装的特权 helper（一次授权后免密）；否则首次引导安装；再否则回退 osascript
         if helper_installer.is_usable():
             resp = helper_client.start(command_args[1:], log_path, pid_path, stop_path)
+            if resp and not resp.get("ok") and resp.get("error") == "already_running":
+                # 上一次连接的内核仍被 helper 持有（退出竞争导致残留）：先停再起。
+                # 绝不能当成失败回退 osascript——那会弹系统授权框，还会多起一个内核。
+                window.output_text.append(
+                    "[BITZH Connect] 发现残留的 TUN 内核，正在清理后重连…\n"
+                )
+                helper_client.stop()
+                deadline = time.time() + 5.0
+                while time.time() < deadline:
+                    st = helper_client.status() or {}
+                    if not st.get("running"):
+                        break
+                    time.sleep(0.2)
+                resp = helper_client.start(command_args[1:], log_path, pid_path, stop_path)
             if resp and resp.get("ok"):
                 window.worker = TunWorker(
                     log_path, pid_path, stop_path,

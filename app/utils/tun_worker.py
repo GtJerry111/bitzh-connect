@@ -68,6 +68,13 @@ class TunWorker(QThread):
             if pid is None or not _pid_alive(pid):
                 break
             self.msleep(300)
+        # 停止已请求但内核尚在：留宽限期等它真正退出再收尾。这样"停止标记"会被
+        # connection_utils 在收尾时清理之前，helper / 守护循环有足够时间轮询到；
+        # 否则标记可能被秒删 → 残留 root 内核 → 下次连接撞 already_running。
+        if self._stop_requested and pid is not None:
+            grace_deadline = time.time() + self.KILL_GRACE_MS / 1000.0
+            while time.time() < grace_deadline and _pid_alive(pid):
+                self.msleep(50)
         # 循环退出前补读一次：进程死亡瞬间写入的尾部日志可能还没被 tail 到
         self._emit_new_content(position)
         self.finished.emit(-1)

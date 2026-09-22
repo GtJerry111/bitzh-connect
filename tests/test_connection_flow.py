@@ -455,3 +455,47 @@ def test_tun_falls_back_to_osascript_when_declined(qtbot, monkeypatch):
 
     win.connect_button.setChecked(False)
     qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+
+
+def test_tun_already_running_stops_and_retries(qtbot, monkeypatch):
+    """helper 报 already_running（真机发现的残留内核对）时先停再起，
+    绝不能当成失败回退 osascript——那会弹系统授权框并多起一个内核。"""
+    import utils.connection_utils as cu
+    from utils import helper_client, helper_installer
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: None)
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: True)
+
+    calls = {"start": 0, "stop": 0}
+
+    def fake_start(args, log, pid, stop, socket_path=None):
+        calls["start"] += 1
+        if calls["start"] == 1:
+            return {"ok": False, "error": "already_running"}
+        return {"ok": True, "pid": 123}
+
+    monkeypatch.setattr(helper_client, "start", fake_start)
+    monkeypatch.setattr(
+        helper_client, "stop",
+        lambda socket_path=None: calls.update(stop=calls["stop"] + 1),
+    )
+    monkeypatch.setattr(
+        helper_client, "status",
+        lambda socket_path=None: {"ok": True, "running": False},
+    )
+    spawned = []
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: spawned.append(True))
+
+    win.connect_button.setChecked(True)
+    assert calls["start"] == 2   # 第一次 already_running，停掉残留后重试成功
+    assert calls["stop"] == 1    # 主动停了残留内核
+    assert spawned == []         # 没有回退 osascript
+    assert win.worker is not None
+
+    win.connect_button.setChecked(False)
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
