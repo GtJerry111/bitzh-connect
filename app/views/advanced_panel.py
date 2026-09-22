@@ -17,6 +17,7 @@ from PySide6.QtGui import QGuiApplication, QColor, QPainter
 from PySide6.QtCore import QEasingCurve, QPointF, Qt, QVariantAnimation, Signal
 from utils.config_utils import save_config, load_config
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
+from utils import helper_installer
 from platform import system
 
 if system() == "Darwin":
@@ -322,6 +323,18 @@ class AdvancedSettingsDialog(QDialog):
         self.advanced_area.setVisible(False)  # 默认折叠
         network_layout.addWidget(self.advanced_area)
 
+        if system() == "Darwin" and helper_installer.is_installed():
+            network_layout.addWidget(self._group_header("特权服务"))
+            self.uninstall_helper_button = QPushButton("卸载特权服务")
+            self.uninstall_helper_button.clicked.connect(self._uninstall_helper)
+            network_layout.addWidget(self.uninstall_helper_button)
+            network_layout.addWidget(
+                self._description("移除 TUN 特权服务；卸载应用前建议先点此清理")
+            )
+        else:
+            self.uninstall_helper_button = QPushButton("卸载特权服务")
+            self.uninstall_helper_button.setVisible(False)
+
         network_layout.addStretch()
 
         # ================= 帮助 tab（原菜单栏"帮助"收编到这里） =================
@@ -600,6 +613,18 @@ class AdvancedSettingsDialog(QDialog):
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()
+
+    def _uninstall_helper(self):
+        """卸载 TUN 特权服务（一次授权），成功后隐藏按钮。"""
+        self.uninstall_helper_button.setEnabled(False)
+
+        def _done(ok: bool):
+            if ok:
+                self.uninstall_helper_button.setVisible(False)
+            else:
+                self.uninstall_helper_button.setEnabled(True)
+
+        helper_installer.uninstall_async(_done)
 
     def accept(self):
         """Save settings before closing"""

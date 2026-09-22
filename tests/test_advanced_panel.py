@@ -293,3 +293,21 @@ def test_show_advanced_settings_keeps_subtitle_when_unchanged(qtbot, monkeypatch
     win.status_panel.subtitle.setText("sentinel")
     show_advanced_settings(win)
     assert win.status_panel.subtitle.text() == "sentinel"
+
+
+def test_uninstall_helper_button_runs_uninstall(qtbot, monkeypatch):
+    from views import advanced_panel as mod
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    monkeypatch.setattr(mod, "system", lambda: "Darwin")
+    monkeypatch.setattr(mod.helper_installer, "is_installed", lambda: True)
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "uninstall_async", lambda on_done: calls.append(on_done)
+    )
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    assert dlg.uninstall_helper_button.isEnabled()
+    dlg.uninstall_helper_button.click()
+    assert calls  # 触发卸载（异步）
+    assert not dlg.uninstall_helper_button.isEnabled()  # 卸载中禁用防重复
