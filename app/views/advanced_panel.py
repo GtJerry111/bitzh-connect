@@ -1,3 +1,5 @@
+import subprocess
+
 from PySide6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -18,6 +20,7 @@ from PySide6.QtCore import QEasingCurve, QPointF, Qt, QVariantAnimation, Signal
 from utils.config_utils import save_config, load_config
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
 from utils import helper_installer
+from utils import diagnostics
 from platform import system
 
 if system() == "Darwin":
@@ -32,6 +35,19 @@ VERSION = get_version()
 
 # 外观三态取值（与下拉框索引一一对应）
 _APPEARANCE_MODES = ["system", "light", "dark"]
+
+
+def _open_path(path: str):
+    """用系统默认方式打开目录/文件（失败静默）。"""
+    try:
+        if system() == "Darwin":
+            subprocess.Popen(["open", path])
+        elif system() == "Windows":
+            subprocess.Popen(["explorer", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+    except OSError:
+        pass
 
 
 class DisclosureHeader(QWidget):
@@ -308,6 +324,11 @@ class AdvancedSettingsDialog(QDialog):
         copy_log_btn = QPushButton("复制日志")
         copy_log_btn.clicked.connect(self._copy_log)
         log_btn_row.addWidget(copy_log_btn)
+        self.open_log_button = QPushButton("打开日志目录")
+        self.open_log_button.clicked.connect(
+            lambda: _open_path(diagnostics.log_dir())
+        )
+        log_btn_row.addWidget(self.open_log_button)
         advanced_layout.addLayout(log_btn_row)
         advanced_layout.addWidget(
             self._description("复制后可粘贴给维护者排查；日志仅包含内核输出，不含密码")
