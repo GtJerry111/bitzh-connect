@@ -58,3 +58,9 @@ def test_start_stop_roundtrip(tmp_path):
 def test_unavailable_socket_returns_none(tmp_path):
     assert hc.helper_version("/tmp/definitely-not-there.sock") is None
     assert hc.is_available("/tmp/definitely-not-there.sock") is False
+
+
+def test_non_dict_response_returns_none(monkeypatch):
+    monkeypatch.setattr(hc, "_request", lambda *args, **kwargs: 123)
+    assert hc.helper_version("/any") is None
+    assert hc.is_available("/any") is False

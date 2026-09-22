@@ -17,9 +17,10 @@ from privileged_helper.protocol import (
 
 
 def _request(payload: dict, socket_path: str = SOCKET_PATH, timeout: float = 5.0):
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
+    sock = None
     try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
         sock.connect(socket_path)
         sock.sendall(encode(payload))
         data = b""
@@ -34,15 +35,16 @@ def _request(payload: dict, socket_path: str = SOCKET_PATH, timeout: float = 5.0
     except (OSError, ValueError):
         return None
     finally:
-        try:
-            sock.close()
-        except OSError:
-            pass
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
 
 
 def helper_version(socket_path: str = SOCKET_PATH):
     resp = _request({"cmd": CMD_HELLO}, socket_path)
-    return resp.get("version") if resp else None
+    return resp.get("version") if isinstance(resp, dict) else None
 
 
 def is_available(socket_path: str = SOCKET_PATH) -> bool:
