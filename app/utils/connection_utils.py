@@ -61,7 +61,11 @@ def handle_output(window, text):
         window.virtual_ip = ip
         window.reconnect_manager.on_connection_established()
         window.status_panel.set_connected(ip)
-        if getattr(window, "_watchdog", None) is not None:
+        # 看门狗仅在 TUN 模式启动：代理模式无路由被抢/假死问题。
+        # TUN 下按本次连接状态门控告警——已共存绑定则捕获无害、关保活则无周期输出属正常。
+        if getattr(window, "_watchdog", None) is not None and getattr(window, "tun_mode", False):
+            window._watchdog.route_enabled = not getattr(window, "_coexist_bound", False)
+            window._watchdog.dead_enabled = bool(getattr(window, "keep_alive", False))
             window._watchdog.start()
         # 连接成功即启动速率监控（TUN 读网卡；macOS 代理模式走 nettop 进程采样）
         if hasattr(window, "start_rate_monitor"):
@@ -129,8 +133,6 @@ def handle_connection_finished(window, exit_code):
         tray_action = getattr(window, "tray_connect_action", None)
         if tray_action is not None:
             tray_action.setChecked(False)
-
-    from .tun_utils import capturing_tun_for
 
     route = capturing_tun_for(getattr(window, "server_address", "")) or "物理网卡"
     diagnostics.append(
@@ -262,6 +264,10 @@ def start_connection(window):
                     f"[BITZH Connect] 检测到 {captured} 占用服务器路由，但未识别到物理网卡；"
                     f"若连不上请先关闭 {captured}\n"
                 )
+
+    # 每次连接都记录：本次是否启用了共存绑定（看门狗据此关闭路由告警）。
+    # 非 TUN 或未绑定/未识别物理网卡时为 False。
+    window._coexist_bound = bool(tun_bind_interface)
 
     command_args = build_command_args(window, command, tun_bind_interface)
     window.output_text.append(f"Running command: {' '.join(mask_command_args(command_args))}\n")

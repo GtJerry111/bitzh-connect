@@ -390,12 +390,64 @@ def test_watchdog_starts_on_connect_and_stops_on_disconnect(window, monkeypatch)
     monkeypatch.setattr(window._watchdog, "start", lambda: started.append("start"))
     monkeypatch.setattr(window._watchdog, "stop", lambda: started.append("stop"))
 
+    # 看门狗仅在 TUN 模式启动（代理模式无路由/假死问题）
+    window.tun_mode = True
+    window.keep_alive = True
+    window._coexist_bound = False
     handle_output(window, "2026/09/22 14:32:17 Client IP: 10.0.43.58\n")
     assert "start" in started
+    # 启动前已按连接状态设置门控：未共存绑定 → 路由告警开；开保活 → 假死告警开
+    assert window._watchdog.route_enabled is True
+    assert window._watchdog.dead_enabled is True
 
     window._manual_stop = True
     handle_connection_finished(window, -1)
     assert "stop" in started
+
+
+def test_watchdog_not_started_in_proxy_mode(window, monkeypatch):
+    from utils.connection_utils import handle_output
+
+    started = []
+    monkeypatch.setattr(window._watchdog, "start", lambda: started.append("start"))
+    window.tun_mode = False
+    handle_output(window, "2026/09/22 14:32:17 Client IP: 10.0.43.58\n")
+    assert started == []  # 代理模式不启动看门狗
+
+
+def test_watchdog_gating_disabled_for_coexist_and_no_keepalive(window, monkeypatch):
+    from utils.connection_utils import handle_output
+
+    started = []
+    monkeypatch.setattr(window._watchdog, "start", lambda: started.append("start"))
+    window.tun_mode = True
+    window._coexist_bound = True   # 已共存绑定：路由捕获无害
+    window.keep_alive = False      # 关闭保活：无周期输出属正常
+    handle_output(window, "2026/09/22 14:32:17 Client IP: 10.0.43.58\n")
+    assert started == ["start"]
+    assert window._watchdog.route_enabled is False
+    assert window._watchdog.dead_enabled is False
+
+
+def test_route_probe_disabled_in_proxy_mode(window, monkeypatch):
+    monkeypatch.setattr("views.main_window.capturing_tun_for", lambda ip: "utun9")
+    window.tun_mode = False
+    assert window._route_probe() is None
+
+
+def test_route_probe_disabled_when_coexist_bound(window, monkeypatch):
+    monkeypatch.setattr("views.main_window.capturing_tun_for", lambda ip: "utun9")
+    window.tun_mode = True
+    window._coexist_bound = True
+    assert window._route_probe() is None
+
+
+def test_route_probe_returns_capture_when_tun_without_coexist(window, monkeypatch):
+    monkeypatch.setattr("views.main_window.capturing_tun_for", lambda ip: "utun9")
+    window.tun_mode = True
+    window._coexist_bound = False
+    assert window._route_probe() == "utun9"
+
 
 
 def test_route_captured_triggers_bounce(window, monkeypatch):

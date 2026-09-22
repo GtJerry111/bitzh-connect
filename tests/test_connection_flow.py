@@ -174,6 +174,52 @@ def test_tun_coexist_binds_physical_interface_no_abort(qtbot, monkeypatch):
     qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
 
 
+def test_tun_coexist_bound_flag_true_when_captured(qtbot, monkeypatch):
+    """TUN 模式下探测到他方 TUN 并绑物理网卡：记录 _coexist_bound，
+    看门狗据此关闭路由告警（捕获已被内核层绕过，不再重连）。"""
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: False)
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: "utun9")
+    monkeypatch.setattr(cu, "physical_interface", lambda: "en0")
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: None)
+
+    win.connect_button.setChecked(True)
+    assert win._coexist_bound is True
+
+    win.connect_button.setChecked(False)
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+
+
+def test_tun_coexist_bound_flag_false_when_not_captured(qtbot, monkeypatch):
+    """无他方 TUN 占用：_coexist_bound 为 False，看门狗路由告警保持开启。"""
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: False)
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: None)
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: None)
+
+    win.connect_button.setChecked(True)
+    assert win._coexist_bound is False
+
+    win.connect_button.setChecked(False)
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+
+
 def test_windows_tun_hard_guard(qtbot, monkeypatch):
     """Windows 硬守卫：即使编程绕过置灰开关，TUN 分支也直接早退、不提权"""
     win = _make_window(qtbot)

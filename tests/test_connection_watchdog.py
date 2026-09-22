@@ -1,3 +1,5 @@
+import time
+
 from services.connection_watchdog import ConnectionWatchdog
 
 
@@ -82,6 +84,55 @@ def test_route_probe_exception_treated_as_none(qtbot):
     wd.start()
     qtbot.waitUntil(lambda: bool(dead_events), timeout=1000)
     assert route_events == []  # 异常按 None 处理，不发 route_captured
+    wd.stop()
+
+
+def test_start_resets_route_alert_cooldown(qtbot):
+    # 上一连接残留的路由冷却戳必须被 start() 复位：否则新连接首个周期内
+    # now - _last_route_alert 仍 < cooldown，真实的捕获会被错误地吞掉。
+    events = []
+    wd = _watchdog(lambda: "utun5", cooldown_s=1000)
+    wd._last_route_alert = time.time()  # 模拟上一连接留下的冷却
+    wd.route_captured.connect(events.append)
+    wd.start()
+    qtbot.waitUntil(lambda: len(events) >= 1, timeout=1000)
+    wd.stop()
+
+
+def test_start_resets_dead_alert_cooldown(qtbot):
+    # 同理：残留的假死冷却戳若不复位，新连接会漏报首个假死事件。
+    events = []
+    wd = _watchdog(lambda: None, idle_timeout_s=0, cooldown_s=1000)
+    wd._last_dead_alert = time.time()  # 模拟上一连接留下的冷却
+    wd.suspected_dead.connect(lambda: events.append(True))
+    wd.start()
+    qtbot.waitUntil(lambda: bool(events), timeout=1000)
+    wd.stop()
+
+
+def test_route_disabled_suppresses_route_captured(qtbot):
+    # 共存绑定已规避捕获时，看门狗关闭路由告警：探测到占用也不得发信号
+    # （否则会周期性误重连）。
+    events = []
+    wd = _watchdog(lambda: "utun5")
+    wd.route_enabled = False
+    wd.route_captured.connect(events.append)
+    wd.start()
+    qtbot.wait(80)
+    assert events == []
+    wd.stop()
+
+
+def test_dead_disabled_suppresses_suspected_dead(qtbot):
+    # 关闭定时保活后没有周期输出属正常，假死告警须被门控掉。
+    # idle_timeout_s=0 表示若未门控则每拍都会发——断言空即证明门控生效。
+    events = []
+    wd = _watchdog(lambda: None, idle_timeout_s=0)
+    wd.dead_enabled = False
+    wd.suspected_dead.connect(lambda: events.append(True))
+    wd.start()
+    qtbot.wait(80)
+    assert events == []
     wd.stop()
 
 

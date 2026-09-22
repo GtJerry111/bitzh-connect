@@ -24,12 +24,18 @@ class ConnectionWatchdog(QObject):
         self._timer = QTimer(self)
         self._timer.setInterval(route_interval_ms)
         self._timer.timeout.connect(self._tick)
+        # 告警门控：由调用方按连接模式/共存绑定/保活设置；关掉后对应分支不再发信号
+        self.route_enabled = True
+        self.dead_enabled = True
         self._last_route_alert = 0.0
         self._last_dead_alert = 0.0
         self._last_activity = 0.0
         self._running = False
 
     def start(self):
+        # 跨连接复位冷却戳：否则上一连接残留的冷却会吞掉新连接的首个真实告警
+        self._last_route_alert = 0.0
+        self._last_dead_alert = 0.0
         self._last_activity = time.time()
         self._running = True
         self._timer.start()
@@ -45,14 +51,15 @@ class ConnectionWatchdog(QObject):
         if not self._running:
             return
         now = time.time()
-        try:
-            captured = self._route_probe()
-        except Exception:
-            captured = None
-        if captured and now - self._last_route_alert >= self._cooldown_s:
-            self._last_route_alert = now
-            self.route_captured.emit(captured)
-        if now - self._last_activity >= self._idle_timeout_s:
+        if self.route_enabled:
+            try:
+                captured = self._route_probe()
+            except Exception:
+                captured = None
+            if captured and now - self._last_route_alert >= self._cooldown_s:
+                self._last_route_alert = now
+                self.route_captured.emit(captured)
+        if self.dead_enabled and now - self._last_activity >= self._idle_timeout_s:
             if now - self._last_dead_alert >= self._cooldown_s:
                 self._last_dead_alert = now
                 self._last_activity = now  # 避免每拍都报

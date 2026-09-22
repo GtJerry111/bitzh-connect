@@ -47,6 +47,24 @@ def test_build_install_script_contains_key_operations(monkeypatch, tmp_path):
     assert script.startswith("#!/bin/sh")
 
 
+def test_build_install_script_waits_for_socket(monkeypatch, tmp_path):
+    """bootstrap 返回 ≠ socket 已监听：脚本须轮询等待 socket 就绪，
+    使 install_async 成功回调只在 helper 可用时发生，避免二次安装引导。"""
+    helper = tmp_path / "bitzh-helper"
+    kernel = tmp_path / "zju-connect"
+    helper.write_text("x")
+    kernel.write_text("x")
+    monkeypatch.setattr(hi, "bundled_helper_path", lambda: str(helper))
+    monkeypatch.setattr(hi, "bundled_kernel_path", lambda: str(kernel))
+    script = hi.build_install_script(allowed_uid=501)
+    assert "[ -S " in script
+    assert hi.SOCKET_PATH in script
+    assert "launchctl bootstrap system" in script
+    # 等待循环必须晚于 bootstrap（否则等的是一个尚未启动的服务）
+    assert script.index("launchctl bootstrap system") < script.index("[ -S ")
+
+
+
 def test_build_uninstall_script_contains_key_operations():
     script = hi.build_uninstall_script()
     assert "launchctl bootout" in script

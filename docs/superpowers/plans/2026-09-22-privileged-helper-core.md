@@ -4,7 +4,7 @@
 
 **Goal:** 实现一个以 root 常驻的特权 helper（独立小程序）+ 本地 Unix socket 协议，GUI 通过它拉起/停止 `zju-connect`，替代每次连接的 `osascript` 授权。
 
-**Architecture:** helper（纯标准库，独立 Nuitka 打包）由 LaunchDaemon 常驻，监听 `/var/run/bitzh-connect-helper.sock`（`0600`、owner=安装者），只接受 `hello/ping/status/start/stop`。`start` 时 helper 用写死的内核路径 spawn `zju-connect`、写 pidfile、并起一个 watcher 线程监听"停止标记文件"——这样 GUI 侧**完全复用现有 `TunWorker`**（tail 日志 + 写停止标记），集成时只需把"osascript 启动"换成"socket start"。密码走 socket，不再出现在命令行。
+**Architecture:** helper（纯标准库，独立 Nuitka 打包）由 LaunchDaemon 常驻，监听 `/var/run/bitzh-connect-helper.sock`（`0600`、owner=安装者），只接受 `hello/ping/status/start/stop`。`start` 时 helper 用写死的内核路径 spawn `zju-connect`、写 pidfile、并起一个 watcher 线程监听"停止标记文件"——这样 GUI 侧**完全复用现有 `TunWorker`**（tail 日志 + 写停止标记），集成时只需把"osascript 启动"换成"socket start"。密码经 socket 传给 helper；但 helper 仍把它作为内核 argv（`-password`，见 `server.py`），因此密码依然会出现在 root 内核命令行——helper 免除的是每次连接的授权弹窗，不是命令行泄漏。
 
 **Tech Stack:** Python 3.11 标准库（socket/struct/subprocess/threading）；PySide6（仅 GUI 侧 client）；pytest。
 

@@ -135,6 +135,15 @@ def build_install_script(allowed_uid: int) -> str:
         f"rm -f {socket_path} 2>/dev/null || true\n"
         f"launchctl bootout system {plist_path} 2>/dev/null || true\n"
         f"launchctl bootstrap system {plist_path}\n"
+        # bootstrap 返回 0 只代表 launchd 已受理，不等于 helper 已监听 socket。
+        # 轮询等待 socket 就绪（最多 ~10s），使成功回调发生时 helper 已可用，
+        # 避免紧接的重连因 is_usable() 为 False 再弹一次安装引导。
+        "i=0\n"
+        "while [ $i -lt 40 ]; do\n"
+        f"  [ -S {socket_path} ] && break\n"
+        "  sleep 0.25\n"
+        "  i=$((i + 1))\n"
+        "done\n"
     )
 
 

@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
 
         # 连接看门狗：路由被抢 / 内核假死时自愈重连（探测函数每次现取当前 server）
         self._watchdog = ConnectionWatchdog(
-            route_probe=lambda: capturing_tun_for(self.server_address),
+            route_probe=self._route_probe,
         )
         self._watchdog.route_captured.connect(self._on_route_captured)
         self._watchdog.suspected_dead.connect(self._on_suspected_dead)
@@ -564,6 +564,19 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, index: int):
         self.set_connection_mode(index == 1)
+
+    def _route_probe(self):
+        """看门狗路由探测：仅在会真正告警的场景返回占用者。
+
+        代理模式不监测；本连接已启用共存绑定时，-bind-interface 已在 socket 层
+        绕过他方 TUN（系统路由表未变、capturing_tun_for 仍会命中），捕获无害，
+        不再返回以免周期性误重连。
+        """
+        if not getattr(self, "tun_mode", False):
+            return None
+        if getattr(self, "_coexist_bound", False):
+            return None
+        return capturing_tun_for(self.server_address)
 
     def _on_route_captured(self, interface: str):
         """服务器路由被他方 TUN 截走：记日志并重连（重连会启用共存绑定）。"""
