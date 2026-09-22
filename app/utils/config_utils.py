@@ -19,6 +19,7 @@ def load_config():
     default_config = {
         "username": "",
         "password": "",
+        "cred_salt": "",
         "remember": False,
         "server": DEFAULT_SERVER,
         "port": DEFAULT_PORT,
