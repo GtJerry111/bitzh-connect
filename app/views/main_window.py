@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         from common import theme
-        from utils.credential_utils import load_credentials
+        from utils.credential_utils import load_credentials_detailed
         from utils.motion_utils import animated_height_toggle
         from views.nav_section import NavSection
         from views.status_panel import StatusPanel
@@ -192,7 +192,7 @@ class MainWindow(QMainWindow):
         cred_layout.setSpacing(8)
         cred_layout.setContentsMargins(0, 0, 0, 0)
 
-        saved_username, saved_password = load_credentials()
+        saved_username, saved_password, password_unreadable = load_credentials_detailed()
 
         # 下划线式输入（spec 定稿：无边框 QLineEdit + 底部 1px 线，focus 时 accent 加粗）；
         # 标签定宽对齐两个输入框的左缘（"用户名"3 字 vs "密码"2 字自然宽度会错开）
@@ -324,6 +324,10 @@ class MainWindow(QMainWindow):
         self.output_text = QTextEdit(self)  # 隐藏日志缓冲：不进布局、永不显示
         self.output_text.setReadOnly(True)
         self.output_text.setVisible(False)
+        if password_unreadable:
+            self.output_text.append(
+                "[BITZH Connect] 检测到旧版保存的密码已无法读取，请重新输入一次密码\n"
+            )
         self.output_text.document().setMaximumBlockCount(5000)  # B9: 日志上限
 
         # 一收一放：仪表盘状态驱动凭据区/资源区显隐动画（带淡出，不硬裁）

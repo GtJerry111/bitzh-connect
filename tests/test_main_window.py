@@ -277,3 +277,29 @@ def test_disconnect_button_outlined_when_connected(window):
     assert "border: 2px solid" in window.connect_button.styleSheet()
     window._apply_connect_button_style(False)
     assert "border: 2px solid transparent" in window.connect_button.styleSheet()
+
+
+def test_legacy_password_prompt_shown(qtbot):
+    """读到旧版不可解密文：保留用户名、密码留空，并给一次重输提示。"""
+    from utils.config_utils import load_config, save_config
+
+    config = load_config()
+    config["username"] = "u1"
+    config["password"] = "enc1:AAAABBBBCCCC"
+    config["remember"] = True
+    save_config(config)
+
+    from views.main_window import MainWindow
+
+    w = MainWindow()
+    qtbot.addWidget(w)
+    text = w.output_text.toPlainText()
+    assert "重新输入" in text
+    assert w.username_input.text() == "u1"
+    assert w.password_input.text() == ""
+    w.reconnect_manager.cancel()
+
+
+def test_no_prompt_when_no_saved_password(window):
+    """没有保存过密码时不得误报提示。"""
+    assert "重新输入" not in window.output_text.toPlainText()
