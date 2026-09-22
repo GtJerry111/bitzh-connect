@@ -314,3 +314,85 @@ def test_close_event_with_deleted_tray_no_crash(qtbot, monkeypatch):
     event = QCloseEvent()
     handle_close_event(win, event, dead)  # 不抛异常，走 quit 路径
     assert win._quitting is True
+
+
+def test_tun_uses_helper_when_usable(qtbot, monkeypatch):
+    """helper 可用时：走 socket 启动，不调用 osascript 提权。"""
+    import utils.connection_utils as cu
+    from utils import helper_client, helper_installer
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: None)
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: True)
+    started = []
+    monkeypatch.setattr(
+        helper_client, "start",
+        lambda args, log, pid, stop, socket_path=None: (
+            started.append(args) or {"ok": True, "pid": 123}
+        ),
+    )
+    spawned = []
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: spawned.append(True))
+
+    win.connect_button.setChecked(True)
+    assert started, "helper.start 应被调用"
+    assert spawned == [], "不得走 osascript 提权"
+    assert win.worker is not None
+
+    win.connect_button.setChecked(False)
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+
+
+def test_tun_prompts_install_when_installable(qtbot, monkeypatch):
+    """可安装但未装：触发安装引导并按早退复位，不建 worker、不提权。"""
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+    win._helper_install_declined = False
+
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: None)
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: True)
+    prompted = []
+    monkeypatch.setattr(win, "prompt_helper_install", lambda on_done=None: prompted.append(True))
+    spawned = []
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: spawned.append(True))
+
+    win.connect_button.setChecked(True)
+    assert prompted == [True]
+    assert spawned == []
+    assert win.worker is None
+    assert win.connect_button.isChecked() is False  # 已复位
+
+
+def test_tun_falls_back_to_osascript_when_declined(qtbot, monkeypatch):
+    """用户已拒绝安装：直接回退 osascript 授权路径。"""
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    win = _make_window(qtbot)
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    win.tun_mode = True
+    win._helper_install_declined = True
+
+    monkeypatch.setattr(cu, "capturing_tun_for", lambda ip: None)
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: True)
+    spawned = []
+    monkeypatch.setattr(cu, "spawn_elevated_async", lambda *a, **k: spawned.append(True))
+
+    win.connect_button.setChecked(True)
+    assert spawned == [True]
+    assert win.worker is not None
+
+    win.connect_button.setChecked(False)
+    qtbot.waitUntil(lambda: win.worker is None, timeout=3000)

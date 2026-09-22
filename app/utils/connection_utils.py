@@ -13,6 +13,7 @@ from .tun_utils import (
     request_stop,
 )
 from .tun_worker import TunWorker
+from . import helper_client, helper_installer
 
 
 def _reset_connect_ui(window, status_detail: str):
@@ -260,6 +261,50 @@ def start_connection(window):
         os.close(pid_fd)
         # 停止标记只生成路径不创建——守护循环以"文件出现"为停止信号
         stop_path = pid_path + ".stop"
+        # 优先走已安装的特权 helper（一次授权后免密）；否则首次引导安装；再否则回退 osascript
+        if helper_installer.is_usable():
+            resp = helper_client.start(command_args[1:], log_path, pid_path, stop_path)
+            if resp and resp.get("ok"):
+                window.worker = TunWorker(
+                    log_path, pid_path, stop_path,
+                    on_kill_failed=lambda: window.output_text.append(
+                        "[BITZH Connect] 警告：TUN 内核进程未能停止。若网络异常请检查路由，或手动 sudo kill 内核进程\n"
+                    ),
+                )
+                window.worker.output.connect(lambda text: handle_output(window, text))
+                window.worker.finished.connect(lambda code: handle_connection_finished(window, code))
+                window.worker.start()
+                window.status_panel.set_connecting()
+                return
+            # helper 启动失败：清理临时文件，继续走下方 osascript 回退
+            window.output_text.append(
+                "[BITZH Connect] 特权服务启动失败，回退到授权模式\n"
+            )
+            for path in (log_path, pid_path, stop_path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+            log_fd, log_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".log")
+            os.close(log_fd)
+            pid_fd, pid_path = tempfile.mkstemp(prefix="bitzh-tun-", suffix=".pid")
+            os.close(pid_fd)
+            stop_path = pid_path + ".stop"
+        elif (
+            helper_installer.can_install()
+            and not getattr(window, "_helper_install_declined", False)
+        ):
+            window.output_text.append(
+                "[BITZH Connect] 首次使用 TUN，需要安装特权服务…\n"
+            )
+            for path in (log_path, pid_path, stop_path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+            _reset_connect_ui(window, "正在配置 TUN 特权服务")
+            window.prompt_helper_install(on_done=window._on_helper_install_done)
+            return
         launcher = write_launcher(command, command_args[1:], log_path, pid_path, stop_path)
         # 授权框可能停留数十秒：提权异步执行，worker 先行启动
         # （pidfile 120s 等待窗口本就为覆盖授权时长而设）
