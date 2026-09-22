@@ -32,3 +32,8 @@ def test_append_rotates_when_too_large(monkeypatch, tmp_path):
 def test_append_never_raises_on_bad_dir(monkeypatch):
     monkeypatch.setattr(diagnostics, "_log_base_dir", lambda: "/proc/definitely/not/writable")
     diagnostics.append("boom")  # 不抛异常
+
+
+def test_append_never_raises_on_lone_surrogate(monkeypatch, tmp_path):
+    monkeypatch.setattr(diagnostics, "_log_base_dir", lambda: str(tmp_path))
+    diagnostics.append("bad\ud800surrogate")  # 孤立代理字符，不抛异常

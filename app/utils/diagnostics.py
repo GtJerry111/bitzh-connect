@@ -57,5 +57,7 @@ def append(line: str):
         stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         with open(path, "a", encoding="utf-8") as f:
             f.write(f"{stamp} {str(line).rstrip()}\n")
-    except OSError:
+    except Exception:
+        # 包括 UnicodeEncodeError（内核输出以 surrogateescape 解码后含孤立代理
+        # 字符）：日志失败绝不冒泡进连接主流程。
         pass
