@@ -30,3 +30,28 @@ def test_server_kick():
     assert is_server_kick("SendConn: server returned SHUTDOWN (cmd 0x08); session terminated by server")
     assert is_server_kick("SendConn: server returned RECONNECTLATER (cmd 0x05); should re-login and retry")
     assert not is_server_kick("Client IP: 10.0.43.17")
+
+
+def test_parse_tun_interface():
+    from utils.log_parser import parse_tun_interface
+
+    assert parse_tun_interface("2026/09/22 14:32:17 Interface Name: utun11, index 32") == "utun11"
+    assert parse_tun_interface("nothing") is None
+
+
+def test_is_keepalive():
+    from utils.log_parser import is_keepalive
+
+    assert is_keepalive("2026/09/22 14:33:17 KeepAlive using UDP: OK")
+    assert not is_keepalive("Client IP: 10.0.43.58")
+
+
+def test_classify_disconnect():
+    from utils.log_parser import classify_disconnect
+
+    assert classify_disconnect("SHUTDOWN (cmd 0x08)") == "server_kick"
+    assert classify_disconnect("RECONNECTLATER (cmd 0x01)") == "server_kick"
+    assert classify_disconnect("Invalid username or password") == "auth"
+    assert classify_disconnect("dial tcp: i/o timeout") == "network"
+    assert classify_disconnect("connection reset by peer") == "network"
+    assert classify_disconnect("ordinary line") is None
