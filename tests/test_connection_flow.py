@@ -139,6 +139,12 @@ def test_empty_credentials_rolls_back_fake_connected_state(qtbot):
 def test_tun_coexist_binds_physical_interface_no_abort(qtbot, monkeypatch):
     """TUN 共存：他方 TUN 截走服务器路由时，底层绑定物理网卡并继续（不再早退）"""
     import utils.connection_utils as cu
+    from utils import helper_installer
+
+    # 本用例锁的是 osascript 回退路径：固定 helper 不可用，避免装了 helper 的机器
+    # 走分支①去调真实 helper_client.start（假凭据拉起 root 内核）
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: False)
 
     win = _make_window(qtbot)
     win.username_input.setText("u")
@@ -193,6 +199,13 @@ def test_stale_spawn_done_stops_orphan_kernel(qtbot, monkeypatch):
     """快速重连 spawn 竞态：连接1 的授权回调迟到时 window.worker 已换成新 worker，
     内核1 刚被拉起即成孤儿（root + 全局路由）——回调必须重写停止标记让守护循环
     补杀（worker1 收尾已把旧标记清掉）；回调2 正常到达不误写标记"""
+    from utils import helper_installer
+
+    # 本用例锁的是 osascript spawn 计数：固定 helper 不可用，避免装了 helper 的机器
+    # 走分支①导致 spawn_elevated_async 不再被调用、回调计数断言失败
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "can_install", lambda: False)
+
     win = _make_window(qtbot)
     win.username_input.setText("u")
     win.password_input.setText("p")
