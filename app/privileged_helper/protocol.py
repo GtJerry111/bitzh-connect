@@ -1,8 +1,8 @@
 """GUI 与特权 helper 之间的共享协议（纯标准库，无任何第三方依赖）。
 
 单一真源：socket 位置、安装位置、命令常量、JSON 行编解码都定义在这里；
-GUI 侧（`from privileged_helper.protocol import ...`）与 helper 侧
-（`from protocol import ...`，同目录运行）共用本文件。
+GUI 侧与 helper 侧统一以包路径 import
+（`from privileged_helper.protocol import ...`）共用本文件。
 """
 import json
 
