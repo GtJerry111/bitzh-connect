@@ -44,3 +44,79 @@ def test_install_failure_shows_error_and_reenables(qtbot, monkeypatch):
     calls[0](False)
     assert dlg.install_button.isEnabled()
     assert "失败" in dlg.status_text()
+
+
+def test_install_double_click_only_triggers_once(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "install_async",
+        lambda on_done: calls.append(on_done),
+    )
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    dlg.install_button.click()
+    dlg.install_button.click()  # 安装中禁用，"安装"不应二次触发授权
+    assert len(calls) == 1
+
+
+def test_cancel_rejects_without_running_installer(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "install_async",
+        lambda on_done: calls.append(on_done),
+    )
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    dlg.cancel_button.click()
+    assert dlg.result() == dlg.DialogCode.Rejected
+    assert not calls  # "稍后"不触发安装
+
+
+def test_cancel_disabled_while_installing(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "install_async",
+        lambda on_done: calls.append(on_done),
+    )
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    dlg.install_button.click()
+    # 授权框已弹出，关闭对话框无法取消授权，故"稍后"须禁用
+    assert not dlg.cancel_button.isEnabled()
+
+
+def test_cancel_reenabled_after_failure(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "install_async",
+        lambda on_done: calls.append(on_done),
+    )
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    dlg.install_button.click()
+    assert not dlg.cancel_button.isEnabled()
+    calls[0](False)  # 失败/取消授权后回到可交互状态
+    assert dlg.cancel_button.isEnabled()
+
+
+def test_installer_exception_shows_error_and_reenables(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    def boom(on_done):
+        raise RuntimeError("提权进程启动失败")
+
+    monkeypatch.setattr(mod.helper_installer, "install_async", boom)
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    dlg.install_button.click()  # 不应把异常抛给 Qt 事件循环
+    assert dlg.install_button.isEnabled()
+    assert dlg.cancel_button.isEnabled()
+    assert "失败" in dlg.status_text()

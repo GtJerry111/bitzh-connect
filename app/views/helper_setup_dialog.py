@@ -60,6 +60,21 @@ class HelperSetupDialog(QDialog):
         row.addStretch()
         self.cancel_button = QPushButton("稍后")
         self.cancel_button.setMinimumWidth(88)
+        # 次级按钮同款 QSS 几何（与"安装"同 padding/圆角/字号/最小宽）——混用
+        # "QSS 样式 + 原生样式"会因两边 sizeHint 计算路径不同而一大一小
+        self.cancel_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.card_background()};
+                color: {theme.semantic_color("ink")};
+                border: 1px solid {theme.semantic_color("separator")};
+                border-radius: 6px;
+                padding: 6px 0px;
+                font-size: 13pt;
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.semantic_color("separator")};
+            }}
+        """)
         self.cancel_button.clicked.connect(self.reject)
         row.addWidget(self.cancel_button)
 
@@ -101,13 +116,25 @@ class HelperSetupDialog(QDialog):
     # ---- 行为 ----
     def _on_install(self):
         self.install_button.setEnabled(False)
+        # 授权框已弹出，关闭对话框并不能取消授权，故同时禁用"稍后"
+        self.cancel_button.setEnabled(False)
         self._status.setText("等待管理员授权…")
-        helper_installer.install_async(self._on_install_done)
+        try:
+            helper_installer.install_async(self._on_install_done)
+        except Exception:
+            # 同步抛异常（如提权进程无法拉起）也走同一套失败回退
+            self._on_install_done(False)
 
     def _on_install_done(self, ok: bool):
+        from shiboken6 import isValid
+
+        # 回调可能晚于对话框销毁（授权期间窗口被关），此时不可再碰控件
+        if not isValid(self):
+            return
         if ok:
             self._status.setText("安装完成")
             self.accept()
             return
         self.install_button.setEnabled(True)
+        self.cancel_button.setEnabled(True)
         self._status.setText("安装失败或已取消授权，将回退为每次连接时授权。")
