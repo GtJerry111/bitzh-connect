@@ -67,15 +67,34 @@ def test_suspected_dead_when_idle_exceeds_short_timeout(qtbot):
 
 
 def test_route_probe_exception_treated_as_none(qtbot):
-    # 探测抛异常时应吞掉按 None 处理：不发 route_captured，也不向上抛。
-    events = []
+    # 探测每拍抛异常时应被吞掉并继续走完 _tick，因此空闲检查仍然生效：
+    # 有区分度——若实现里的 try/except 缺失，异常会中断 _tick，
+    # idle 检查永不执行、suspected_dead 永不发，本用例即失败。
+    route_events = []
+    dead_events = []
 
     def boom():
         raise RuntimeError("boom")
 
-    wd = _watchdog(boom)
-    wd.route_captured.connect(events.append)
+    wd = _watchdog(boom, idle_timeout_s=0.05)
+    wd.route_captured.connect(route_events.append)
+    wd.suspected_dead.connect(lambda: dead_events.append(True))
     wd.start()
-    qtbot.wait(80)
-    assert events == []
+    qtbot.waitUntil(lambda: bool(dead_events), timeout=1000)
+    assert route_events == []  # 异常按 None 处理，不发 route_captured
+    wd.stop()
+
+
+def test_stop_halts_signals(qtbot):
+    # stop() 后即使时间流逝也不再发任何信号（停表语义）。
+    route_events = []
+    dead_events = []
+    wd = _watchdog(lambda: "utun5", idle_timeout_s=0.05)
+    wd.route_captured.connect(route_events.append)
+    wd.suspected_dead.connect(lambda: dead_events.append(True))
+    wd.start()
+    wd.stop()
+    qtbot.wait(120)  # 跨越多拍 route_interval 与 idle_timeout
+    assert route_events == []
+    assert dead_events == []
     wd.stop()
