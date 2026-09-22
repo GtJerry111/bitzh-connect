@@ -313,18 +313,19 @@ def test_uninstall_helper_button_runs_uninstall(qtbot, monkeypatch):
     assert not dlg.uninstall_helper_button.isEnabled()  # 卸载中禁用防重复
 
 
-def test_open_log_dir_button_exists(qtbot, monkeypatch):
+def test_open_log_dir_button_exists(qtbot, monkeypatch, tmp_path):
+    from utils import diagnostics
     from views import advanced_panel as mod
     from views.advanced_panel import AdvancedSettingsDialog
 
     opened = []
     monkeypatch.setattr(mod, "_open_path", lambda p: opened.append(p))
-    # conftest 的 autouse fixture 把 _log_base_dir 指向 tmp_path（不含应用名）；
-    # 本用例显式覆盖回带应用名的路径，保留"打开的是应用日志目录"的断言区分度
+    # 覆盖 conftest 的隔离路径，带上应用名子目录（写入 tmp_path 而非共享 /tmp，
+    # 保持跨平台）；断言不依赖自给后缀，直接对齐 diagnostics.log_dir()
     monkeypatch.setattr(
-        "utils.diagnostics._log_base_dir", lambda: "/tmp/BITZH Connect"
+        diagnostics, "_log_base_dir", lambda: str(tmp_path / "BITZH Connect")
     )
     dlg = AdvancedSettingsDialog()
     qtbot.addWidget(dlg)
     dlg.open_log_button.click()
-    assert opened and opened[0].endswith("BITZH Connect")
+    assert opened == [diagnostics.log_dir()]
