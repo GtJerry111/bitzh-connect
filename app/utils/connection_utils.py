@@ -14,6 +14,7 @@ from .tun_utils import (
 )
 from .tun_worker import TunWorker
 from . import helper_client, helper_installer
+from . import diagnostics
 
 
 def _reset_connect_ui(window, status_detail: str):
@@ -40,6 +41,10 @@ def _reset_connect_ui(window, status_detail: str):
 
 def handle_output(window, text):
     """处理内核输出：上屏 + 解析状态"""
+    watchdog = getattr(window, "_watchdog", None)
+    if watchdog is not None:
+        watchdog.note_activity()
+    diagnostics.append(text)
     # RSA 公钥材料行折叠为一行中文说明（每次连接只提示一次）：
     # 公钥用于加密登录密码，设计上可公开；原样上屏是噪音且易误读为泄密
     if is_rsa_material(text):
@@ -56,6 +61,8 @@ def handle_output(window, text):
         window.virtual_ip = ip
         window.reconnect_manager.on_connection_established()
         window.status_panel.set_connected(ip)
+        if getattr(window, "_watchdog", None) is not None:
+            window._watchdog.start()
         # 连接成功即启动速率监控（TUN 读网卡；macOS 代理模式走 nettop 进程采样）
         if hasattr(window, "start_rate_monitor"):
             window.start_rate_monitor(ip)
@@ -94,6 +101,8 @@ def handle_connection_finished(window, exit_code):
 
     manual = getattr(window, "_manual_stop", True)
     auth_failed = getattr(window, "_auth_failed", False)
+    if getattr(window, "_watchdog", None) is not None:
+        window._watchdog.stop()
 
     # TUN 模式速率监控随连接终止一并停止
     if hasattr(window, "stop_rate_monitor"):
@@ -121,6 +130,13 @@ def handle_connection_finished(window, exit_code):
         if tray_action is not None:
             tray_action.setChecked(False)
 
+    from .tun_utils import capturing_tun_for
+
+    route = capturing_tun_for(getattr(window, "server_address", "")) or "物理网卡"
+    diagnostics.append(
+        f"连接结束 exit={exit_code} manual={manual} auth_failed={auth_failed} "
+        f"服务器路由出口={route}"
+    )
     window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
 
 
@@ -204,6 +220,9 @@ def start_connection(window):
     window._manual_stop = False
     window._auth_failed = False
     window._rsa_noted = False  # 每次连接重新折叠 RSA 公钥提示（一次连接只提示一次）
+    diagnostics.append(
+        f"连接开始 server={window.server_address} tun={getattr(window, 'tun_mode', False)}"
+    )
     # 告知仪表盘本次连接是否有速率数据源（TUN 网卡 / macOS 代理模式 nettop 采样）
     window.status_panel.set_graph_supported(
         getattr(window, "tun_mode", False) or system() == "Darwin"

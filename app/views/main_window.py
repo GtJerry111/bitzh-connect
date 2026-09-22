@@ -21,6 +21,8 @@ from utils.password_utils import toggle_password_visibility
 from views.menu_utils import check_for_updates, show_advanced_settings
 from utils.config_utils import load_config, load_settings, save_config
 from services.reconnect_manager import ReconnectManager
+from services.connection_watchdog import ConnectionWatchdog
+from utils.tun_utils import capturing_tun_for
 from utils.set_proxy import cleanup_residue_proxy
 from common.constants import APP_NAME
 from common.version import get_version
@@ -137,6 +139,13 @@ class MainWindow(QMainWindow):
         # 可能关闭窗口/退出流程的方法之前就位
         self._mac_status_item = None
         self.tray_icon = init_tray_icon(self)
+
+        # 连接看门狗：路由被抢 / 内核假死时自愈重连（探测函数每次现取当前 server）
+        self._watchdog = ConnectionWatchdog(
+            route_probe=lambda: capturing_tun_for(self.server_address),
+        )
+        self._watchdog.route_captured.connect(self._on_route_captured)
+        self._watchdog.suspected_dead.connect(self._on_suspected_dead)
 
         # 休眠/唤醒联动（仅 macOS 实装）：休眠抑制重连，唤醒立即重连
         from utils.sleep_wake import install_sleep_wake_hooks
@@ -555,6 +564,24 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, index: int):
         self.set_connection_mode(index == 1)
+
+    def _on_route_captured(self, interface: str):
+        """服务器路由被他方 TUN 截走：记日志并重连（重连会启用共存绑定）。"""
+        from utils import diagnostics
+
+        diagnostics.append(f"检测到服务器路由被 {interface} 截走，自动重连并启用共存绑定")
+        self.output_text.append(
+            f"[BITZH Connect] 检测到服务器路由被 {interface} 占用，正在自动重连（共存模式）…\n"
+        )
+        self._bounce_connection()
+
+    def _on_suspected_dead(self):
+        """内核疑似假死（长时间无输出）：记日志并重连。"""
+        from utils import diagnostics
+
+        diagnostics.append("内核长时间无输出，判定疑似假死，自动重连")
+        self.output_text.append("[BITZH Connect] 连接长时间无响应，正在自动重连…\n")
+        self._bounce_connection()
 
     def _bounce_connection(self):
         """先断后连：worker 收尾（finished→复位）需要一拍，1s 后重连足够稳。"""

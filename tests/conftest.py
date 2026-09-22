@@ -12,7 +12,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _isolate_app(monkeypatch):
+def _isolate_app(monkeypatch, tmp_path):
     """每个测试：清空应用配置 + 屏蔽启动时的真实更新检查网络请求。
 
     注意：清空的是测试专用命名空间（"BITZH Connect Test"）而非真实 app 配置——
@@ -26,3 +26,5 @@ def _isolate_app(monkeypatch):
     QSettings("BITZH Connect Test", "BITZH Connect Test").clear()
     # 注意必须 patch main_window 命名空间（from-import 绑定在这里）
     monkeypatch.setattr("views.main_window.check_for_updates", lambda *a, **k: None)
+    # 诊断日志不写入真实用户目录
+    monkeypatch.setattr("utils.diagnostics._log_base_dir", lambda: str(tmp_path))

@@ -381,3 +381,41 @@ def test_on_helper_install_done_bounces_when_already_checked(window, monkeypatch
     window._on_helper_install_done(True)
     assert window._bounce_pending is True  # 走了 bounce，而非依赖 setChecked no-op
     assert window.connect_button.isChecked() is False
+
+
+def test_watchdog_starts_on_connect_and_stops_on_disconnect(window, monkeypatch):
+    from utils.connection_utils import handle_output, handle_connection_finished
+
+    started = []
+    monkeypatch.setattr(window._watchdog, "start", lambda: started.append("start"))
+    monkeypatch.setattr(window._watchdog, "stop", lambda: started.append("stop"))
+
+    handle_output(window, "2026/09/22 14:32:17 Client IP: 10.0.43.58\n")
+    assert "start" in started
+
+    window._manual_stop = True
+    handle_connection_finished(window, -1)
+    assert "stop" in started
+
+
+def test_route_captured_triggers_bounce(window, monkeypatch):
+    fired = []
+    monkeypatch.setattr(window, "_bounce_connection", lambda: fired.append(True))
+    window._on_route_captured("utun5")
+    assert fired == [True]
+    assert "被" in window.output_text.toPlainText() or "共存" in window.output_text.toPlainText()
+
+
+def test_suspected_dead_triggers_bounce(window, monkeypatch):
+    fired = []
+    monkeypatch.setattr(window, "_bounce_connection", lambda: fired.append(True))
+    window._on_suspected_dead()
+    assert fired == [True]
+
+
+def test_activity_noted_on_output(window):
+    window._watchdog.note_activity = lambda: setattr(window, "_noted", True)
+    from utils.connection_utils import handle_output
+
+    handle_output(window, "2026/09/22 14:32:18 KeepAlive using UDP: OK\n")
+    assert getattr(window, "_noted", False) is True
