@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPixmap, QShortcut
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
-from utils import helper_installer  # noqa: F401  (Task 4 连接流程分支消费)
 from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
@@ -620,7 +619,11 @@ class MainWindow(QMainWindow):
         return ok
 
     def _on_helper_install_done(self, ok: bool):
-        """安装结果处理：成功→重连（此时走 helper）；失败→标记拒绝并回退重连。"""
+        """安装结果处理：成功→重连（此时走 helper）；失败→标记拒绝并回退重连。
+
+        无论按钮当前是否勾选都确保发起重连：按钮已勾选时 setChecked(True) 是
+        no-op（不发 toggled），须走 bounce 先断后连。
+        """
         if ok:
             self.output_text.append("[BITZH Connect] 特权服务已安装，正在重新连接…\n")
         else:
@@ -628,7 +631,10 @@ class MainWindow(QMainWindow):
             self.output_text.append(
                 "[BITZH Connect] 未安装特权服务，将以每次授权模式连接\n"
             )
-        self.connect_button.setChecked(True)
+        if self.connect_button.isChecked():
+            self._bounce_connection()
+        else:
+            self.connect_button.setChecked(True)
 
     def start_connection(self):
         start_connection(self)

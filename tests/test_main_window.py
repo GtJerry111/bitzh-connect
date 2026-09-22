@@ -325,16 +325,59 @@ def test_prompt_helper_install_dispatches_dialog(window, monkeypatch):
     assert seen == [True]
 
 
+def test_prompt_helper_install_rejected_falls_back(window, monkeypatch):
+    """对话框返回 Rejected：ok=False、回调收到 False、返回值 False。"""
+    from PySide6.QtWidgets import QDialog
+
+    from views import helper_setup_dialog as hsd
+
+    class _FakeDialog:
+        Accepted = QDialog.Accepted
+
+        def __init__(self, parent=None):
+            pass
+
+        def exec(self):
+            return QDialog.Rejected
+
+    monkeypatch.setattr(hsd, "HelperSetupDialog", _FakeDialog)
+    seen = []
+    ok = window.prompt_helper_install(on_done=lambda result: seen.append(result))
+    assert seen == [False]
+    assert ok is False
+
+
 def test_on_helper_install_done_retries_or_falls_back(window, monkeypatch):
-    """安装成功→重连走 helper；失败→标记拒绝并回退重连。"""
+    """安装成功→重连走 helper；失败→标记拒绝并回退重连（均真实触发 start_connection）。"""
     checked = []
-    monkeypatch.setattr(
-        window, "start_connection", lambda: checked.append(True)
-    )
+    monkeypatch.setattr(window, "start_connection", lambda: checked.append(True))
+    monkeypatch.setattr(window, "stop_connection", lambda: None)
+    window.connect_button.setChecked(False)
+
+    # 成功路径（按钮初始未勾选）：重连真实发起
     window._on_helper_install_done(True)
-    assert window.connect_button.isChecked() is True
+    assert checked == [True]
     assert window._helper_install_declined is False
 
+    # 失败路径（按钮初始未勾选）：回退重连同样真实发起
+    window.connect_button.setChecked(False)
+    checked.clear()
     window._helper_install_declined = False
     window._on_helper_install_done(False)
+    assert checked == [True]
     assert window._helper_install_declined is True
+
+
+def test_on_helper_install_done_bounces_when_already_checked(window, monkeypatch):
+    """按钮已勾选时 setChecked(True) 是 no-op：须走 bounce 确保重连。"""
+    monkeypatch.setattr(window, "start_connection", lambda: None)
+    monkeypatch.setattr(window, "stop_connection", lambda: None)
+    delayed = []
+    monkeypatch.setattr(
+        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
+    )
+    window.connect_button.setChecked(True)  # 模拟已连接（start/stop 已 mock）
+
+    window._on_helper_install_done(True)
+    assert window._bounce_pending is True  # 走了 bounce，而非依赖 setChecked no-op
+    assert window.connect_button.isChecked() is False
