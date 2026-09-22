@@ -149,8 +149,9 @@ jobs:
       - name: Build Privileged Helper (macOS)
         if: runner.os == 'macOS'
         run: |
+          # helper 目前无签名/公证，放在 Build Executable 之后；若将来引入签名，本步骤须移到签名之前
           source .venv/bin/activate
-          python -m nuitka \
+          PYTHONPATH=app python -m nuitka \
             --onefile \
             --assume-yes-for-downloads \
             --macos-target-arch=${{ matrix.target_arch }} \
@@ -159,6 +160,7 @@ jobs:
             --remove-output \
             app/privileged_helper/main.py
           cp dist_helper/bitzh-helper "dist/BITZH Connect.app/Contents/MacOS/bitzh-helper"
+          rm -rf dist_helper
 
       - name: Create DMG (macOS)
         if: runner.os == 'macOS'
