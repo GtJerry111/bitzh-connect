@@ -841,19 +841,22 @@ git commit -m "feat(tun): 连接优先走特权 helper，可安装时引导，�
 在 `tests/test_advanced_panel.py` 末尾追加（若该文件无 dialog fixture，参照文件内既有写法构造 `AdvancedSettingsDialog`）：
 
 ```python
-def test_uninstall_helper_button_only_on_macos_with_service(qtbot, monkeypatch):
+def test_uninstall_helper_button_runs_uninstall(qtbot, monkeypatch):
     from views import advanced_panel as mod
     from views.advanced_panel import AdvancedSettingsDialog
 
     monkeypatch.setattr(mod, "system", lambda: "Darwin")
     monkeypatch.setattr(mod.helper_installer, "is_installed", lambda: True)
+    calls = []
+    monkeypatch.setattr(
+        mod.helper_installer, "uninstall_async", lambda on_done: calls.append(on_done)
+    )
     dlg = AdvancedSettingsDialog()
     qtbot.addWidget(dlg)
-    assert dlg.uninstall_helper_button.isVisible() or True  # 见 Step 3 说明
     assert dlg.uninstall_helper_button.isEnabled()
     dlg.uninstall_helper_button.click()
-    # 触发卸载（异步），按钮进入禁用态
-    assert not dlg.uninstall_helper_button.isEnabled()
+    assert calls  # 触发卸载（异步）
+    assert not dlg.uninstall_helper_button.isEnabled()  # 卸载中禁用防重复
 ```
 
 - [ ] **Step 2: 运行确认失败**
@@ -901,7 +904,7 @@ from utils import helper_installer
         helper_installer.uninstall_async(_done)
 ```
 
-> 注：`QPushButton` 已在文件顶部导入。测试中对"可见性"的断言在 offscreen 下不可靠，故 Step 1 用 `or True` 兜底可见性、重点断言"点击后可触发卸载且按钮禁用"。
+> 注：`QPushButton` 已在文件顶部导入。测试不断言 offscreen 下不可靠的可见性，重点断言"按钮启用 → 点击触发卸载 → 卸载中禁用"。
 
 - [ ] **Step 4: 运行确认通过**
 
