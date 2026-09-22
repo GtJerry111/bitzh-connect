@@ -303,3 +303,38 @@ def test_legacy_password_prompt_shown(qtbot):
 def test_no_prompt_when_no_saved_password(window):
     """没有保存过密码时不得误报提示。"""
     assert "重新输入" not in window.output_text.toPlainText()
+
+
+def test_prompt_helper_install_dispatches_dialog(window, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    from views import helper_setup_dialog as hsd
+
+    class _FakeDialog:
+        Accepted = QDialog.Accepted
+
+        def __init__(self, parent=None):
+            pass
+
+        def exec(self):
+            return QDialog.Accepted
+
+    monkeypatch.setattr(hsd, "HelperSetupDialog", _FakeDialog)
+    seen = []
+    window.prompt_helper_install(on_done=lambda ok: seen.append(ok))
+    assert seen == [True]
+
+
+def test_on_helper_install_done_retries_or_falls_back(window, monkeypatch):
+    """安装成功→重连走 helper；失败→标记拒绝并回退重连。"""
+    checked = []
+    monkeypatch.setattr(
+        window, "start_connection", lambda: checked.append(True)
+    )
+    window._on_helper_install_done(True)
+    assert window.connect_button.isChecked() is True
+    assert window._helper_install_declined is False
+
+    window._helper_install_declined = False
+    window._on_helper_install_done(False)
+    assert window._helper_install_declined is True

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPixmap, QShortcut
 from utils.tray_utils import handle_close_event, quit_app, init_tray_icon
+from utils import helper_installer  # noqa: F401  (Task 4 连接流程分支消费)
 from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
@@ -118,6 +119,7 @@ class MainWindow(QMainWindow):
         self.virtual_ip = None
         self._manual_stop = True
         self._auth_failed = False
+        self._helper_install_declined = False
         self._rate_monitor = None
         self._rate_monitor_gen = 0  # 在途重试链世代号：stop/重启即翻篇，防止断连后建起残留 monitor
         self.reconnect_manager = ReconnectManager(
@@ -606,6 +608,27 @@ class MainWindow(QMainWindow):
 
     def save_credentials(self):
         save_credentials(self)
+
+    def prompt_helper_install(self, on_done=None):
+        """弹 TUN 特权服务安装引导；结果经 on_done(ok) 回调。"""
+        from views import helper_setup_dialog
+
+        dialog = helper_setup_dialog.HelperSetupDialog(self)
+        ok = dialog.exec() == helper_setup_dialog.HelperSetupDialog.Accepted
+        if on_done is not None:
+            on_done(ok)
+        return ok
+
+    def _on_helper_install_done(self, ok: bool):
+        """安装结果处理：成功→重连（此时走 helper）；失败→标记拒绝并回退重连。"""
+        if ok:
+            self.output_text.append("[BITZH Connect] 特权服务已安装，正在重新连接…\n")
+        else:
+            self._helper_install_declined = True
+            self.output_text.append(
+                "[BITZH Connect] 未安装特权服务，将以每次授权模式连接\n"
+            )
+        self.connect_button.setChecked(True)
 
     def start_connection(self):
         start_connection(self)
