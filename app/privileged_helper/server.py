@@ -54,6 +54,12 @@ class HelperServer:
         with self._lock:
             if self._kernel_alive():
                 return {"ok": False, "error": "already_running"}
+            # 清理上一轮遗留的停止标记，否则 watcher 首个周期就会秒杀新内核
+            if stop_path:
+                try:
+                    os.unlink(stop_path)
+                except OSError:
+                    pass
             try:
                 log_f = open(log_path, "ab", buffering=0)
             except OSError as e:
@@ -88,15 +94,26 @@ class HelperServer:
                 return
             time.sleep(0.3)
 
+    def _close_log(self):
+        if self._log_f is None:
+            return
+        try:
+            self._log_f.close()
+        except OSError:
+            pass
+        self._log_f = None
+
     def stop_kernel(self):
         with self._lock:
             proc = self._proc
             if proc is None or proc.poll() is not None:
+                self._close_log()
                 return {"ok": True, "note": "not_running"}
             try:
                 os.kill(proc.pid, signal.SIGTERM)
             except OSError:
                 pass
+            self._close_log()
             return {"ok": True}
 
     def status(self):
@@ -140,23 +157,43 @@ class HelperServer:
         self._sock.listen(8)
 
     def _handle_conn(self, conn):
-        if not self._peer_allowed(conn):
-            conn.sendall(encode({"ok": False, "error": "forbidden"}))
+        # 单连接超时：半截请求不会永久阻塞 root helper（F2）
+        try:
+            conn.settimeout(5)
+        except OSError:
             return
+        # 先读完一个以 \n 结束的请求（F1）：这样未授权分支回包后接收队列已空，
+        # 关闭连接不会因未读数据触发 RST，客户端能可靠收到回复。
         data = b""
-        while not data.endswith(b"\n") and len(data) < 1_000_000:
-            chunk = conn.recv(4096)
-            if not chunk:
-                break
-            data += chunk
+        try:
+            while not data.endswith(b"\n") and len(data) < 1_000_000:
+                chunk = conn.recv(4096)
+                if not chunk:  # 对端关闭
+                    break
+                data += chunk
+        except (OSError, socket.timeout):
+            return
+        if not self._peer_allowed(conn):
+            # 未授权：只回 forbidden，不解析/分发请求体
+            try:
+                conn.sendall(encode({"ok": False, "error": "forbidden"}))
+            except (OSError, socket.timeout):
+                pass
+            return
         if not data:
             return
         try:
             req = json.loads(data.decode("utf-8"))
         except ValueError:
-            conn.sendall(encode({"ok": False, "error": "bad_json"}))
+            try:
+                conn.sendall(encode({"ok": False, "error": "bad_json"}))
+            except (OSError, socket.timeout):
+                pass
             return
-        conn.sendall(encode(self.dispatch(req)))
+        try:
+            conn.sendall(encode(self.dispatch(req)))
+        except (OSError, socket.timeout):
+            pass
 
     def dispatch(self, req: dict) -> dict:
         cmd = req.get("cmd")

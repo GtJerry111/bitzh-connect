@@ -75,7 +75,9 @@ def test_double_start_returns_error(tmp_path):
     args = ([], os.path.join(tmp_path, "k.log"),
             os.path.join(tmp_path, "k.pid"), os.path.join(tmp_path, "k.stop"))
     assert server.start_kernel(*args)["ok"] is True
-    assert server.start_kernel(*args)["ok"] is False
+    second = server.start_kernel(*args)
+    assert second["ok"] is False
+    assert second["error"] == "already_running"
     server.stop_kernel()
 
 
@@ -83,7 +85,9 @@ def test_dispatch_hello_and_unknown(tmp_path):
     fake = _FakeKernel(tmp_path)
     server = _server(tmp_path, fake)
     assert server.dispatch({"cmd": hp.CMD_HELLO})["version"] == hp.PROTOCOL_VERSION
-    assert server.dispatch({"cmd": "bogus"})["ok"] is False
+    bogus = server.dispatch({"cmd": "bogus"})
+    assert bogus["ok"] is False
+    assert bogus["error"] == "unknown_command"
 
 
 def test_socket_end_to_end_and_peer_uid(tmp_path):
@@ -106,7 +110,10 @@ def test_socket_end_to_end_and_peer_uid(tmp_path):
         s.sendall(hp.encode(payload))
         data = b""
         while not data.endswith(b"\n"):
-            data += s.recv(4096)
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            data += chunk
         s.close()
         return json.loads(data.decode("utf-8"))
 
@@ -140,6 +147,11 @@ def test_forbidden_when_peer_uid_mismatch(tmp_path):
     s.sendall(hp.encode({"cmd": hp.CMD_HELLO}))
     data = b""
     while not data.endswith(b"\n"):
-        data += s.recv(4096)
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
     s.close()
-    assert json.loads(data.decode("utf-8"))["ok"] is False
+    forbidden = json.loads(data.decode("utf-8"))
+    assert forbidden["ok"] is False
+    assert forbidden["error"] == "forbidden"
