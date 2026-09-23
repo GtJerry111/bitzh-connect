@@ -139,7 +139,9 @@ def init_tray_icon(window):
             },
             {
                 "title": "在菜单栏显示速度",
-                "action": lambda: window.set_menu_bar_speed(not window.menu_bar_speed),
+                "action": lambda: window.set_menu_bar_speed(
+                    not getattr(window, "menu_bar_speed", False)
+                ),
                 "is_checked": lambda: bool(getattr(window, "menu_bar_speed", False)),
             },
             {"separator": True},

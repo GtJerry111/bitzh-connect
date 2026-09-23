@@ -101,3 +101,55 @@ def test_set_menu_bar_speed_persists_roundtrip(qtbot):
     assert load_config()["menu_bar_speed"] is True
 
     win.reconnect_manager.cancel()
+
+
+def test_set_menu_bar_speed_backfills_last_rates(qtbot):
+    """连接中开启开关：用最近一次 _last_rates 立即回填菜单栏（不等下次采样）。"""
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.virtual_ip = "10.0.43.5"
+    win._last_rates = ("1 KB/s", "2 KB/s")
+    win.menu_bar_speed = False
+
+    calls = []
+    win._mac_status_item = type(
+        "S", (), {
+            "set_speed": lambda self, up, down: calls.append(("speed", up, down)),
+            "restore_icon": lambda self: calls.append(("icon",)),
+        },
+    )()
+
+    win.set_menu_bar_speed(True)
+    assert calls == [("speed", "1 KB/s", "2 KB/s")]
+    assert win._speed_visible is True
+
+    win.reconnect_manager.cancel()
+
+
+def test_update_menu_bar_speed_off_restores_once(qtbot):
+    """显示态守卫：处于速率显示态的图标在关闭后仅恢复一次，
+    后续同态采样（默认关、1Hz）不再重复 restore_icon。"""
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.menu_bar_speed = False
+    win._speed_visible = True  # 此前已显示速率（需跨越边界才会触发恢复）
+
+    calls = []
+    win._mac_status_item = type(
+        "S", (), {
+            "set_speed": lambda self, up, down: calls.append(("speed", up, down)),
+            "restore_icon": lambda self: calls.append(("icon",)),
+        },
+    )()
+
+    win._update_menu_bar_speed("1 KB/s", "2 KB/s")  # 首次跨越边界 → 恢复
+    win._update_menu_bar_speed("1 KB/s", "2 KB/s")  # 已恢复 → 不再重复
+
+    assert calls == [("icon",)]
+    assert win._speed_visible is False
+
+    win.reconnect_manager.cancel()

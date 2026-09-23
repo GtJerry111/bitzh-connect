@@ -133,7 +133,8 @@ def _speed_nsimage(up_text: str, down_text: str):
     ba = QByteArray()
     buf = QBuffer(ba)
     buf.open(QIODevice.WriteOnly)
-    img.save(buf, "PNG")
+    if not img.save(buf, "PNG"):
+        raise RuntimeError("速率图 PNG 编码失败")
     nsdata = NSData.dataWithBytes_length_(bytes(ba), len(ba))
     nsi = objc.lookUpClass("NSImage").alloc().initWithData_(nsdata)
     nsi.setTemplate_(True)
