@@ -71,9 +71,33 @@ def test_cancel_rejects_without_running_installer(qtbot, monkeypatch):
     )
     dlg = mod.HelperSetupDialog()
     qtbot.addWidget(dlg)
+    monkeypatch.setattr(dlg, "_confirm_later", lambda: True)  # 用户确认"仍要稍后"
     dlg.cancel_button.click()
-    assert dlg.result() == dlg.DialogCode.Rejected
     assert not calls  # "稍后"不触发安装
+    assert dlg.result() == dlg.DialogCode.Rejected
+
+
+def test_cancel_returning_to_install_keeps_dialog(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    # 未 exec 的对话框 result() 默认就是 0（== Rejected），故用 rejected 信号
+    # 判定是否真的关闭，而非比较 result() 初值
+    rejected = []
+    dlg.rejected.connect(lambda: rejected.append(True))
+    monkeypatch.setattr(dlg, "_confirm_later", lambda: False)  # 用户点"返回安装"
+    dlg.cancel_button.click()
+    assert not rejected  # 未调用 reject，对话框保持打开
+
+
+def test_later_warning_mentions_osascript(qtbot, monkeypatch):
+    from views import helper_setup_dialog as mod
+
+    dlg = mod.HelperSetupDialog()
+    qtbot.addWidget(dlg)
+    text = dlg.later_warning_text()
+    assert "每次" in text and ("授权" in text or "密码" in text)
 
 
 def test_cancel_disabled_while_installing(qtbot, monkeypatch):

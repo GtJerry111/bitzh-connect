@@ -18,6 +18,12 @@ _OPERATIONS = (
     "• 之后连接 TUN 不再需要输入管理员密码"
 )
 
+_LATER_WARNING = (
+    "选择“稍后”将回退为每次连接时授权（osascript），"
+    "每次连接 TUN 都需要输入管理员密码。\n"
+    "你稍后可在「设置 → 网络 → 特权服务」里安装。"
+)
+
 
 class HelperSetupDialog(QDialog):
     def __init__(self, parent=None):
@@ -75,7 +81,7 @@ class HelperSetupDialog(QDialog):
                 background-color: {theme.semantic_color("separator")};
             }}
         """)
-        self.cancel_button.clicked.connect(self.reject)
+        self.cancel_button.clicked.connect(self._on_later)
         row.addWidget(self.cancel_button)
 
         self.install_button = QPushButton("安装")
@@ -112,6 +118,27 @@ class HelperSetupDialog(QDialog):
 
     def status_text(self) -> str:
         return self._status.text()
+
+    def later_warning_text(self) -> str:
+        return _LATER_WARNING
+
+    def _on_later(self):
+        if self._confirm_later():
+            self.reject()
+
+    def _confirm_later(self) -> bool:
+        """点"稍后"时的二次确认；返回 True = 确认稍后（回退每次授权）。"""
+        from PySide6.QtWidgets import QMessageBox
+
+        box = QMessageBox(self)
+        box.setWindowTitle("将改用每次授权模式")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText(_LATER_WARNING)
+        back = box.addButton("返回安装", QMessageBox.ButtonRole.AcceptRole)
+        later = box.addButton("仍要稍后", QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(back)
+        box.exec()
+        return box.clickedButton() is later
 
     # ---- 行为 ----
     def _on_install(self):
