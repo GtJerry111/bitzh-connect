@@ -99,6 +99,13 @@ jobs:
       - name: Install Dependencies
         run: uv sync
 
+      # 修复：build checkout 未指定 ref，tag 构建时检出的是 tag 提交（.app-version 还是旧值）。
+      # 这里直接按 tag 名覆盖，确保产物内嵌版本 === 发布版本。
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: echo "${GITHUB_REF_NAME#v}" > .app-version
+
       # Download ZJU-connect core package
       - name: Download ZJU-connect Core
         run: |
