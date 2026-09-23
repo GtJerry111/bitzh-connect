@@ -435,21 +435,27 @@ class MainWindow(QMainWindow):
         self.centralWidget().set_motto_visible(not cred_visible)
 
     def _apply_connect_button_style(self, connected: bool):
-        """连接（绿实心）/ 断开（白底绿描边）双态样式。"""
+        """连接（绿玻璃）/ 断开（白玻璃+绿描边）双态半透明样式。
+
+        背景一律 rgba 半透明：按钮矩形已由容器在其身后绘制模糊校训，
+        实色底会把校训挡死；半透后玻璃质感成立（Task 1 的模糊矩形透出）。
+        """
         from common import theme
 
         if not connected:
             self.connect_button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {theme.semantic_color("accent")};
+                    background-color: {theme.with_alpha("accent", 0.80)};
                     color: {theme.semantic_color("accent_text")};
-                    border: 2px solid transparent;
+                    /* 同色描边：视觉不可见，但锁住"品牌绿"事实与既有断言 */
+                    border: 2px solid {theme.semantic_color("accent")};
+                    border-top: 1px solid {theme.with_alpha("accent_text", 0.30)};
                     border-radius: 6px;
                     font-size: 13pt;
                     font-weight: 600;
                 }}
                 QPushButton:hover:enabled {{
-                    background-color: {theme.semantic_color("accent_hover")};
+                    background-color: {theme.with_alpha("accent_hover", 0.86)};
                 }}
                 /* pressed 态：背景加深 + 内容下沉 1px。
                    QSS 无 transition，按压/弹回即时生效——与 Apple 按钮按压行为一致
@@ -457,32 +463,33 @@ class MainWindow(QMainWindow):
                    布局管理的 widget 直接 move 会被布局覆盖，margin 会推挤邻近行
                    （底部工具行抖动），padding-top 只让内容在固定按钮框内下移，零副作用。 */
                 QPushButton:pressed {{
-                    background-color: {theme.semantic_color("accent_pressed")};
+                    background-color: {theme.with_alpha("accent_pressed", 0.90)};
                     padding-top: 1px;  /* 按压下沉 1px（内容偏移；按钮外框/布局不动） */
                 }}
                 QPushButton:focus {{
-                    border: 2px solid {theme.with_alpha("accent", 0.5)};
+                    border: 1px solid {theme.with_alpha("accent_text", 0.5)};
                 }}
                 QPushButton:disabled {{
-                    background-color: {theme.semantic_color("accent_disabled")};
+                    background-color: {theme.with_alpha("accent", 0.35)};
                     color: {theme.semantic_color("accent_text")};
                 }}
             """)
         else:
+            # 断开：玻璃描边（半透明白底 + accent 描边）
             self.connect_button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: transparent;
+                    background-color: rgba(255, 255, 255, 0.14);
                     color: {theme.semantic_color("accent")};
-                    border: 2px solid {theme.semantic_color("accent")};
+                    border: 2px solid {theme.with_alpha("accent", 0.85)};
                     border-radius: 6px;
                     font-size: 13pt;
                     font-weight: 600;
                 }}
                 QPushButton:hover:enabled {{
-                    background-color: {theme.with_alpha("accent", 0.08)};
+                    background-color: rgba(255, 255, 255, 0.22);
                 }}
                 QPushButton:pressed {{
-                    background-color: {theme.with_alpha("accent", 0.16)};
+                    background-color: rgba(255, 255, 255, 0.10);
                     padding-top: 1px;
                 }}
             """)

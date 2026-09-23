@@ -270,13 +270,18 @@ def test_connect_button_pressed_sink_qss(qtbot):
 
 
 def test_disconnect_button_outlined_when_connected(window):
+    from common import theme
+
     window.connect_button.setChecked(True)  # 凭据为空会早退复位，只看样式切换函数
     window._apply_connect_button_style(True)
-    # 断开态：白底（transparent）+ 绿描边，两条一起锁住，避免只匹配到 accent 边
-    assert "background-color: transparent" in window.connect_button.styleSheet()
+    # 断开态：半透明白玻璃 + 绿描边，两条一起锁住，避免只匹配到 accent 边
+    assert "rgba(" in window.connect_button.styleSheet()
     assert "border: 2px solid" in window.connect_button.styleSheet()
     window._apply_connect_button_style(False)
-    assert "border: 2px solid transparent" in window.connect_button.styleSheet()
+    # 连接态（绿玻璃）：品牌绿 2px 描边保留（同色视觉不可见，保住品牌色事实）
+    connect_qss = window.connect_button.styleSheet()
+    assert theme.semantic_color("accent") in connect_qss
+    assert "border: 2px solid" in connect_qss
 
 
 def test_legacy_password_prompt_shown(qtbot):
@@ -471,3 +476,24 @@ def test_activity_noted_on_output(window):
 
     handle_output(window, "2026/09/22 14:32:18 KeepAlive using UDP: OK\n")
     assert getattr(window, "_noted", False) is True
+
+
+def test_connect_button_glass_is_translucent(window):
+    """连接按钮双态背景为半透明（rgba）玻璃。"""
+    window._apply_connect_button_style(False)
+    assert "rgba(" in window.connect_button.styleSheet()
+    window._apply_connect_button_style(True)
+    assert "rgba(" in window.connect_button.styleSheet()
+
+
+def test_connect_button_glass_base_background_translucent(window):
+    """双态【基底】background-color 必须是 rgba（hover/focus 子态原有的 rgba 不算数）。"""
+    for connected in (False, True):
+        window._apply_connect_button_style(connected)
+        base = (
+            window.connect_button.styleSheet()
+            .split("QPushButton {", 1)[1]
+            .split("}", 1)[0]
+        )
+        assert "background-color:" in base
+        assert "rgba(" in base, f"connected={connected} 基底非半透明: {base.strip()}"
