@@ -28,7 +28,7 @@ _PANEL_WIDTH = 300
 
 
 def _draw_icon(painter: QPainter, kind: str):
-    """24px 网格单色线条图标（swap/grid/gear/power/window/chevron_right）。
+    """24px 网格单色线条图标（swap/grid/sliders/power/window/chevron_right）。
 
     颜色由调用方设 pen。行内图标与工具按钮现均用 ink（深色下保证对比）。
     """
@@ -42,20 +42,26 @@ def _draw_icon(painter: QPainter, kind: str):
     elif kind == "grid":
         for x, y in ((4, 4), (13, 4), (4, 13), (13, 13)):
             painter.drawRoundedRect(QRectF(x, y, 7, 7), 1.6, 1.6)
-    elif kind == "gear":
-        painter.drawEllipse(QPointF(12, 12), 3.2, 3.2)
-        for i in range(8):
-            painter.save()
-            painter.translate(12, 12)
-            painter.rotate(i * 45)
-            painter.drawLine(QPointF(0, -5.6), QPointF(0, -8.2))
-            painter.restore()
+    elif kind == "sliders":
+        # 设置：两条滑轨 + 两个旋钮（避开"齿轮像太阳/亮度"的歧义）
+        painter.drawLine(QPointF(4, 8), QPointF(7, 8))
+        painter.drawLine(QPointF(11, 8), QPointF(20, 8))
+        painter.drawEllipse(QPointF(9, 8), 2.0, 2.0)
+        painter.drawLine(QPointF(4, 16), QPointF(13, 16))
+        painter.drawLine(QPointF(17, 16), QPointF(20, 16))
+        painter.drawEllipse(QPointF(15, 16), 2.0, 2.0)
     elif kind == "power":
         painter.drawLine(QPointF(12, 4), QPointF(12, 11))
         painter.drawArc(QRectF(5.5, 6.5, 13, 13), 130 * 16, 280 * 16)
     elif kind == "window":
+        # 应用窗口：圆角框 + 标题栏 + 三个交通灯点（与"亮度"图标区分开）
         painter.drawRoundedRect(QRectF(4, 5, 16, 14), 2.5, 2.5)
         painter.drawLine(QPointF(4, 9.5), QPointF(20, 9.5))
+        painter.save()
+        painter.setBrush(painter.pen().color())
+        for x in (6.8, 9.0, 11.2):
+            painter.drawEllipse(QPointF(x, 7.3), 0.7, 0.7)
+        painter.restore()
     elif kind == "chevron_right":
         painter.drawLine(QPointF(9, 5), QPointF(16, 12))
         painter.drawLine(QPointF(16, 12), QPointF(9, 19))
@@ -310,7 +316,7 @@ class MenuBarPanel(QWidget):
         self._open_btn.clicked.connect(lambda: self._main.open_main_window())
         bar.addWidget(self._open_btn)
         bar.addStretch()
-        self._settings_btn = self._round_button("gear", "设置")
+        self._settings_btn = self._round_button("sliders", "设置")
         self._settings_btn.clicked.connect(self._open_settings)
         self._quit_btn = self._round_button("power", "退出")
         self._quit_btn.clicked.connect(self._main.quit_app)
@@ -447,7 +453,7 @@ class MenuBarPanel(QWidget):
             )
         # 图标颜色随主题（ink 经 icon_pixmap 烘焙，需重建）
         self._open_btn.setIcon(QIcon(icon_pixmap("window", 12)))
-        self._settings_btn.setIcon(QIcon(icon_pixmap("gear", 13)))
+        self._settings_btn.setIcon(QIcon(icon_pixmap("sliders", 13)))
         self._quit_btn.setIcon(QIcon(icon_pixmap("power", 13)))
         self._refresh_nav_chips()
 
