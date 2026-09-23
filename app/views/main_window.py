@@ -48,6 +48,40 @@ class WatermarkContainer(QWidget):
         self._watermark = QPixmap(":/brand/motto.png")
         self._motto_level = 0.0  # 0=隐藏 1=显示（乘在深浅色基准透明度上）
         self._motto_visible = False
+        self._glass_controls = []   # 需要"磨砂透出校训"的控件
+        self._blur_cache = None
+        self._blur_key = None
+
+    def register_glass(self, widget):
+        """登记一个需要磨砂玻璃效果的控件（其矩形内绘制模糊水印）。"""
+        if widget is not None and widget not in self._glass_controls:
+            self._glass_controls.append(widget)
+
+    def glass_controls(self):
+        return list(self._glass_controls)
+
+    def _blurred(self, scaled):
+        """返回 scaled 的模糊副本（按 cacheKey 缓存，避免每次重画都模糊）。"""
+        key = scaled.cacheKey()
+        if self._blur_key == key and self._blur_cache is not None:
+            return self._blur_cache
+        from PySide6.QtWidgets import QGraphicsBlurEffect, QGraphicsPixmapItem, QGraphicsScene
+        from PySide6.QtCore import QRectF
+
+        scene = QGraphicsScene()
+        item = QGraphicsPixmapItem(scaled)
+        blur = QGraphicsBlurEffect()
+        blur.setBlurRadius(7)
+        item.setGraphicsEffect(blur)
+        scene.addItem(item)
+        out = QPixmap(scaled.size())
+        out.fill(Qt.transparent)
+        painter = QPainter(out)
+        scene.render(painter, QRectF(out.rect()), QRectF(scaled.rect()))
+        painter.end()
+        self._blur_key = key
+        self._blur_cache = out
+        return out
 
     def set_motto_visible(self, visible: bool):
         """校训淡入淡出（250ms，可打断；reduce-motion 即时）。"""
@@ -93,6 +127,18 @@ class WatermarkContainer(QWidget):
             base = _WATERMARK_OPACITY["dark" if theme.is_dark() else "light"]
             painter.setOpacity(base * self._motto_level)
             painter.drawPixmap(x, y, scaled)
+            # 玻璃控件区域：把该区域的水印换成"模糊版"——控件半透明背景即透出磨砂水印
+            blurred = self._blurred(scaled)
+            from PySide6.QtCore import QPoint, QRect
+
+            for widget in self._glass_controls:
+                if widget is None or not widget.isVisible():
+                    continue
+                rect = QRect(widget.mapTo(self, QPoint(0, 0)), widget.size())
+                painter.save()
+                painter.setClipRect(rect)
+                painter.drawPixmap(x, y, blurred)
+                painter.restore()
             painter.end()
         super().paintEvent(event)
 
@@ -350,6 +396,8 @@ class MainWindow(QMainWindow):
         container = WatermarkContainer()
         container.setLayout(layout)
         self.setCentralWidget(container)
+        container.register_glass(self.mode_switch)
+        container.register_glass(self.connect_button)
         # 首次样式应用：须在 centralWidget 就位后（卡片 QSS 挂中央容器）
         self._apply_theme_styles()
 
