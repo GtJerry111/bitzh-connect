@@ -11,7 +11,7 @@ class SettingRow(QWidget):
         super().__init__(parent)
         self.control = control
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(2, 8, 2, 8)
+        outer.setContentsMargins(2, 6, 2, 6)
         outer.setSpacing(12)
         left = QVBoxLayout()
         left.setSpacing(2)
@@ -32,6 +32,8 @@ class SettingRow(QWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        if not self._has_following_row():
+            return
         painter = QPainter(self)
         # QPainter 用 QColor：with_alpha 是 QSS 专用（rgba() 字符串 QColor 不认），
         # 这里必须走 theme.qcolor 才能拿到带透明度的有效颜色
@@ -39,3 +41,15 @@ class SettingRow(QWidget):
         y = self.height() - 1
         painter.drawLine(QPointF(0, y), QPointF(self.width(), y))
         painter.end()
+
+    def _has_following_row(self) -> bool:
+        """仅当同一布局的下一项也是 SettingRow 时才画分隔线（避免组尾/表单项前的孤线）。"""
+        parent = self.parentWidget()
+        layout = parent.layout() if parent is not None else None
+        if layout is None:
+            return False
+        idx = layout.indexOf(self)
+        if idx < 0:
+            return False
+        nxt = layout.itemAt(idx + 1)
+        return nxt is not None and isinstance(nxt.widget(), SettingRow)

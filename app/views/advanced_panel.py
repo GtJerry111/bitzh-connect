@@ -282,6 +282,21 @@ class AdvancedSettingsDialog(QDialog):
             description="连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）",
         )
 
+        # 特权服务：位于「高级」折叠区之上一行（不设独立分组标题）
+        if system() == "Darwin" and helper_installer.is_supported():
+            self.helper_button = QPushButton()
+            self.helper_button.setStyleSheet(self._primary_button_style())
+            self.helper_button.clicked.connect(self._on_helper_button)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            network_layout.addWidget(self.helper_row)
+            self._refresh_helper_row()
+        else:
+            self.helper_button = QPushButton()
+            self.helper_button.setVisible(False)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            self.helper_row.setVisible(False)
+            network_layout.addWidget(self.helper_row)
+
         # ---- 高级（默认折叠，点 chevron 行展开；展开/收起随对话框高度平滑伸缩）----
         self.advanced_toggle = DisclosureHeader("高级")
         self.advanced_toggle.toggled.connect(self._toggle_advanced)
@@ -325,21 +340,6 @@ class AdvancedSettingsDialog(QDialog):
             enabled=system() != "Windows",
             description=tun_note,
         )
-
-        # 特权服务：紧挨 TUN 开关下方的维护行（无独立分组标题）
-        if system() == "Darwin" and helper_installer.is_supported():
-            self.helper_button = QPushButton()
-            self.helper_button.setStyleSheet(self._primary_button_style())
-            self.helper_button.clicked.connect(self._on_helper_button)
-            self.helper_row = SettingRow("特权服务", self.helper_button, "")
-            advanced_layout.addWidget(self.helper_row)
-            self._refresh_helper_row()
-        else:
-            self.helper_button = QPushButton()
-            self.helper_button.setVisible(False)
-            self.helper_row = SettingRow("特权服务", self.helper_button, "")
-            self.helper_row.setVisible(False)
-            advanced_layout.addWidget(self.helper_row)
 
         # ---- 运行日志（打开时同步主窗口日志缓冲，存活期间实时跟随）----
         from PySide6.QtGui import QFontDatabase
