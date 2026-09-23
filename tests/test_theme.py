@@ -139,3 +139,20 @@ def test_animated_height_toggle_expand_interrupts_collapse_stays_visible(qtbot, 
     qtbot.wait(300)  # 等展开动画结束
 
     assert w.isVisible()  # 被停的收起动画不得把 widget 隐藏
+
+
+def test_highlight_palette_follows_accent(qtbot):
+    from PySide6.QtGui import QPalette
+    from PySide6.QtWidgets import QApplication
+
+    from common import theme
+
+    theme.set_appearance("light")
+    got = QApplication.instance().palette().color(QPalette.ColorRole.Highlight).name().lower()
+    assert got == theme.semantic_color("accent").lower()
+
+    theme.set_appearance("dark")
+    got = QApplication.instance().palette().color(QPalette.ColorRole.Highlight).name().lower()
+    assert got == theme.semantic_color("accent").lower()
+
+    theme.set_appearance("system")  # 复位，避免影响其它用例

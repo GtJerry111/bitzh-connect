@@ -61,6 +61,25 @@ def semantic_color(name: str) -> str:
     return dark if is_dark() else light
 
 
+def apply_highlight_palette():
+    """把控件高亮色（复选框/tab/文本选择等）统一为校徽绿 accent。"""
+    try:
+        from PySide6.QtGui import QColor, QPalette
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is None:
+            return
+        pal = app.palette()
+        pal.setColor(QPalette.ColorRole.Highlight, QColor(semantic_color("accent")))
+        pal.setColor(
+            QPalette.ColorRole.HighlightedText, QColor(semantic_color("accent_text"))
+        )
+        app.setPalette(pal)
+    except Exception as e:  # 平台差异下不致命：退回系统高亮
+        print(f"[theme] 应用高亮调色板失败: {e}", file=sys.stderr)
+
+
 def card_background() -> str:
     """卡片底色：窗口色微调（浅色提亮 / 深色加亮），保证与窗口背景可区分。"""
     base = QGuiApplication.palette().color(QPalette.Window)
@@ -98,6 +117,7 @@ def on_scheme_changed(callback):
 
 
 def _run_refresh():
+    apply_highlight_palette()
     alive = []
     for cb in list(_REFRESH_CALLBACKS):
         try:
