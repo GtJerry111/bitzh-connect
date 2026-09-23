@@ -123,6 +123,7 @@ class MainWindow(QMainWindow):
         self._helper_install_declined = False
         self._rate_monitor = None
         self._rate_monitor_gen = 0  # 在途重试链世代号：stop/重启即翻篇，防止断连后建起残留 monitor
+        self._last_rates = None  # 最近一次 (上行, 下行) 文本：重开开关时即时回填菜单栏
         self.reconnect_manager = ReconnectManager(
             reconnect_action=lambda: self.connect_button.setChecked(True),
         )
@@ -695,7 +696,13 @@ class MainWindow(QMainWindow):
 
         self._rate_monitor_gen += 1
         gen = self._rate_monitor_gen
-        on_rates = self.status_panel.set_rates
+
+        def _on_rates(up_text, down_text):
+            self.status_panel.set_rates(up_text, down_text)
+            self._last_rates = (up_text, down_text)
+            self._update_menu_bar_speed(up_text, down_text)
+
+        on_rates = _on_rates
         on_sample = self.status_panel.append_rate_sample
 
         if getattr(self, "tun_mode", False):
@@ -725,6 +732,43 @@ class MainWindow(QMainWindow):
         if getattr(self, "_rate_monitor", None):
             self._rate_monitor.stop()
             self._rate_monitor = None
+        # 断线收尾：菜单栏恢复默认图标（速率不再有数据来源）
+        self._last_rates = None
+        item = getattr(self, "_mac_status_item", None)
+        if item is not None:
+            item.restore_icon()
+
+    def _update_menu_bar_speed(self, up_text: str, down_text: str):
+        """按开关与连接态更新菜单栏速率：开且已连接→两行速率；关闭→恢复图标。
+
+        未连接但开关仍开时保持现状不设图：断线收尾由 stop_rate_monitor
+        统一恢复图标，避免每次采样重复 setImage_。
+        开关关闭则即时恢复（覆盖"连接中勾除勾选"的场景）。
+        """
+        item = getattr(self, "_mac_status_item", None)
+        if item is None:
+            return
+        if getattr(self, "menu_bar_speed", False):
+            if getattr(self, "virtual_ip", None):
+                item.set_speed(up_text, down_text)
+        else:
+            item.restore_icon()
+
+    def set_menu_bar_speed(self, enabled: bool):
+        """右键菜单勾选切换：写配置并即时应用。"""
+        self.menu_bar_speed = bool(enabled)
+        config = load_config()
+        config["menu_bar_speed"] = self.menu_bar_speed
+        save_config(config)
+        if not self.menu_bar_speed:
+            item = getattr(self, "_mac_status_item", None)
+            if item is not None:
+                item.restore_icon()
+        elif getattr(self, "virtual_ip", None):
+            item = getattr(self, "_mac_status_item", None)
+            if item is not None and getattr(self, "_last_rates", None):
+                up, down = self._last_rates
+                item.set_speed(up, down)
 
     def load_settings(self):
         load_settings(self)

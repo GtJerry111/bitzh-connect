@@ -137,6 +137,11 @@ def init_tray_icon(window):
                 "action": window.connect_button.toggle,
                 "is_checked": window.connect_button.isChecked,
             },
+            {
+                "title": "在菜单栏显示速度",
+                "action": lambda: window.set_menu_bar_speed(not window.menu_bar_speed),
+                "is_checked": lambda: bool(getattr(window, "menu_bar_speed", False)),
+            },
             {"separator": True},
             {"title": "退出", "action": window.quit_app},
         ]

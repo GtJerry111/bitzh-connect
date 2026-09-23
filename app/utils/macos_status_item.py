@@ -53,6 +53,20 @@ class MacStatusItem:
         except Exception:
             return None  # 图标被挤出菜单栏等场景：调用方退化定位
 
+    def set_speed(self, up_text: str, down_text: str):
+        """显示两行速率（上=上行、下=下行）。失败静默（不影响主流程）。"""
+        try:
+            self._item.button().setImage_(_speed_nsimage(up_text, down_text))
+        except Exception:
+            pass
+
+    def restore_icon(self):
+        """恢复为默认菜单栏图标。"""
+        try:
+            self._item.button().setImage_(_load_template_nsimage())
+        except Exception:
+            pass
+
     def teardown(self):
         """从状态栏移除图标（退出/切回浮动模式时调用；可重入）。"""
         item, self._item = self._item, None
@@ -87,6 +101,47 @@ def _load_template_nsimage():
     nsimage.setTemplate_(True)
     nsimage.setSize_((18.0, 18.0))  # 44px 素材直接进菜单栏会过大；Task 1 spike 实测 18pt 合适
     return nsimage
+
+
+def _speed_nsimage(up_text: str, down_text: str):
+    """把两行速率文字渲染成模板 NSImage（上=上行、下=下行；无箭头）。
+
+    模板图随菜单栏深浅色自动反色（黑↔白），无需按主题手动取色。
+    """
+    import objc
+    from Foundation import NSData
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRect, Qt
+    from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
+
+    font = QFont()
+    font.setPointSize(9)
+    font.setBold(True)
+    fm = QFontMetrics(font)
+    w = max(fm.horizontalAdvance(up_text), fm.horizontalAdvance(down_text)) + 2
+    line_h = fm.height()
+    h = line_h * 2
+    img = QImage(w * 2, h * 2, QImage.Format_ARGB32)  # @2x 保 Retina 清晰
+    img.setDevicePixelRatio(2)
+    img.fill(Qt.transparent)
+    painter = QPainter(img)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setFont(font)
+    painter.setPen(QColor(0, 0, 0))
+    painter.drawText(QRect(0, 0, w, line_h), Qt.AlignRight | Qt.AlignVCenter, up_text)
+    painter.drawText(QRect(0, line_h, w, line_h), Qt.AlignRight | Qt.AlignVCenter, down_text)
+    painter.end()
+    ba = QByteArray()
+    buf = QBuffer(ba)
+    buf.open(QIODevice.WriteOnly)
+    img.save(buf, "PNG")
+    nsdata = NSData.dataWithBytes_length_(bytes(ba), len(ba))
+    nsi = objc.lookUpClass("NSImage").alloc().initWithData_(nsdata)
+    nsi.setTemplate_(True)
+    return nsi
+
+
+def _menu_icon_nsimage():
+    return _load_template_nsimage()
 
 
 def _native_available() -> bool:

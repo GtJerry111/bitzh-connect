@@ -82,6 +82,7 @@ def load_settings(self):
     self.auto_reconnect = config["auto_reconnect"]
     self.appearance = config["appearance"]
     self.tun_mode = config["tun_mode"]
+    self.menu_bar_speed = config["menu_bar_speed"]
     if system() == "Windows":
         # 与 connection_utils 的硬守卫同款策略：Windows 平台 TUN 强制关闭，
         # 防止脏配置/默认值让 Windows 用户每次连接都撞"本期暂不支持"

@@ -201,10 +201,14 @@ def test_panel_tray_passes_native_menu_spec(qtbot, monkeypatch):
     w = MainWindow()
     qtbot.addWidget(w)
     titles = [e["title"] for e in captured["spec"] if "title" in e]
-    assert titles == ["打开主窗口", "VPN 连接", "退出"]
+    assert titles == ["打开主窗口", "VPN 连接", "在菜单栏显示速度", "退出"]
     connect_entry = captured["spec"][1]
     assert callable(connect_entry["action"])
     assert callable(connect_entry["is_checked"])
+    speed_entry = captured["spec"][2]
+    assert callable(speed_entry["action"])
+    assert callable(speed_entry["is_checked"])
+    assert speed_entry["is_checked"]() is False  # 默认关
     assert captured["on_toggle"] == w.toggle_panel
     assert w._mac_status_item is not None
     assert w.tray_icon is None
