@@ -127,6 +127,8 @@ class AdvancedSettingsDialog(QDialog):
         self._cert_password = ""
         self._tab_overhead = None  # 标签栏+面框高度开销（首次贴合时实测）
         self.setup_ui()
+        # 深浅色/外观切换时重放 tab QSS（QSS 里内联了语义色，需随主题重算）
+        theme.on_scheme_changed(self._apply_tab_qss)
 
     # ---- 分组与说明行（说明文字从 tooltip 落地为可见的灰字，Nielsen #10）----
 
@@ -431,6 +433,7 @@ class AdvancedSettingsDialog(QDialog):
         tab_widget.addTab(help_tab, "帮助")
         layout.addWidget(tab_widget)
         self._tabs = tab_widget
+        self._apply_tab_qss()
 
         # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮；
         # 两按钮同宽（自定义样式只改颜色不改尺寸，避免一大一小）
@@ -488,6 +491,24 @@ class AdvancedSettingsDialog(QDialog):
         layout.setSizeConstraint(QVBoxLayout.SetFixedSize)
         tab_widget.currentChanged.connect(self._fit_to_tab)
         self._fit_to_tab(0)
+
+    def _apply_tab_qss(self):
+        """tab 选中色 QSS 兜底：macOS 原生 tab 不认 palette Highlight（A 方案无效），
+        显式把选中 tab 刷成校徽绿；未选中 tab 用淡墨底 + 次要文字色。"""
+        self._tabs.setStyleSheet(f"""
+            QTabWidget::pane {{ border: none; }}
+            QTabBar::tab {{
+                background: {theme.with_alpha("ink", 0.06)};
+                color: {theme.semantic_color("secondary_text")};
+                padding: 4px 14px;
+                margin-right: 2px;
+                border-radius: 6px;
+            }}
+            QTabBar::tab:selected {{
+                background: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+            }}
+        """)
 
     def _fit_to_tab(self, index: int):
         """对话框高度贴合当前 tab：tab 控件定高 = 当前页 sizeHint + 实测开销。"""

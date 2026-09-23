@@ -357,6 +357,13 @@ def test_helper_row_install_opens_dialog(qtbot, monkeypatch):
     assert dlg.helper_button.text() == "卸载特权服务"  # 装完刷新为卸载
 
 
+def test_tab_selected_uses_accent(dialog):
+    """tab 选中色走 QSS 兜底统一为校徽绿（macOS 原生 tab 不认 palette Highlight）。"""
+    from common import theme
+
+    assert theme.semantic_color("accent") in dialog._tabs.styleSheet()
+
+
 def test_open_log_dir_button_exists(qtbot, monkeypatch, tmp_path):
     from utils import diagnostics
     from views import advanced_panel as mod
