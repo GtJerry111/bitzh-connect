@@ -137,11 +137,10 @@ def _speed_nsimage(up_text: str, down_text: str):
     nsdata = NSData.dataWithBytes_length_(bytes(ba), len(ba))
     nsi = objc.lookUpClass("NSImage").alloc().initWithData_(nsdata)
     nsi.setTemplate_(True)
+    # PNG 不携带 DPR：initWithData_ 得到的 size 是 @2x 像素尺寸，须显式设逻辑点，
+    # 否则状态项按像素取尺寸导致图过大/被裁。（同 _load_template_nsimage 的处理）
+    nsi.setSize_((float(w), float(h)))
     return nsi
-
-
-def _menu_icon_nsimage():
-    return _load_template_nsimage()
 
 
 def _native_available() -> bool:
