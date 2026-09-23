@@ -5,7 +5,15 @@ from platform import system
 import gc
 from PySide6.QtCore import QSignalBlocker
 from .set_proxy import CommandWorker
-from .log_parser import parse_client_ip, is_auth_failure, is_server_kick, is_rsa_material
+from .log_parser import (
+    parse_client_ip,
+    is_auth_failure,
+    is_server_kick,
+    is_rsa_material,
+    classify_disconnect,
+    is_keepalive,
+    parse_tun_interface,
+)
 from .tun_utils import (
     capturing_tun_for,
     physical_interface,
@@ -42,8 +50,15 @@ def _reset_connect_ui(window, status_detail: str):
 
 def handle_output(window, text):
     """处理内核输出：上屏 + 解析状态"""
+    # 断开原因 / TUN 接口：记录本次连接最后一条可分类结果，供收尾诊断使用
+    reason = classify_disconnect(text)
+    if reason is not None:
+        window._disconnect_reason = reason
+    iface = parse_tun_interface(text)
+    if iface is not None:
+        window._tun_interface = iface
     watchdog = getattr(window, "_watchdog", None)
-    if watchdog is not None:
+    if watchdog is not None and is_keepalive(text):
         watchdog.note_activity()
     diagnostics.append(text)
     # RSA 公钥材料行折叠为一行中文说明（每次连接只提示一次）：
@@ -136,9 +151,13 @@ def handle_connection_finished(window, exit_code):
             tray_action.setChecked(False)
 
     route = capturing_tun_for(getattr(window, "server_address", "")) or "物理网卡"
+    reason = getattr(window, "_disconnect_reason", None)
+    if reason is None:
+        reason = "manual" if manual else ("auth" if auth_failed else "unknown")
+    iface = getattr(window, "_tun_interface", None) or "-"
     diagnostics.append(
         f"连接结束 exit={exit_code} manual={manual} auth_failed={auth_failed} "
-        f"服务器路由出口={route}"
+        f"原因={reason} 接口={iface} 服务器路由出口={route}"
     )
     window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
 
@@ -223,6 +242,8 @@ def start_connection(window):
     window._manual_stop = False
     window._auth_failed = False
     window._rsa_noted = False  # 每次连接重新折叠 RSA 公钥提示（一次连接只提示一次）
+    window._disconnect_reason = None
+    window._tun_interface = None
     diagnostics.append(
         f"连接开始 server={window.server_address} tun={getattr(window, 'tun_mode', False)}"
     )

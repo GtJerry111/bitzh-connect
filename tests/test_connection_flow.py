@@ -499,3 +499,51 @@ def test_tun_already_running_stops_and_retries(qtbot, monkeypatch):
 
     win.connect_button.setChecked(False)
     qtbot.waitUntil(lambda: win.worker is None, timeout=3000)
+
+
+def test_disconnect_reason_and_interface_logged(qtbot, monkeypatch):
+    """内核输出经 classify_disconnect/parse_tun_interface 记录，"连接结束"行带上原因/接口。"""
+    import utils.connection_utils as cu
+    from utils.connection_utils import handle_output, handle_connection_finished
+
+    win = _make_window(qtbot)
+    win._watchdog = None
+    win._disconnect_reason = None
+    win._tun_interface = None
+    logs = []
+    monkeypatch.setattr(cu.diagnostics, "append", lambda line: logs.append(line))
+
+    handle_output(win, "2026/09/22 14:32:17 Interface Name: utun11, index 32\n")
+    handle_output(win, "2026/09/22 14:34:00 SHUTDOWN (cmd 0x08)\n")
+    assert win._tun_interface == "utun11"
+    assert win._disconnect_reason == "server_kick"
+
+    win._manual_stop = False
+    win._auth_failed = False
+    handle_connection_finished(win, -1)
+    joined = "\n".join(logs)
+    assert "原因=server_kick" in joined
+    assert "接口=utun11" in joined
+    # handle_connection_finished 以 manual=False 收尾会安排退避重连计时器；
+    # 取消之，避免计时器在后续用例的事件循环里到点（同文件既有用例做法）。
+    win.reconnect_manager.cancel()
+
+
+def test_keepalive_only_refreshes_watchdog(qtbot):
+    """只有 keepalive 行才刷新看门狗活跃度（普通输出不算心跳）。"""
+    from utils.connection_utils import handle_output
+
+    win = _make_window(qtbot)
+    noted = []
+    win._watchdog = type(
+        "W", (), {
+            "note_activity": lambda self: noted.append(1),
+            "start": lambda self: None,
+            "stop": lambda self: None,
+        },
+    )()
+
+    handle_output(win, "2026/09/22 14:32:18 an ordinary output line\n")
+    assert noted == []
+    handle_output(win, "2026/09/22 14:33:17 KeepAlive using UDP: OK\n")
+    assert noted == [1]
