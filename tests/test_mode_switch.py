@@ -51,3 +51,13 @@ def test_press_does_not_break_segment_switch(qtbot):
     assert w.currentIndex() == 1
     assert received == [1]
     assert w._pressed is True  # 按压态独立置位
+
+
+def test_track_and_pill_are_translucent(qtbot):
+    """轨道与药丸为半透明（<255）玻璃，才能透出身后水印。"""
+    from views.mode_switch import SegmentedModeSwitch
+
+    w = SegmentedModeSwitch()
+    qtbot.addWidget(w)
+    assert w._track_qcolor().alpha() < 255
+    assert w._pill_qcolor().alpha() < 255

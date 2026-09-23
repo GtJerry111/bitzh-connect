@@ -5,7 +5,7 @@ QPainter 自绘：圆角轨道 + 选中项药丸（150ms OutCubic 滑动，可�
 reduce-motion 即时切换）。无原生分段控件可用，自绘保证深浅色一致。
 """
 from PySide6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 from shiboken6 import isValid
 
@@ -67,6 +67,14 @@ class SegmentedModeSwitch(QWidget):
         self._pill_pos = float(v)
         self.update()
 
+    def _track_qcolor(self):
+        """轨道半透明（玻璃轨道，透出身后水印）。"""
+        return theme.qcolor("track", 0.55)
+
+    def _pill_qcolor(self):
+        """药丸半透明（玻璃药丸，透出身后水印）。"""
+        return theme.qcolor("pill", 0.72)
+
     def mousePressEvent(self, event):
         self._pressed = True
         self.update()
@@ -94,10 +102,15 @@ class SegmentedModeSwitch(QWidget):
         w, h = self.width(), self.height()
         seg_w = w / len(self._segments)
 
-        # 轨道
+        # 轨道（半透明玻璃）
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(theme.semantic_color("track")))
+        painter.setBrush(self._track_qcolor())
         painter.drawRoundedRect(QRectF(0, 0, w, h), 8, 8)
+
+        # 玻璃描边（顶部微光）
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(theme.qcolor("separator", 0.45), 1))
+        painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), 8, 8)
 
         # 选中药丸（2px 内缩 + 1px 下沉假阴影）
         pill = QRectF(self._pill_pos * seg_w + 2, 2, seg_w - 4, h - 4)
@@ -105,7 +118,7 @@ class SegmentedModeSwitch(QWidget):
         shadow_color = QColor(0, 0, 0, 40)
         painter.setBrush(shadow_color)
         painter.drawRoundedRect(shadow, 6, 6)
-        painter.setBrush(QColor(theme.semantic_color("pill")))
+        painter.setBrush(self._pill_qcolor())
         painter.drawRoundedRect(pill, 6, 6)
 
         # 文案：选中项 DemiBold，未选中常规
