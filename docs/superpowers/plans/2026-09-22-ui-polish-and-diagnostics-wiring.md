@@ -646,7 +646,291 @@ Expected: GitHub Actions 触发 build；`update-version` job 把 `.app-version` 
 
 ---
 
+## 追加任务（用户选定 ①A ②A ③A、范围=全部）
+
+> 说明：Task 2 原先实现的是"独立分组 + 次级描边按钮"，被本段 **Task 7** 取代其放置与按钮质感；Task 5 只改到了系统 palette，复选框用 ToggleSwitch（Task 6）后天然是绿的，**tab 选中色**若仍蓝由 **Task 8** 兜底。Task 6/7/8 是本轮新增。
+
+### Task 6: 设置项复选框 → iOS 开关（全量 12 个）
+
+**Files:**
+- Create: `app/views/settings_row.py`
+- Modify: `app/views/advanced_panel.py`
+- Create: `tests/test_settings_row.py`
+- Test: `tests/test_advanced_panel.py`
+
+- [ ] **Step 1: 新建 `SettingRow` 组件**
+
+创建 `app/views/settings_row.py`：
+
+```python
+"""设置项行：左标签（+可选说明）+ 右控件，底部一条主题化细分隔线。"""
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+
+from common import theme
+
+
+class SettingRow(QWidget):
+    def __init__(self, text: str, control: QWidget, description: str = "", parent=None):
+        super().__init__(parent)
+        self.control = control
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(2, 8, 2, 8)
+        outer.setSpacing(12)
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        self._label = QLabel(text)
+        left.addWidget(self._label)
+        if description:
+            desc = QLabel(description)
+            desc.setWordWrap(True)
+            desc.setStyleSheet(
+                f"color: {theme.semantic_color('secondary_text')}; font-size: 11.5pt;"
+            )
+            left.addWidget(desc)
+        outer.addLayout(left, 1)
+        control.setCursor(Qt.PointingHandCursor)
+        outer.addWidget(control, 0, Qt.AlignVCenter)
+
+    def label_text(self) -> str:
+        return self._label.text()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setPen(QPen(QColor(theme.with_alpha("separator", 0.5)), 1))
+        y = self.height() - 1
+        painter.drawLine(QPointF(0, y), QPointF(self.width(), y))
+        painter.end()
+```
+
+- [ ] **Step 2: 在 `advanced_panel.py` 增加构造辅助**
+
+顶部 `from views.toggle_switch import ToggleSwitch`、`from views.settings_row import SettingRow`；在 `AdvancedSettingsDialog` 内新增：
+
+```python
+    def _toggle_row(self, layout, text, *, checked=None, description="", enabled=True):
+        """往 layout 追加一行"标签 + iOS 开关"，返回 (row, switch)。"""
+        switch = ToggleSwitch()
+        if checked is not None:
+            switch.setChecked(checked)
+        switch.setEnabled(enabled)
+        row = SettingRow(text, switch, description)
+        layout.addWidget(row)
+        return row, switch
+```
+
+- [ ] **Step 3: 逐个替换 12 个 QCheckBox**
+
+按下表把 `self.X = QCheckBox("标签"); ... addWidget(self.X)` 及紧随其后的 `_description(...)`（若有说明）替换为一行 `self.X_row, self.X = self._toggle_row(<layout>, "标签", checked=..., description=..., enabled=...)`。**属性名 `self.X` 保持不变**（`get_settings`/`set_settings` 继续用 `.isChecked()/.setChecked()`）。
+
+| 属性 | layout | 标签 | checked | enabled | description |
+|---|---|---|---|---|---|
+| startup_switch | general_layout | 开机启动 | `get_launch_at_login()` | True | — |
+| silent_mode_switch | general_layout | 静默启动 | — | True | 启动时不显示主窗口，仅驻留系统托盘 |
+| connect_startup_switch | general_layout | 启动时自动连接 | — | True | 启动后自动连接 VPN（需已保存凭据） |
+| check_update_switch | general_layout | 启动时检查更新 | — | True | — |
+| auto_reconnect_switch | general_layout | 断线自动重连 | True | True | 非认证失败导致的掉线将自动重连，连续失败 3 次后暂停 |
+| hide_dock_icon_switch | general_layout | 隐藏 Dock 图标 | — | True | 隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角（仅 Darwin 创建） |
+| auto_dns_switch | network_layout | 自动配置 DNS | True | True | — （替换后仍 `self.auto_dns_switch.toggled.connect(self.toggle_dns_input)`） |
+| proxy_switch | network_layout | 自动配置代理 | — | True | 连接后自动配置系统代理…（TUN 模式下不生效） |
+| keep_alive_switch | advanced_layout | 定时保活 | — | True | 开启后，BITZH Connect 会定时发送心跳包以保持连接 |
+| debug_dump_switch | advanced_layout | 调试模式 | — | True | 开启后会记录详细调试信息到日志文件 |
+| auto_multi_line_switch | advanced_layout | 自动切换备用线路 | True | True | 当前线路不稳定时自动切换到备用线路 |
+| tun_mode_switch | advanced_layout | TUN 模式（全局路由） | — | `system() != "Windows"` | 见下方 tun_note（保留原说明行） |
+
+示例（启动组第一项）：
+
+```python
+        self.startup_row, self.startup_switch = self._toggle_row(
+            general_layout, "开机启动", checked=get_launch_at_login()
+        )
+```
+
+`auto_dns_switch` 需在其后保留 `self.auto_dns_switch.toggled.connect(self.toggle_dns_input)`。
+
+> `tun_mode_switch` 的 `tun_note` 说明行保留（改为 `SettingRow` 的 description 或继续用 `_description`）；Windows 置灰改为 `enabled=system() != "Windows"`。
+
+- [ ] **Step 4: 更新受影响的测试与新增用例**
+
+- `tests/test_advanced_panel.py`：
+  - `test_auto_reconnect_switch_default_checked` 与 `test_auto_multi_line_switch_default_checked` 里 `dialog.X.text()` 改为 `dialog.X_row.label_text()`；`isChecked()/setChecked()` 断言不变。
+  - 去掉/迁移仅依赖 `QCheckBox` 类型的断言（若有）。
+- 新建 `tests/test_settings_row.py`：
+
+```python
+def test_setting_row_exposes_label_and_control(qtbot):
+    from views.settings_row import SettingRow
+    from views.toggle_switch import ToggleSwitch
+
+    switch = ToggleSwitch()
+    row = SettingRow("测试项", switch, "说明文字")
+    qtbot.addWidget(row)
+    assert row.label_text() == "测试项"
+    assert row.control is switch
+```
+
+- [ ] **Step 5: 运行并提交**
+
+Run: `.venv/bin/python -m pytest tests/test_advanced_panel.py tests/test_settings_row.py tests/test_menu_bar_panel.py tests/test_main_window.py -q`
+Expected: 全部 PASS（如 `get_settings/set_settings` 因控件类型变化报错，按 `.isChecked()/.setChecked()` 接口修正，不改变行为）。
+
+```bash
+git add app/views/settings_row.py app/views/advanced_panel.py tests/
+git commit -m "feat(settings): 复选框改为 iOS 风格开关行（全量）"
+```
+
+---
+
+### Task 7: 特权服务改置（并入 TUN 下方）+ 按钮改绿实心
+
+**Files:**
+- Modify: `app/views/advanced_panel.py`
+- Test: `tests/test_advanced_panel.py`
+
+- [ ] **Step 1: 替换放置位置**
+
+把 Task 2 那段独立分组块（`if system() == "Darwin" and helper_installer.is_supported(): ... else: ...`，位于 `network_layout.addStretch()` 之前）**整段删除**；改为在 `advanced_area` 里、`tun_note` 说明之后新增一行：
+
+```python
+        # 特权服务：紧挨 TUN 开关下方的维护行（无独立分组标题）
+        if system() == "Darwin" and helper_installer.is_supported():
+            self.helper_button = QPushButton()
+            self.helper_button.setStyleSheet(self._primary_button_style())
+            self.helper_button.clicked.connect(self._on_helper_button)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            advanced_layout.addWidget(self.helper_row)
+            self._refresh_helper_row()
+        else:
+            self.helper_button = QPushButton()
+            self.helper_button.setVisible(False)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            self.helper_row.setVisible(False)
+            advanced_layout.addWidget(self.helper_row)
+```
+
+- [ ] **Step 2: 新增主按钮样式 + 更新刷新文案**
+
+新增：
+
+```python
+    def _primary_button_style(self) -> str:
+        """与对话框"保存"同款绿实心按钮（③A）。"""
+        return f"""
+            QPushButton {{
+                background-color: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+                border: none;
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12pt;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.semantic_color("accent_hover")};
+            }}
+            QPushButton:disabled {{
+                background-color: {theme.semantic_color("accent_disabled")};
+            }}
+        """
+```
+
+`_refresh_helper_row` 的文案调整为聚焦状态（说明放进行内 description，如可行用 `self.helper_row` 更新说明；最简：仅刷新按钮文案与可用性）：
+
+```python
+    def _refresh_helper_row(self):
+        if not hasattr(self, "helper_button") or not helper_installer.is_supported():
+            return
+        if helper_installer.is_installed():
+            self.helper_button.setText("卸载特权服务")
+            self.helper_button.setEnabled(True)
+        else:
+            self.helper_button.setText("安装特权服务")
+            self.helper_button.setEnabled(helper_installer.can_install())
+```
+
+`_secondary_button_style` 若不再被使用则删除。
+
+- [ ] **Step 3: 更新测试**
+
+`tests/test_advanced_panel.py` 的 helper 用例：`dlg.helper_button.text()` 断言保持；不需要改（按钮仍在）。若引用了 `_helper_hint` 需移除/改为 `helper_row`。新增断言"特权服务行位于高级区内"可省略（布局断言价值低）。
+
+Run: `.venv/bin/python -m pytest tests/test_advanced_panel.py -q`
+Expected: 全部 PASS。
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add app/views/advanced_panel.py tests/test_advanced_panel.py
+git commit -m "feat(settings): 特权服务并入高级区 TUN 下方，按钮改绿实心"
+```
+
+---
+
+### Task 8: tab 选中色转绿（Task 5 A 方案兜底）
+
+**Files:**
+- Modify: `app/views/advanced_panel.py`
+- Test: `tests/test_advanced_panel.py`
+
+- [ ] **Step 1: 真机确认 tab 颜色**
+
+先真机看：Task 5 的 palette 是否已让 `QTabWidget` 选中 tab 变绿。
+- 若已绿 → 本任务跳过（在报告里记"palette 已覆盖 tab"）。
+- 若仍蓝 → 执行 Step 2。
+
+- [ ] **Step 2: QSS 覆盖 tab 选中色**
+
+在 `setup_ui` 里 `self._tabs = tab_widget` 之后加：
+
+```python
+        self._tabs.setStyleSheet(f"""
+            QTabWidget::pane {{ border: none; }}
+            QTabBar::tab {{
+                background: {theme.with_alpha("ink", 0.06)};
+                color: {theme.semantic_color("secondary_text")};
+                padding: 4px 14px;
+                margin-right: 2px;
+                border-radius: 6px;
+            }}
+            QTabBar::tab:selected {{
+                background: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+            }}
+        """)
+```
+
+并在深浅色/外观切换时重放（`_apply_theme_styles` 或对话框内已有的主题刷新路径加一次本 QSS 设置）。
+
+- [ ] **Step 3: 测试（若走 Step 2）**
+
+在 `tests/test_advanced_panel.py` 加：
+
+```python
+def test_tab_selected_uses_accent(qtbot, monkeypatch):
+    from views.advanced_panel import AdvancedSettingsDialog
+    from common import theme
+
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    assert theme.semantic_color("accent") in dlg._tabs.styleSheet()
+```
+
+Run: `.venv/bin/python -m pytest tests/test_advanced_panel.py -q`
+Expected: PASS。
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add app/views/advanced_panel.py tests/test_advanced_panel.py
+git commit -m "style(settings): tab 选中色统一为校徽绿（QSS 兜底）"
+```
+
+---
+
 ## 完成标准
+
 
 - "连接结束"诊断行含 `原因=`（server_kick/auth/network/manual/unknown）与 `接口=`。
 - 设置里特权服务为安装/卸载双态；未装可一键安装。
