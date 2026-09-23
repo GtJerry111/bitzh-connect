@@ -20,9 +20,8 @@ class SettingRow(QWidget):
         if description:
             desc = QLabel(description)
             desc.setWordWrap(True)
-            desc.setStyleSheet(
-                f"color: {theme.semantic_color('secondary_text')}; font-size: 11.5pt;"
-            )
+            desc.setFont(theme.card_title_font())
+            desc.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
             left.addWidget(desc)
         outer.addLayout(left, 1)
         control.setCursor(Qt.PointingHandCursor)

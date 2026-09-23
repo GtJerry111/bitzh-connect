@@ -221,7 +221,7 @@ class AdvancedSettingsDialog(QDialog):
             self.hide_dock_icon_row, self.hide_dock_icon_switch = self._toggle_row(
                 general_layout,
                 "隐藏 Dock 图标",
-                description="隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角（仅 Darwin 创建）",
+                description="隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角",
             )
 
         general_layout.addStretch()
