@@ -104,31 +104,44 @@ def _load_template_nsimage():
 
 
 def _speed_nsimage(up_text: str, down_text: str):
-    """把两行速率文字渲染成模板 NSImage（上=上行、下=下行；无箭头）。
+    """把"默认图标 + 右侧两行速率文字"组合成模板 NSImage（上=上行、下=下行；无箭头）。
 
+    保留原菜单栏图标在左，速率文字在右——而非整张替换成纯文字图。
     模板图随菜单栏深浅色自动反色（黑↔白），无需按主题手动取色。
     """
     import objc
     from Foundation import NSData
-    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRect, Qt
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
     from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
 
     font = QFont()
     font.setPointSize(9)
     font.setBold(True)
     fm = QFontMetrics(font)
-    w = max(fm.horizontalAdvance(up_text), fm.horizontalAdvance(down_text)) + 2
     line_h = fm.height()
+    text_w = max(fm.horizontalAdvance(up_text), fm.horizontalAdvance(down_text))
     h = line_h * 2
+
+    icon = QImage(":/icons/menu-icon.png")
+    icon_side = h - 4 if not icon.isNull() else 0
+    gap = 4 if icon_side else 0
+    w = icon_side + gap + text_w
+
     img = QImage(w * 2, h * 2, QImage.Format_ARGB32)  # @2x 保 Retina 清晰
     img.setDevicePixelRatio(2)
     img.fill(Qt.transparent)
     painter = QPainter(img)
     painter.setRenderHint(QPainter.Antialiasing)
+    x = 0
+    if icon_side:
+        painter.drawImage(QRectF(0, (h - icon_side) / 2, icon_side, icon_side), icon)
+        x = icon_side + gap
     painter.setFont(font)
     painter.setPen(QColor(0, 0, 0))
-    painter.drawText(QRect(0, 0, w, line_h), Qt.AlignRight | Qt.AlignVCenter, up_text)
-    painter.drawText(QRect(0, line_h, w, line_h), Qt.AlignRight | Qt.AlignVCenter, down_text)
+    painter.drawText(QRectF(x, 0, text_w, line_h), Qt.AlignLeft | Qt.AlignVCenter, up_text)
+    painter.drawText(
+        QRectF(x, line_h, text_w, line_h), Qt.AlignLeft | Qt.AlignVCenter, down_text
+    )
     painter.end()
     ba = QByteArray()
     buf = QBuffer(ba)

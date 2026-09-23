@@ -378,6 +378,18 @@ def test_groups_are_cards(qtbot):
     assert len(cards) >= 7  # macOS 8（含"系统"）、其它平台 7：通用 2 + 网络 3~4 + 帮助 2
 
 
+def test_card_inner_padding(qtbot):
+    from PySide6.QtWidgets import QWidget
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    cards = [w for w in dlg.findChildren(QWidget) if w.objectName() == "SettingsCard"]
+    assert cards
+    m = cards[0].layout().contentsMargins()
+    assert m.left() >= 12 and m.right() >= 12
+
+
 def test_help_links_and_update_button_are_accent(qtbot):
     """帮助页链接与"检查更新"按钮统一为校徽绿。"""
     from common import theme

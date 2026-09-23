@@ -136,7 +136,7 @@ class AdvancedSettingsDialog(QDialog):
     def _make_card():
         """圆角卡片容器：统一 #SettingsCard 样式与 objectName，返回 (card, inner_layout)。
 
-        供 `_card_group` 与"高级"整块折叠卡共用（margins 0,2,0,2、spacing 0）。
+        供 `_card_group` 与"高级"整块折叠卡共用（margins 14,6,14,6、spacing 0）。
         """
         card = QWidget()
         card.setObjectName("SettingsCard")
@@ -145,7 +145,7 @@ class AdvancedSettingsDialog(QDialog):
             f" border-radius: 10px; }}"
         )
         inner = QVBoxLayout(card)
-        inner.setContentsMargins(0, 2, 0, 2)
+        inner.setContentsMargins(14, 6, 14, 6)
         inner.setSpacing(0)
         return card, inner
 
