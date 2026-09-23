@@ -364,6 +364,42 @@ def test_tab_selected_uses_accent(dialog):
     assert theme.semantic_color("accent") in dialog._tabs.styleSheet()
 
 
+def test_groups_are_cards(qtbot):
+    """设置页分组已改为卡片：每张卡片是带 SettingsCard 样式表的容器。"""
+    from PySide6.QtWidgets import QWidget
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    cards = [
+        w for w in dlg.findChildren(QWidget)
+        if w.objectName() == "SettingsCard"
+    ]
+    assert len(cards) >= 4  # 通用 2 + 网络 4 + 帮助 2 中至少 4 张
+
+
+def test_help_links_and_update_button_are_accent(qtbot):
+    """帮助页链接与"检查更新"按钮统一为校徽绿。"""
+    from common import theme
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    accent = theme.semantic_color("accent").lower()
+    assert accent in dlg.update_btn.styleSheet().lower()
+    assert accent in dlg._help_links_label.text().lower()  # 链接色内联 accent
+
+
+def test_copy_phone_button(qtbot):
+    from PySide6.QtWidgets import QApplication
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    dlg.copy_phone_btn.click()
+    assert "3835303" in QApplication.clipboard().text()
+
+
 def test_open_log_dir_button_exists(qtbot, monkeypatch, tmp_path):
     from utils import diagnostics
     from views import advanced_panel as mod

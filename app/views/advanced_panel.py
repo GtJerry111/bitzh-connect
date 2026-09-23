@@ -132,23 +132,29 @@ class AdvancedSettingsDialog(QDialog):
 
     # ---- 分组与说明行（说明文字从 tooltip 落地为可见的灰字，Nielsen #10）----
 
-    def _group_header(self, text):
-        """分组小标题：13pt DemiBold + 细分隔线。"""
-        wrapper = QWidget()
-        layout = QVBoxLayout(wrapper)
-        layout.setContentsMargins(0, 10, 0, 4)
-        layout.setSpacing(4)
-        label = QLabel(text)
+    def _card_group(self, layout, title):
+        """分组卡片：小号标题 + 圆角卡片容器；返回卡片内容的 QVBoxLayout。"""
+        label = QLabel(title)
         font = label.font()
-        font.setPointSize(13)
+        font.setPointSize(12)
         font.setWeight(font.Weight.DemiBold)
         label.setFont(font)
+        label.setStyleSheet(
+            f"color: {theme.semantic_color('secondary_text')}; margin: 10px 4px 4px 4px;"
+        )
         layout.addWidget(label)
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet(f"color: {theme.semantic_color('separator')};")
-        layout.addWidget(line)
-        return wrapper
+
+        card = QWidget()
+        card.setObjectName("SettingsCard")
+        card.setStyleSheet(
+            f"#SettingsCard {{ background: {theme.card_background()};"
+            f" border-radius: 10px; }}"
+        )
+        inner = QVBoxLayout(card)
+        inner.setContentsMargins(0, 2, 0, 2)
+        inner.setSpacing(0)
+        layout.addWidget(card)
+        return inner
 
     def _description(self, text):
         """12pt 次要色说明行（替代藏在 tooltip 里的关键信息）。"""
@@ -178,31 +184,31 @@ class AdvancedSettingsDialog(QDialog):
         general_layout = QVBoxLayout(general_tab)
         general_layout.setSpacing(8)
 
-        general_layout.addWidget(self._group_header("启动"))
+        startup_inner = self._card_group(general_layout, "启动")
         self.startup_row, self.startup_switch = self._toggle_row(
-            general_layout, "开机启动", checked=get_launch_at_login()
+            startup_inner, "开机启动", checked=get_launch_at_login()
         )
 
         self.silent_mode_row, self.silent_mode_switch = self._toggle_row(
-            general_layout,
+            startup_inner,
             "静默启动",
             description="启动时不显示主窗口，仅驻留系统托盘",
         )
 
         self.connect_startup_row, self.connect_startup_switch = self._toggle_row(
-            general_layout,
+            startup_inner,
             "启动时自动连接",
             description="启动后自动连接 VPN（需已保存凭据）",
         )
 
-        general_layout.addWidget(self._group_header("外观与更新"))
+        appearance_inner = self._card_group(general_layout, "外观与更新")
 
         self.check_update_row, self.check_update_switch = self._toggle_row(
-            general_layout, "启动时检查更新"
+            appearance_inner, "启动时检查更新"
         )
 
         self.auto_reconnect_row, self.auto_reconnect_switch = self._toggle_row(
-            general_layout,
+            appearance_inner,
             "断线自动重连",
             checked=True,
             description="非认证失败导致的掉线将自动重连，连续失败 3 次后暂停",
@@ -210,18 +216,18 @@ class AdvancedSettingsDialog(QDialog):
 
         # 外观三态（跟随系统 / 浅色 / 深色）：与开关行同左边距的普通行，不用表单右对齐
         appearance_row = QHBoxLayout()
-        appearance_row.setContentsMargins(0, 0, 0, 0)
+        appearance_row.setContentsMargins(2, 6, 2, 6)  # 与 SettingRow 同边距对齐
         appearance_row.addWidget(QLabel("外观"))
         self.appearance_combo = QComboBox()
         self.appearance_combo.addItems(["跟随系统", "浅色", "深色"])
         appearance_row.addWidget(self.appearance_combo)
         appearance_row.addStretch()
-        general_layout.addLayout(appearance_row)
+        appearance_inner.addLayout(appearance_row)
 
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
             self.hide_dock_icon_row, self.hide_dock_icon_switch = self._toggle_row(
-                general_layout,
+                appearance_inner,
                 "隐藏 Dock 图标",
                 description="隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角",
             )
@@ -234,7 +240,7 @@ class AdvancedSettingsDialog(QDialog):
         network_layout.setSpacing(8)
 
         # ---- 连接 ----
-        network_layout.addWidget(self._group_header("连接"))
+        connect_inner = self._card_group(network_layout, "连接")
         connect_form = QFormLayout()
         connect_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         connect_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -248,11 +254,11 @@ class AdvancedSettingsDialog(QDialog):
         self.port_input.setMaximumWidth(60)
         server_row.addWidget(self.port_input)
         connect_form.addRow("VPN 服务端地址", server_row)
-        network_layout.addLayout(connect_form)
+        connect_inner.addLayout(connect_form)
 
         # DNS：开关行在上、输入框在下（控制与被控的空间从属即因果自解释）
         self.auto_dns_row, self.auto_dns_switch = self._toggle_row(
-            network_layout, "自动配置 DNS", checked=True
+            connect_inner, "自动配置 DNS", checked=True
         )
         self.auto_dns_switch.toggled.connect(self.toggle_dns_input)
         dns_row = QHBoxLayout()
@@ -261,10 +267,10 @@ class AdvancedSettingsDialog(QDialog):
         self.dns_input = QLineEdit("")
         self.dns_input.setPlaceholderText("留空则禁用远端 DNS")
         dns_row.addWidget(self.dns_input, 1)
-        network_layout.addLayout(dns_row)
+        connect_inner.addLayout(dns_row)
 
         # ---- 代理 ----
-        network_layout.addWidget(self._group_header("代理"))
+        proxy_inner = self._card_group(network_layout, "代理")
         proxy_form = QFormLayout()
         proxy_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         proxy_form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -274,33 +280,46 @@ class AdvancedSettingsDialog(QDialog):
         self.http_bind_input = QLineEdit()
         self.http_bind_input.setPlaceholderText("1081")
         proxy_form.addRow("HTTP 代理监听端口", self.http_bind_input)
-        network_layout.addLayout(proxy_form)
+        proxy_inner.addLayout(proxy_form)
 
         self.proxy_row, self.proxy_switch = self._toggle_row(
-            network_layout,
+            proxy_inner,
             "自动配置代理",
             description="连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）",
         )
 
-        # 特权服务：位于「高级」折叠区之上一行（不设独立分组标题）
+        # 特权服务：独立「系统」分组卡片（原位于高级折叠之上）
         if system() == "Darwin" and helper_installer.is_supported():
+            system_inner = self._card_group(network_layout, "系统")
             self.helper_button = QPushButton()
             self.helper_button.setStyleSheet(self._primary_button_style())
             self.helper_button.clicked.connect(self._on_helper_button)
             self.helper_row = SettingRow("特权服务", self.helper_button, "")
-            network_layout.addWidget(self.helper_row)
+            system_inner.addWidget(self.helper_row)
             self._refresh_helper_row()
         else:
+            # 平台不支持时保留隐藏行（配置/测试契约不变），不占可见版面
             self.helper_button = QPushButton()
             self.helper_button.setVisible(False)
             self.helper_row = SettingRow("特权服务", self.helper_button, "")
             self.helper_row.setVisible(False)
             network_layout.addWidget(self.helper_row)
 
-        # ---- 高级（默认折叠，点 chevron 行展开；展开/收起随对话框高度平滑伸缩）----
+        # ---- 高级（默认折叠）：整块是一张卡片，折叠头作为卡片标题行 ----
+        advanced_card = QWidget()
+        advanced_card.setObjectName("SettingsCard")
+        self._advanced_card = advanced_card  # 折叠时用于失效 sizeHint 缓存
+        advanced_card.setStyleSheet(
+            f"#SettingsCard {{ background: {theme.card_background()};"
+            f" border-radius: 10px; }}"
+        )
+        advanced_card_layout = QVBoxLayout(advanced_card)
+        advanced_card_layout.setContentsMargins(0, 2, 0, 2)
+        advanced_card_layout.setSpacing(0)
+
         self.advanced_toggle = DisclosureHeader("高级")
         self.advanced_toggle.toggled.connect(self._toggle_advanced)
-        network_layout.addWidget(self.advanced_toggle)
+        advanced_card_layout.addWidget(self.advanced_toggle)
 
         self.advanced_area = QWidget()
         advanced_layout = QVBoxLayout(self.advanced_area)
@@ -376,7 +395,8 @@ class AdvancedSettingsDialog(QDialog):
             source.textChanged.connect(self._sync_log)
 
         self.advanced_area.setVisible(False)  # 默认折叠
-        network_layout.addWidget(self.advanced_area)
+        advanced_card_layout.addWidget(self.advanced_area)
+        network_layout.addWidget(advanced_card)
 
         network_layout.addStretch()
 
@@ -385,45 +405,91 @@ class AdvancedSettingsDialog(QDialog):
         help_layout = QVBoxLayout(help_tab)
         help_layout.setSpacing(8)
 
-        help_layout.addWidget(self._group_header("关于"))
+        # ---- 关于（卡片：应用信息 + 检查更新行）----
+        about_inner = self._card_group(help_layout, "关于")
+        accent = theme.semantic_color("accent")
+        link_style = f"color: {accent}; text-decoration: none;"
         about = QLabel(
             f"<p style='font-size:15pt; font-weight:600; margin-bottom:2px;'>{APP_NAME}</p>"
             f"<p style='margin:0;'>版本 {VERSION}</p>"
-            f"<p style='margin:0;'><a href='{REPO_URL}'>GitHub 仓库</a></p>"
+            f"<p style='margin:0;'><a href='{REPO_URL}' style='{link_style}'>GitHub 仓库</a></p>"
             f"<p style='margin:0; color:{theme.semantic_color('secondary_text')};'>"
-            f"基于 <a href='https://github.com/kowyo/hitsz-connect-verge'>HITSZ Connect Verge</a>"
-            f"，内核 <a href='https://github.com/Mythologyli/zju-connect'>ZJU Connect</a></p>"
+            f"基于 <a href='https://github.com/kowyo/hitsz-connect-verge' style='{link_style}'>"
+            f"HITSZ Connect Verge</a>"
+            f"，内核 <a href='https://github.com/Mythologyli/zju-connect' style='{link_style}'>"
+            f"ZJU Connect</a></p>"
         )
         about.setOpenExternalLinks(True)
-        help_layout.addWidget(about)
+        about.setContentsMargins(14, 10, 14, 10)
+        self._help_links_label = about  # 供测试/主题重算定位链接色
+        about_inner.addWidget(about)
 
-        # ---- 校园网支持（校内管理门户 + 网管中心电话）----
-        help_layout.addWidget(self._group_header("校园网支持"))
+        about_sep = QFrame()
+        about_sep.setFrameShape(QFrame.HLine)
+        about_sep.setStyleSheet(f"color: {theme.semantic_color('separator')};")
+        about_inner.addWidget(about_sep)
+
+        # 检查更新：左标签 + 右侧绿实心按钮（按钮旁小旋转弧指示检查中）
+        from views.busy_spinner import BusySpinner
+
+        update_row = QWidget()
+        ur = QHBoxLayout(update_row)
+        ur.setContentsMargins(14, 10, 14, 10)
+        ur.setSpacing(12)
+        ur.addWidget(QLabel("检查更新"))
+        ur.addStretch()
+        self.update_btn = QPushButton("立即检查")
+        self.update_btn.setStyleSheet(self._primary_button_style())
+        self.update_btn.clicked.connect(self._check_update)
+        ur.addWidget(self.update_btn, 0, Qt.AlignVCenter)
+        self.update_spinner = BusySpinner(self, diameter=16)
+        ur.addWidget(self.update_spinner, 0, Qt.AlignVCenter)
+        about_inner.addWidget(update_row)
+
+        # ---- 校园网支持（方案 A：校内管理 + 网管中心电话，两行卡片）----
+        support_inner = self._card_group(help_layout, "校园网支持")
+
+        # 行1：校内管理（左信息 + 右绿链接）
+        manage_row = QWidget()
+        mr = QHBoxLayout(manage_row)
+        mr.setContentsMargins(14, 10, 14, 10)
+        mr.setSpacing(12)
+        mleft = QVBoxLayout()
+        mleft.setSpacing(1)
+        mleft.addWidget(QLabel("校园网校内管理"))
+        mleft.addWidget(self._description("需连接校园网（或本 VPN）后访问"))
+        mr.addLayout(mleft, 1)
         campus_link = QLabel(
-            f"<a href='http://10.7.0.103:9066/' style='color: {theme.semantic_color('accent')};"
-            f" text-decoration: none;'>校园网校内管理 ↗</a>"
+            f"<a href='http://10.7.0.103:9066/' style='color: {accent};"
+            f" text-decoration: none;'>打开 ↗</a>"
         )
         campus_link.setOpenExternalLinks(True)
         campus_link.setCursor(Qt.PointingHandCursor)
-        help_layout.addWidget(campus_link)
-        help_layout.addWidget(self._description("需连接校园网（或本 VPN）后访问"))
-        phone = QLabel("校园网络中心电话：(0756) 3835303")
-        phone.setTextInteractionFlags(Qt.TextSelectableByMouse)  # 电话号可选中复制
-        help_layout.addWidget(phone)
+        mr.addWidget(campus_link, 0, Qt.AlignVCenter)
+        support_inner.addWidget(manage_row)
 
-        # 支持：只有一个按钮，不再单独起分组标题（组标题是噪音）；
-        # 按钮旁小旋转弧指示检查中（用户在等待时必须感知得到）
-        from views.busy_spinner import BusySpinner
+        support_sep = QFrame()
+        support_sep.setFrameShape(QFrame.HLine)
+        support_sep.setStyleSheet(f"color: {theme.semantic_color('separator')};")
+        support_inner.addWidget(support_sep)
 
-        support_row = QHBoxLayout()
-        support_row.setSpacing(8)
-        self.update_btn = QPushButton("检查更新")
-        self.update_btn.clicked.connect(self._check_update)
-        support_row.addWidget(self.update_btn)
-        self.update_spinner = BusySpinner(self, diameter=16)
-        support_row.addWidget(self.update_spinner)
-        support_row.addStretch()
-        help_layout.addLayout(support_row)
+        # 行2：电话（左信息 + 右"复制"按钮）
+        phone_row = QWidget()
+        pr = QHBoxLayout(phone_row)
+        pr.setContentsMargins(14, 10, 14, 10)
+        pr.setSpacing(12)
+        pleft = QVBoxLayout()
+        pleft.setSpacing(1)
+        pleft.addWidget(QLabel("校园网络中心电话"))
+        pleft.addWidget(self._description("(0756) 3835303"))
+        pr.addLayout(pleft, 1)
+        self.copy_phone_btn = QPushButton("复制")
+        self.copy_phone_btn.setStyleSheet(self._secondary_button_style())
+        self.copy_phone_btn.clicked.connect(
+            lambda: QGuiApplication.clipboard().setText("(0756) 3835303")
+        )
+        pr.addWidget(self.copy_phone_btn, 0, Qt.AlignVCenter)
+        support_inner.addWidget(phone_row)
 
         help_layout.addStretch()
 
@@ -518,6 +584,14 @@ class AdvancedSettingsDialog(QDialog):
                 for i in range(self._tabs.count())
             )
         page = self._tabs.widget(index)
+        # 内容藏在子卡片内时，隐藏/显示只异步投递 LayoutRequest，父布局里该卡片的
+        # QWidgetItem sizeHint 缓存不会即时刷新；显式 updateGeometry + 失效布局缓存，
+        # 保证折叠后高度即时收回（不留白）
+        card = getattr(self, "_advanced_card", None)
+        if card is not None:
+            card.updateGeometry()
+            card.layout().invalidate()
+        page.layout().invalidate()
         self._tabs.setFixedHeight(page.sizeHint().height() + self._tab_overhead)
         self.adjustSize()
 
@@ -693,6 +767,22 @@ class AdvancedSettingsDialog(QDialog):
             }}
             QPushButton:disabled {{
                 background-color: {theme.semantic_color("accent_disabled")};
+            }}
+        """
+
+    def _secondary_button_style(self) -> str:
+        """次级描边小按钮（卡底 / 墨字 / 1px 描边），用于帮助页"复制"。"""
+        return f"""
+            QPushButton {{
+                background-color: {theme.card_background()};
+                color: {theme.semantic_color("ink")};
+                border: 1px solid {theme.semantic_color("separator")};
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 12pt;
+            }}
+            QPushButton:pressed {{
+                background-color: {theme.semantic_color("separator")};
             }}
         """
 
