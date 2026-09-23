@@ -2,7 +2,7 @@
 
 - 路由被抢：周期调用 route_probe()（返回占用服务器路由的他方 TUN 名或 None），
   非 None 即发 route_captured（带冷却，避免连续刷屏/反复重连）。
-- 假死：连接建立后若超过 idle_timeout_s 没有任何内核输出（note_activity 打点），
+- 假死：连接建立后若超过 idle_timeout_s 没有收到任何 keepalive 输出（note_activity 打点），
   发 suspected_dead（同样带冷却）。
 """
 import time

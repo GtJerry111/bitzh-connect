@@ -529,6 +529,33 @@ def test_disconnect_reason_and_interface_logged(qtbot, monkeypatch):
     win.reconnect_manager.cancel()
 
 
+def test_manual_stop_takes_priority_over_network_reason(qtbot, monkeypatch):
+    """手动断开优先记为 manual：_disconnect_reason 会被本次连接任一 network
+    特征行（i/o timeout 等）命中并粘住，绝不能覆盖用户手动断开这一事实。"""
+    import utils.connection_utils as cu
+    from utils.connection_utils import handle_output, handle_connection_finished
+
+    win = _make_window(qtbot)
+    win._watchdog = None
+    win._disconnect_reason = None
+    win._tun_interface = None
+    logs = []
+    monkeypatch.setattr(cu.diagnostics, "append", lambda line: logs.append(line))
+
+    handle_output(win, "2026/09/23 10:00:00 dial tcp: i/o timeout\n")
+    assert win._disconnect_reason == "network"  # 诊断原因已被粘住
+
+    win._manual_stop = True
+    win._auth_failed = False
+    handle_connection_finished(win, -1)
+    joined = "\n".join(logs)
+    assert "原因=manual" in joined
+    assert "原因=network" not in joined
+    # manual=True 收尾本不安排退避重连；仍取消一次计时器，
+    # 防御性清理残留回调，避免影响后续用例的事件循环。
+    win.reconnect_manager.cancel()
+
+
 def test_keepalive_only_refreshes_watchdog(qtbot):
     """只有 keepalive 行才刷新看门狗活跃度（普通输出不算心跳）。"""
     from utils.connection_utils import handle_output

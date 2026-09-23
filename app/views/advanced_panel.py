@@ -151,7 +151,7 @@ class AdvancedSettingsDialog(QDialog):
         return wrapper
 
     def _description(self, text):
-        """11pt 次要色说明行（替代藏在 tooltip 里的关键信息）。"""
+        """12pt 次要色说明行（替代藏在 tooltip 里的关键信息）。"""
         label = QLabel(text)
         label.setFont(theme.card_title_font())
         label.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")

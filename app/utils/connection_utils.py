@@ -151,9 +151,10 @@ def handle_connection_finished(window, exit_code):
             tray_action.setChecked(False)
 
     route = capturing_tun_for(getattr(window, "server_address", "")) or "物理网卡"
-    reason = getattr(window, "_disconnect_reason", None)
-    if reason is None:
-        reason = "manual" if manual else ("auth" if auth_failed else "unknown")
+    reason = "manual" if manual else (
+        getattr(window, "_disconnect_reason", None)
+        or ("auth" if auth_failed else "unknown")
+    )
     iface = getattr(window, "_tun_interface", None) or "-"
     diagnostics.append(
         f"连接结束 exit={exit_code} manual={manual} auth_failed={auth_failed} "
