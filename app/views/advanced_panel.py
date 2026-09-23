@@ -324,6 +324,21 @@ class AdvancedSettingsDialog(QDialog):
             description=tun_note,
         )
 
+        # 特权服务：紧挨 TUN 开关下方的维护行（无独立分组标题）
+        if system() == "Darwin" and helper_installer.is_supported():
+            self.helper_button = QPushButton()
+            self.helper_button.setStyleSheet(self._primary_button_style())
+            self.helper_button.clicked.connect(self._on_helper_button)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            advanced_layout.addWidget(self.helper_row)
+            self._refresh_helper_row()
+        else:
+            self.helper_button = QPushButton()
+            self.helper_button.setVisible(False)
+            self.helper_row = SettingRow("特权服务", self.helper_button, "")
+            self.helper_row.setVisible(False)
+            advanced_layout.addWidget(self.helper_row)
+
         # ---- 运行日志（打开时同步主窗口日志缓冲，存活期间实时跟随）----
         from PySide6.QtGui import QFontDatabase
         from PySide6.QtWidgets import QTextEdit
@@ -360,29 +375,6 @@ class AdvancedSettingsDialog(QDialog):
 
         self.advanced_area.setVisible(False)  # 默认折叠
         network_layout.addWidget(self.advanced_area)
-
-        # ---- 特权服务（macOS）：双态行入口——未装可装、已装可卸 ----
-        if system() == "Darwin" and helper_installer.is_supported():
-            network_layout.addWidget(self._group_header("特权服务"))
-            priv_row = QWidget()
-            priv_layout = QHBoxLayout(priv_row)
-            priv_layout.setContentsMargins(0, 0, 0, 0)
-            priv_layout.addWidget(QLabel("TUN 特权服务"))
-            priv_layout.addStretch()
-            self.helper_button = QPushButton()
-            self.helper_button.setMinimumWidth(96)
-            self.helper_button.setStyleSheet(self._secondary_button_style())
-            self.helper_button.clicked.connect(self._on_helper_button)
-            priv_layout.addWidget(self.helper_button)
-            network_layout.addWidget(priv_row)
-            self._helper_hint = self._description("")
-            network_layout.addWidget(self._helper_hint)
-            self._refresh_helper_row()
-        else:
-            self.helper_button = QPushButton()
-            self.helper_button.setVisible(False)
-            self._helper_hint = self._description("")
-            self._helper_hint.setVisible(False)
 
         network_layout.addStretch()
 
@@ -663,42 +655,35 @@ class AdvancedSettingsDialog(QDialog):
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()
 
-    def _secondary_button_style(self) -> str:
-        """次级描边按钮样式（与安装对话框"取消"同款几何）。"""
+    def _primary_button_style(self) -> str:
+        """与对话框"保存"同款绿实心按钮（③A）。"""
         return f"""
             QPushButton {{
-                background-color: {theme.card_background()};
-                color: {theme.semantic_color("ink")};
-                border: 1px solid {theme.semantic_color("separator")};
+                background-color: {theme.semantic_color("accent")};
+                color: {theme.semantic_color("accent_text")};
+                border: none;
                 border-radius: 6px;
-                padding: 5px 12px;
+                padding: 5px 14px;
                 font-size: 12pt;
+                font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {theme.with_alpha("accent", 0.08)};
+                background-color: {theme.semantic_color("accent_hover")};
             }}
             QPushButton:disabled {{
-                color: {theme.semantic_color("secondary_text")};
+                background-color: {theme.semantic_color("accent_disabled")};
             }}
         """
 
     def _refresh_helper_row(self):
-        """按安装状态刷新按钮文案/可用性/说明。"""
         if not hasattr(self, "helper_button") or not helper_installer.is_supported():
             return
         if helper_installer.is_installed():
             self.helper_button.setText("卸载特权服务")
             self.helper_button.setEnabled(True)
-            self._helper_hint.setText("移除 TUN 特权服务；卸载应用前建议先点此清理")
         else:
             self.helper_button.setText("安装特权服务")
-            can = helper_installer.can_install()
-            self.helper_button.setEnabled(can)
-            self._helper_hint.setText(
-                "安装后 TUN 连接免输管理员密码（一次授权、长期有效）"
-                if can
-                else "当前环境无法安装特权服务（需使用打包后的应用）"
-            )
+            self.helper_button.setEnabled(helper_installer.can_install())
 
     def _on_helper_button(self):
         if helper_installer.is_installed():
