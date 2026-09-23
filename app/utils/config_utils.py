@@ -44,6 +44,8 @@ def load_config():
         "tun_mode": True,
         # 校内导航折叠条展开状态记忆（重启保持）
         "nav_expanded": False,
+        # 菜单栏状态项显示实时速率（右键菜单可开关；默认关）
+        "menu_bar_speed": False,
     }
 
     for key in default_config.keys():
