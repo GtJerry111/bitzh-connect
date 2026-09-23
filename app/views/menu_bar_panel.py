@@ -30,7 +30,7 @@ _PANEL_WIDTH = 300
 def _draw_icon(painter: QPainter, kind: str):
     """24px 网格单色线条图标（swap/grid/gear/power/window/chevron_right）。
 
-    颜色由调用方设 pen。行内图标用 secondary_text（退后），工具按钮用 ink。
+    颜色由调用方设 pen。行内图标与工具按钮现均用 ink（深色下保证对比）。
     """
     if kind == "swap":
         painter.drawLine(QPointF(6, 8), QPointF(18, 8))
@@ -82,15 +82,16 @@ def icon_pixmap(kind: str, size: int = 15, color: str | None = None) -> QPixmap:
 class _Icon(QWidget):
     """行内线条图标（_draw_icon 的 widget 形态）。"""
 
-    def __init__(self, kind: str, size: int = 15, parent=None):
+    def __init__(self, kind: str, size: int = 15, parent=None, color_name: str = "ink"):
         super().__init__(parent)
         self._kind = kind
+        self.color_name = color_name
         self.setFixedSize(size, size)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor(theme.semantic_color("secondary_text")))
+        pen = QPen(QColor(theme.semantic_color(self.color_name)))
         pen.setWidthF(1.5)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
@@ -113,7 +114,8 @@ class _Row(QWidget):
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 0, 6, 0)
         row.setSpacing(8)
-        row.addWidget(_Icon(icon_kind))
+        self._icon = _Icon(icon_kind)
+        row.addWidget(self._icon)
         self.title = QLabel(title)
         self.title.setFont(theme.subtitle_font())
         row.addWidget(self.title)
@@ -153,7 +155,7 @@ class _Row(QWidget):
         """)
         # 行标题显式取 ink：不依赖 palette，深色（中灰磨砂底）下也锁定可读性
         self.title.setStyleSheet(f"color: {theme.semantic_color('ink')};")
-        self.value.setStyleSheet(f"color: {theme.semantic_color('secondary_text')};")
+        self.value.setStyleSheet(f"color: {theme.semantic_color('ink')};")
 
 
 class MenuBarPanel(QWidget):
@@ -259,6 +261,7 @@ class MenuBarPanel(QWidget):
         rows.setContentsMargins(0, 0, 0, 0)
         rows.setSpacing(0)
         self._mode_row = _Row("swap", "连接模式")
+        self._mode_row_icon = self._mode_row._icon
         self._mode_row.set_trailing(_Icon("chevron_right", 10))
         self._mode_row.clicked.connect(self._on_mode_row)
         rows.addWidget(self._mode_row)
@@ -267,7 +270,7 @@ class MenuBarPanel(QWidget):
         self._row_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._row_sep)
         self._nav_row = _Row("grid", "校内导航")
-        self._nav_chevron = Chevron()
+        self._nav_chevron = Chevron(color_name="ink")
         self._nav_chevron.set_angle(90.0)  # 收起态朝下（展开器语义）
         self._nav_row.set_trailing(self._nav_chevron)
         self._nav_row.clicked.connect(self._toggle_nav)

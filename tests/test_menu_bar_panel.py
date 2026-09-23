@@ -258,3 +258,17 @@ def test_row_title_color_is_explicit_ink(panel):
     finally:
         theme.set_appearance("system")
 
+
+def test_row_value_uses_ink(panel):
+    from common import theme
+
+    assert theme.semantic_color("ink") in panel._mode_row.value.styleSheet()
+
+
+def test_row_icon_uses_ink(panel):
+    assert panel._mode_row_icon.color_name == "ink"
+
+
+def test_nav_chevron_uses_ink(panel):
+    assert panel._nav_chevron._color_name == "ink"
+

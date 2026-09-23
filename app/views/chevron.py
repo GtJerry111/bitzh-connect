@@ -14,10 +14,11 @@ from common import theme
 class Chevron(QWidget):
     """0°=右（收起），90°=下（展开）；角度由外部动画驱动（set_angle）。"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, color_name: str = "secondary_text"):
         super().__init__(parent)
         self.setFixedSize(12, 12)
         self._angle = 0.0
+        self._color_name = color_name
 
     def set_angle(self, deg: float):
         self._angle = deg
@@ -26,7 +27,7 @@ class Chevron(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor(theme.semantic_color("secondary_text")))
+        pen = QPen(QColor(theme.semantic_color(self._color_name)))
         pen.setWidthF(1.5)
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
