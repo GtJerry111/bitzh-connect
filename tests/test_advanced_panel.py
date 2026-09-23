@@ -295,22 +295,66 @@ def test_show_advanced_settings_keeps_subtitle_when_unchanged(qtbot, monkeypatch
     assert win.status_panel.subtitle.text() == "sentinel"
 
 
-def test_uninstall_helper_button_runs_uninstall(qtbot, monkeypatch):
+def test_helper_row_uninstall_runs(qtbot, monkeypatch):
     from views import advanced_panel as mod
     from views.advanced_panel import AdvancedSettingsDialog
 
     monkeypatch.setattr(mod, "system", lambda: "Darwin")
     monkeypatch.setattr(mod.helper_installer, "is_installed", lambda: True)
+    monkeypatch.setattr(mod.helper_installer, "can_install", lambda: True)
     calls = []
     monkeypatch.setattr(
         mod.helper_installer, "uninstall_async", lambda on_done: calls.append(on_done)
     )
     dlg = AdvancedSettingsDialog()
     qtbot.addWidget(dlg)
-    assert dlg.uninstall_helper_button.isEnabled()
-    dlg.uninstall_helper_button.click()
-    assert calls  # 触发卸载（异步）
-    assert not dlg.uninstall_helper_button.isEnabled()  # 卸载中禁用防重复
+    assert dlg.helper_button.text() == "卸载特权服务"
+    dlg.helper_button.click()
+    assert calls  # 触发卸载
+    assert not dlg.helper_button.isEnabled()  # 卸载中禁用防重复
+
+
+def test_helper_row_install_state(qtbot, monkeypatch):
+    from views import advanced_panel as mod
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    monkeypatch.setattr(mod, "system", lambda: "Darwin")
+    monkeypatch.setattr(mod.helper_installer, "is_installed", lambda: False)
+    monkeypatch.setattr(mod.helper_installer, "can_install", lambda: True)
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    assert dlg.helper_button.text() == "安装特权服务"
+    assert dlg.helper_button.isEnabled()
+
+
+def test_helper_row_install_opens_dialog(qtbot, monkeypatch):
+    from views import advanced_panel as mod
+    from views import helper_setup_dialog as hsd
+    from views.advanced_panel import AdvancedSettingsDialog
+
+    monkeypatch.setattr(mod, "system", lambda: "Darwin")
+    state = {"installed": False}
+    monkeypatch.setattr(mod.helper_installer, "is_installed", lambda: state["installed"])
+    monkeypatch.setattr(mod.helper_installer, "can_install", lambda: True)
+
+    opened = []
+
+    class _FakeDialog:
+        def __init__(self, parent=None):
+            pass
+
+        def exec(self):
+            opened.append(True)
+            state["installed"] = True  # 模拟安装成功
+            return 1
+
+    monkeypatch.setattr(hsd, "HelperSetupDialog", _FakeDialog)
+    dlg = AdvancedSettingsDialog()
+    qtbot.addWidget(dlg)
+    assert dlg.helper_button.text() == "安装特权服务"
+    dlg.helper_button.click()
+    assert opened == [True]
+    assert dlg.helper_button.text() == "卸载特权服务"  # 装完刷新为卸载
 
 
 def test_open_log_dir_button_exists(qtbot, monkeypatch, tmp_path):

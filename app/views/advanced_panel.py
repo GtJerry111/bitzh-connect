@@ -344,17 +344,28 @@ class AdvancedSettingsDialog(QDialog):
         self.advanced_area.setVisible(False)  # 默认折叠
         network_layout.addWidget(self.advanced_area)
 
-        if system() == "Darwin" and helper_installer.is_installed():
+        # ---- 特权服务（macOS）：双态行入口——未装可装、已装可卸 ----
+        if system() == "Darwin" and helper_installer.is_supported():
             network_layout.addWidget(self._group_header("特权服务"))
-            self.uninstall_helper_button = QPushButton("卸载特权服务")
-            self.uninstall_helper_button.clicked.connect(self._uninstall_helper)
-            network_layout.addWidget(self.uninstall_helper_button)
-            network_layout.addWidget(
-                self._description("移除 TUN 特权服务；卸载应用前建议先点此清理")
-            )
+            priv_row = QWidget()
+            priv_layout = QHBoxLayout(priv_row)
+            priv_layout.setContentsMargins(0, 0, 0, 0)
+            priv_layout.addWidget(QLabel("TUN 特权服务"))
+            priv_layout.addStretch()
+            self.helper_button = QPushButton()
+            self.helper_button.setMinimumWidth(96)
+            self.helper_button.setStyleSheet(self._secondary_button_style())
+            self.helper_button.clicked.connect(self._on_helper_button)
+            priv_layout.addWidget(self.helper_button)
+            network_layout.addWidget(priv_row)
+            self._helper_hint = self._description("")
+            network_layout.addWidget(self._helper_hint)
+            self._refresh_helper_row()
         else:
-            self.uninstall_helper_button = QPushButton("卸载特权服务")
-            self.uninstall_helper_button.setVisible(False)
+            self.helper_button = QPushButton()
+            self.helper_button.setVisible(False)
+            self._helper_hint = self._description("")
+            self._helper_hint.setVisible(False)
 
         network_layout.addStretch()
 
@@ -635,15 +646,63 @@ class AdvancedSettingsDialog(QDialog):
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()
 
+    def _secondary_button_style(self) -> str:
+        """次级描边按钮样式（与安装对话框"取消"同款几何）。"""
+        return f"""
+            QPushButton {{
+                background-color: {theme.card_background()};
+                color: {theme.semantic_color("ink")};
+                border: 1px solid {theme.semantic_color("separator")};
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 12pt;
+            }}
+            QPushButton:hover {{
+                background-color: {theme.with_alpha("accent", 0.08)};
+            }}
+            QPushButton:disabled {{
+                color: {theme.semantic_color("secondary_text")};
+            }}
+        """
+
+    def _refresh_helper_row(self):
+        """按安装状态刷新按钮文案/可用性/说明。"""
+        if not hasattr(self, "helper_button") or not helper_installer.is_supported():
+            return
+        if helper_installer.is_installed():
+            self.helper_button.setText("卸载特权服务")
+            self.helper_button.setEnabled(True)
+            self._helper_hint.setText("移除 TUN 特权服务；卸载应用前建议先点此清理")
+        else:
+            self.helper_button.setText("安装特权服务")
+            can = helper_installer.can_install()
+            self.helper_button.setEnabled(can)
+            self._helper_hint.setText(
+                "安装后 TUN 连接免输管理员密码（一次授权、长期有效）"
+                if can
+                else "当前环境无法安装特权服务（需使用打包后的应用）"
+            )
+
+    def _on_helper_button(self):
+        if helper_installer.is_installed():
+            self._uninstall_helper()
+        else:
+            self._install_helper()
+
+    def _install_helper(self):
+        from views import helper_setup_dialog
+
+        dialog = helper_setup_dialog.HelperSetupDialog(self)
+        dialog.exec()
+        self._refresh_helper_row()
+
     def _uninstall_helper(self):
-        """卸载 TUN 特权服务（一次授权），成功后隐藏按钮。"""
-        self.uninstall_helper_button.setEnabled(False)
+        """卸载 TUN 特权服务（一次授权），完成后刷新为"安装"态。"""
+        self.helper_button.setEnabled(False)
 
         def _done(ok: bool):
-            if ok:
-                self.uninstall_helper_button.setVisible(False)
-            else:
-                self.uninstall_helper_button.setEnabled(True)
+            self.helper_button.setEnabled(True)
+            self._refresh_helper_row()
 
         helper_installer.uninstall_async(_done)
 
