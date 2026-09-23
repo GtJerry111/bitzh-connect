@@ -375,7 +375,7 @@ def test_groups_are_cards(qtbot):
         w for w in dlg.findChildren(QWidget)
         if w.objectName() == "SettingsCard"
     ]
-    assert len(cards) >= 4  # 通用 2 + 网络 4 + 帮助 2 中至少 4 张
+    assert len(cards) >= 7  # macOS 8（含"系统"）、其它平台 7：通用 2 + 网络 3~4 + 帮助 2
 
 
 def test_help_links_and_update_button_are_accent(qtbot):
@@ -386,6 +386,7 @@ def test_help_links_and_update_button_are_accent(qtbot):
     dlg = AdvancedSettingsDialog()
     qtbot.addWidget(dlg)
     accent = theme.semantic_color("accent").lower()
+    assert dlg.update_btn.text() == "检查更新"
     assert accent in dlg.update_btn.styleSheet().lower()
     assert accent in dlg._help_links_label.text().lower()  # 链接色内联 accent
 

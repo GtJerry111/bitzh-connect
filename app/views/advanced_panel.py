@@ -132,6 +132,23 @@ class AdvancedSettingsDialog(QDialog):
 
     # ---- 分组与说明行（说明文字从 tooltip 落地为可见的灰字，Nielsen #10）----
 
+    @staticmethod
+    def _make_card():
+        """圆角卡片容器：统一 #SettingsCard 样式与 objectName，返回 (card, inner_layout)。
+
+        供 `_card_group` 与"高级"整块折叠卡共用（margins 0,2,0,2、spacing 0）。
+        """
+        card = QWidget()
+        card.setObjectName("SettingsCard")
+        card.setStyleSheet(
+            f"#SettingsCard {{ background: {theme.card_background()};"
+            f" border-radius: 10px; }}"
+        )
+        inner = QVBoxLayout(card)
+        inner.setContentsMargins(0, 2, 0, 2)
+        inner.setSpacing(0)
+        return card, inner
+
     def _card_group(self, layout, title):
         """分组卡片：小号标题 + 圆角卡片容器；返回卡片内容的 QVBoxLayout。"""
         label = QLabel(title)
@@ -144,15 +161,7 @@ class AdvancedSettingsDialog(QDialog):
         )
         layout.addWidget(label)
 
-        card = QWidget()
-        card.setObjectName("SettingsCard")
-        card.setStyleSheet(
-            f"#SettingsCard {{ background: {theme.card_background()};"
-            f" border-radius: 10px; }}"
-        )
-        inner = QVBoxLayout(card)
-        inner.setContentsMargins(0, 2, 0, 2)
-        inner.setSpacing(0)
+        card, inner = self._make_card()
         layout.addWidget(card)
         return inner
 
@@ -306,16 +315,8 @@ class AdvancedSettingsDialog(QDialog):
             network_layout.addWidget(self.helper_row)
 
         # ---- 高级（默认折叠）：整块是一张卡片，折叠头作为卡片标题行 ----
-        advanced_card = QWidget()
-        advanced_card.setObjectName("SettingsCard")
+        advanced_card, advanced_card_layout = self._make_card()
         self._advanced_card = advanced_card  # 折叠时用于失效 sizeHint 缓存
-        advanced_card.setStyleSheet(
-            f"#SettingsCard {{ background: {theme.card_background()};"
-            f" border-radius: 10px; }}"
-        )
-        advanced_card_layout = QVBoxLayout(advanced_card)
-        advanced_card_layout.setContentsMargins(0, 2, 0, 2)
-        advanced_card_layout.setSpacing(0)
 
         self.advanced_toggle = DisclosureHeader("高级")
         self.advanced_toggle.toggled.connect(self._toggle_advanced)
@@ -438,7 +439,7 @@ class AdvancedSettingsDialog(QDialog):
         ur.setSpacing(12)
         ur.addWidget(QLabel("检查更新"))
         ur.addStretch()
-        self.update_btn = QPushButton("立即检查")
+        self.update_btn = QPushButton("检查更新")
         self.update_btn.setStyleSheet(self._primary_button_style())
         self.update_btn.clicked.connect(self._check_update)
         ur.addWidget(self.update_btn, 0, Qt.AlignVCenter)
