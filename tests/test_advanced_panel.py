@@ -26,7 +26,7 @@ def test_dns_default_empty_with_placeholder(dialog):
 
 
 def test_auto_reconnect_switch_default_checked(dialog):
-    assert dialog.auto_reconnect_switch.text() == "断线自动重连"
+    assert dialog.auto_reconnect_row.label_text() == "断线自动重连"
     assert dialog.auto_reconnect_switch.isChecked() is True
 
 
@@ -55,7 +55,7 @@ def test_set_settings_applies_auto_reconnect(dialog):
 
 def test_multi_line_positive_wording_inverted_storage(dialog):
     """"自动切换备用线路"肯定句 UI，存储键 disable_multi_line 取反（双重否定消除）"""
-    assert dialog.auto_multi_line_switch.text() == "自动切换备用线路"
+    assert dialog.auto_multi_line_row.label_text() == "自动切换备用线路"
     assert dialog.auto_multi_line_switch.isChecked() is True
     assert dialog.get_settings()["disable_multi_line"] is False
     dialog.auto_multi_line_switch.setChecked(False)

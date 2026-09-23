@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QCheckBox,
     QPushButton,
     QTabWidget,
     QWidget,
@@ -30,6 +29,8 @@ from common.constants import APP_NAME, DEFAULT_SERVER, REPO_URL
 from common import resources
 from common import theme
 from views.chevron import Chevron
+from views.toggle_switch import ToggleSwitch
+from views.settings_row import SettingRow
 
 VERSION = get_version()
 
@@ -155,6 +156,16 @@ class AdvancedSettingsDialog(QDialog):
         label.setWordWrap(True)
         return label
 
+    def _toggle_row(self, layout, text, *, checked=None, description="", enabled=True):
+        """往 layout 追加一行"标签 + iOS 开关"，返回 (row, switch)。"""
+        switch = ToggleSwitch()
+        if checked is not None:
+            switch.setChecked(checked)
+        switch.setEnabled(enabled)
+        row = SettingRow(text, switch, description)
+        layout.addWidget(row)
+        return row, switch
+
     def setup_ui(self):
         layout = QVBoxLayout()
 
@@ -166,31 +177,36 @@ class AdvancedSettingsDialog(QDialog):
         general_layout.setSpacing(8)
 
         general_layout.addWidget(self._group_header("启动"))
-        self.startup_switch = QCheckBox("开机启动")
-        self.startup_switch.setChecked(get_launch_at_login())
-        general_layout.addWidget(self.startup_switch)
+        self.startup_row, self.startup_switch = self._toggle_row(
+            general_layout, "开机启动", checked=get_launch_at_login()
+        )
 
-        self.silent_mode_switch = QCheckBox("静默启动")
-        general_layout.addWidget(self.silent_mode_switch)
-        general_layout.addWidget(self._description("启动时不显示主窗口，仅驻留系统托盘"))
+        self.silent_mode_row, self.silent_mode_switch = self._toggle_row(
+            general_layout,
+            "静默启动",
+            description="启动时不显示主窗口，仅驻留系统托盘",
+        )
 
-        self.connect_startup_switch = QCheckBox("启动时自动连接")
-        general_layout.addWidget(self.connect_startup_switch)
-        general_layout.addWidget(self._description("启动后自动连接 VPN（需已保存凭据）"))
+        self.connect_startup_row, self.connect_startup_switch = self._toggle_row(
+            general_layout,
+            "启动时自动连接",
+            description="启动后自动连接 VPN（需已保存凭据）",
+        )
 
         general_layout.addWidget(self._group_header("外观与更新"))
 
-        self.check_update_switch = QCheckBox("启动时检查更新")
-        general_layout.addWidget(self.check_update_switch)
-
-        self.auto_reconnect_switch = QCheckBox("断线自动重连")
-        self.auto_reconnect_switch.setChecked(True)
-        general_layout.addWidget(self.auto_reconnect_switch)
-        general_layout.addWidget(
-            self._description("非认证失败导致的掉线将自动重连，连续失败 3 次后暂停")
+        self.check_update_row, self.check_update_switch = self._toggle_row(
+            general_layout, "启动时检查更新"
         )
 
-        # 外观三态（跟随系统 / 浅色 / 深色）：与复选框同左边距的普通行，不用表单右对齐
+        self.auto_reconnect_row, self.auto_reconnect_switch = self._toggle_row(
+            general_layout,
+            "断线自动重连",
+            checked=True,
+            description="非认证失败导致的掉线将自动重连，连续失败 3 次后暂停",
+        )
+
+        # 外观三态（跟随系统 / 浅色 / 深色）：与开关行同左边距的普通行，不用表单右对齐
         appearance_row = QHBoxLayout()
         appearance_row.setContentsMargins(0, 0, 0, 0)
         appearance_row.addWidget(QLabel("外观"))
@@ -202,10 +218,10 @@ class AdvancedSettingsDialog(QDialog):
 
         # Hide dock icon option (only for macOS)
         if system() == "Darwin":
-            self.hide_dock_icon_switch = QCheckBox("隐藏 Dock 图标")
-            general_layout.addWidget(self.hide_dock_icon_switch)
-            general_layout.addWidget(
-                self._description("隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角")
+            self.hide_dock_icon_row, self.hide_dock_icon_switch = self._toggle_row(
+                general_layout,
+                "隐藏 Dock 图标",
+                description="隐藏后应用仅驻留菜单栏托盘；设置入口在主窗口右下角（仅 Darwin 创建）",
             )
 
         general_layout.addStretch()
@@ -232,11 +248,11 @@ class AdvancedSettingsDialog(QDialog):
         connect_form.addRow("VPN 服务端地址", server_row)
         network_layout.addLayout(connect_form)
 
-        # DNS：复选框在上、输入框在下（控制与被控的空间从属即因果自解释）
-        self.auto_dns_switch = QCheckBox("自动配置 DNS")
-        self.auto_dns_switch.setChecked(True)
+        # DNS：开关行在上、输入框在下（控制与被控的空间从属即因果自解释）
+        self.auto_dns_row, self.auto_dns_switch = self._toggle_row(
+            network_layout, "自动配置 DNS", checked=True
+        )
         self.auto_dns_switch.toggled.connect(self.toggle_dns_input)
-        network_layout.addWidget(self.auto_dns_switch)
         dns_row = QHBoxLayout()
         dns_row.setContentsMargins(24, 0, 0, 0)  # 缩进从属于"自动配置 DNS"
         dns_row.addWidget(QLabel("DNS 服务器地址"))
@@ -258,10 +274,10 @@ class AdvancedSettingsDialog(QDialog):
         proxy_form.addRow("HTTP 代理监听端口", self.http_bind_input)
         network_layout.addLayout(proxy_form)
 
-        self.proxy_switch = QCheckBox("自动配置代理")
-        network_layout.addWidget(self.proxy_switch)
-        network_layout.addWidget(
-            self._description("连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）")
+        self.proxy_row, self.proxy_switch = self._toggle_row(
+            network_layout,
+            "自动配置代理",
+            description="连接后自动配置系统代理，将网络流量通过 VPN 转发（TUN 模式下不生效）",
         )
 
         # ---- 高级（默认折叠，点 chevron 行展开；展开/收起随对话框高度平滑伸缩）----
@@ -274,38 +290,39 @@ class AdvancedSettingsDialog(QDialog):
         advanced_layout.setContentsMargins(0, 0, 0, 0)
         advanced_layout.setSpacing(8)
 
-        self.keep_alive_switch = QCheckBox("定时保活")
-        advanced_layout.addWidget(self.keep_alive_switch)
-        advanced_layout.addWidget(
-            self._description("开启后，BITZH Connect 会定时发送心跳包以保持连接")
+        self.keep_alive_row, self.keep_alive_switch = self._toggle_row(
+            advanced_layout,
+            "定时保活",
+            description="开启后，BITZH Connect 会定时发送心跳包以保持连接",
         )
 
-        self.debug_dump_switch = QCheckBox("调试模式")
-        advanced_layout.addWidget(self.debug_dump_switch)
-        advanced_layout.addWidget(
-            self._description("开启后，BITZH Connect 会记录详细的调试信息到日志文件")
+        self.debug_dump_row, self.debug_dump_switch = self._toggle_row(
+            advanced_layout,
+            "调试模式",
+            description="开启后，BITZH Connect 会记录详细的调试信息到日志文件",
         )
 
         # 肯定句表述（原"禁用备用线路检测"勾选=禁用是双重否定）；存储时取反
-        self.auto_multi_line_switch = QCheckBox("自动切换备用线路")
-        self.auto_multi_line_switch.setChecked(True)
-        advanced_layout.addWidget(self.auto_multi_line_switch)
-        advanced_layout.addWidget(
-            self._description("当前线路不稳定时自动切换到备用线路")
+        self.auto_multi_line_row, self.auto_multi_line_switch = self._toggle_row(
+            advanced_layout,
+            "自动切换备用线路",
+            checked=True,
+            description="当前线路不稳定时自动切换到备用线路",
         )
 
-        self.tun_mode_switch = QCheckBox("TUN 模式（全局路由）")
-        if system() == "Windows":
-            # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
-            self.tun_mode_switch.setEnabled(False)
-        advanced_layout.addWidget(self.tun_mode_switch)
         tun_note = (
             "所有流量（含 SSH 等裸 TCP）都走 VPN，默认开启；需要管理员授权；"
             "可与 Clash/FlClash 的 TUN 共存（按 IP 直连校园网；对方需未开启严格路由）"
         )
         if system() == "Windows":
             tun_note += "（本期仅 macOS/Linux）"
-        advanced_layout.addWidget(self._description(tun_note))
+        # 本期 TUN 仅 macOS/Linux：Windows 提权链路（.bat + UAC）未验证，honest 置灰
+        self.tun_mode_row, self.tun_mode_switch = self._toggle_row(
+            advanced_layout,
+            "TUN 模式（全局路由）",
+            enabled=system() != "Windows",
+            description=tun_note,
+        )
 
         # ---- 运行日志（打开时同步主窗口日志缓冲，存活期间实时跟随）----
         from PySide6.QtGui import QFontDatabase
