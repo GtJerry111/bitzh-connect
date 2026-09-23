@@ -123,15 +123,18 @@ def _speed_nsimage(up_text: str, down_text: str):
     h = line_h * 2
 
     icon = QImage(":/icons/menu-icon.png")
-    icon_side = h - 4 if not icon.isNull() else 0
-    gap = 4 if icon_side else 0
-    w = icon_side + gap + text_w
+    if icon.isNull():
+        raise RuntimeError("菜单栏图标素材加载失败（qrc 未注册？）")
+    icon_side = h - 4
+    gap = 4
+    w = icon_side + gap + text_w + 2  # +2：粗体末字抗锯齿右缘留白
 
     img = QImage(w * 2, h * 2, QImage.Format_ARGB32)  # @2x 保 Retina 清晰
     img.setDevicePixelRatio(2)
     img.fill(Qt.transparent)
     painter = QPainter(img)
     painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
     x = 0
     if icon_side:
         painter.drawImage(QRectF(0, (h - icon_side) / 2, icon_side, icon_side), icon)

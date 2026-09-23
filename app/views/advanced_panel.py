@@ -157,7 +157,7 @@ class AdvancedSettingsDialog(QDialog):
         font.setWeight(font.Weight.DemiBold)
         label.setFont(font)
         label.setStyleSheet(
-            f"color: {theme.semantic_color('secondary_text')}; margin: 10px 4px 4px 4px;"
+            f"color: {theme.semantic_color('secondary_text')}; margin: 10px 14px 4px 14px;"
         )
         layout.addWidget(label)
 

@@ -379,6 +379,7 @@ def test_groups_are_cards(qtbot):
 
 
 def test_card_inner_padding(qtbot):
+    from PySide6.QtCore import QMargins
     from PySide6.QtWidgets import QWidget
     from views.advanced_panel import AdvancedSettingsDialog
 
@@ -386,8 +387,10 @@ def test_card_inner_padding(qtbot):
     qtbot.addWidget(dlg)
     cards = [w for w in dlg.findChildren(QWidget) if w.objectName() == "SettingsCard"]
     assert cards
-    m = cards[0].layout().contentsMargins()
-    assert m.left() >= 12 and m.right() >= 12
+    for card in cards:
+        layout = card.layout()
+        assert layout.contentsMargins() == QMargins(14, 6, 14, 6)
+        assert layout.spacing() == 0
 
 
 def test_help_links_and_update_button_are_accent(qtbot):
