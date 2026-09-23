@@ -111,6 +111,7 @@ class SegmentedModeSwitch(QWidget):
         painter.setBrush(Qt.NoBrush)
         painter.setPen(QPen(theme.qcolor("separator", 0.45), 1))
         painter.drawRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), 8, 8)
+        painter.setPen(Qt.NoPen)  # 复位：药丸/假阴影不描边
 
         # 选中药丸（2px 内缩 + 1px 下沉假阴影）
         pill = QRectF(self._pill_pos * seg_w + 2, 2, seg_w - 4, h - 4)
