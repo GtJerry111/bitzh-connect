@@ -26,16 +26,17 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 
 ## Features
 
-- **TUN mode (global routing) on by default** — all traffic, including raw TCP like SSH, goes through the VPN; one-tap switch between proxy and TUN on the main window
-- **Live dashboard** — connection duration, upload/download rates and a 60-second real-time graph
+- **TUN mode (global routing) on by default** — all traffic, including raw TCP like SSH, goes through the VPN; one-tap switch between proxy and TUN on the main window; a privileged helper is installed once on first connect, so subsequent connections need no password
+- **Live dashboard** — connection duration, upload/download rates and a 60-second real-time graph; rates are read from the virtual NIC in TUN mode, and sampled per-process from the kernel on macOS in proxy mode, so they are real in both modes
 - **Campus navigation** — 10 frequently used sites grouped by campus, folded away until needed
-- **Auto-reconnect** — backoff retries plus automatic recovery after system sleep/wake
+- **Auto-reconnect** — backoff retries plus automatic recovery after system sleep/wake; no retries on auth failure or manual disconnect, and the retry counter resets once the connection stays stable; a built-in watchdog detects server-route capture and kernel freeze and recovers automatically
 - **BIT branding** — emblem-green palette, calligraphy watermark, light/dark/system appearance
 - Fast and green compared to **EasyConnect**.
 - Built with PySide6, easy to build and maintain.
 - Multi-platform support, with native optimization for the **macOS** version.
-- Native macOS experience: persistent menu bar icon; left-click opens a Liquid Glass quick panel (macOS 26+, vibrancy on older systems; connect toggle / rates / mode / campus navigation), right-click for a quick menu
+- Native macOS experience: persistent menu bar icon; left-click opens a Liquid Glass quick panel (macOS 26+, vibrancy on older systems; connect toggle / rates / mode / campus navigation); the right-click menu can toggle "Show speed in menu bar" — two live rate lines next to the icon, auto-tinted with the menu bar appearance
 - Passwords are stored locally with encryption, never on disk in plaintext, and the system keychain is not used.
+- Connection diagnostics are logged locally (rotated, password-free) — open the log directory with one click in Advanced Settings to locate the cause of a drop afterwards.
 - Works with other applications like Clash, Remote Desktop, and SSH. (See [Working with other applications](#working-with-other-applications))
 - Supports custom server address/DNS/HTTP/SOCKS5 proxy port, and keep-alive settings. (If you need additional parameters, please submit an issue/PR)
 
@@ -103,9 +104,11 @@ TUN mode (global routing) is enabled by default: all traffic, including raw TCP 
 
 > [!NOTE]
 >
-> 1. TUN mode requires administrator privileges: macOS prompts for authorization (osascript) only once on connect — disconnecting is prompt-free (a root watcher loop kills the kernel via a stop-flag file). Linux elevates via pkexec. Windows is not supported in this release.
-> 2. TUN mode is mutually exclusive with Clash's TUN mode — only one of them can be enabled at a time.
-> 3. In TUN mode the dashboard shows the real upload/download rates; in proxy mode the rates are shown as "—".
+> 1. TUN mode requires administrator privileges: **a privileged helper is installed once on first connect** (automatic, including quarantine removal), after which connections need no password; Linux elevates via pkexec; Windows is not supported in this release.
+>    (If the installation is cancelled, it falls back to "authorize once per connection".)
+> 2. It can coexist with Clash/FlClash TUN mode: this app only adds campus-net routes and leaves the rest to the other side; when traffic to the VPN server would be captured by the other TUN, the kernel's underlying connection is automatically bound to the physical NIC to bypass it
+>    (campus-net direct by IP; the other side must not have strict-route enabled).
+> 3. In TUN mode the dashboard shows real rates from the virtual NIC; on macOS, proxy mode also shows rates sampled per-process from the kernel (on other platforms proxy mode shows "—").
 
 ## Working with other applications
 
@@ -193,6 +196,10 @@ ssh -o "ProxyCommand=ncat --proxy 127.0.0.1:1080 --proxy-type socks5 %h %p" <roo
 | Disconnected | Connected (live rate graph) | Dark mode |
 | --- | --- | --- |
 | <img width="412" alt="login" src="assets/screenshot-login.png" /> | <img width="412" alt="connected" src="assets/screenshot-connected.png" /> | <img width="412" alt="dark mode" src="assets/screenshot-connected-dark.png" /> |
+
+| Menu bar quick panel (Liquid Glass) | Speed in menu bar (toggle in right-click menu) |
+| --- | --- |
+| <img width="412" alt="menu bar quick panel" src="assets/screenshot-menubar.png" /> | <img alt="speed in menu bar" src="assets/screenshot-menubar-speed.png" /> |
 
 ## Contributing
 
