@@ -678,51 +678,61 @@ class MainWindow(QMainWindow):
         self.connect_button.setChecked(True)
 
     def _suppress_reconnect(self):
-        """休眠/锁屏统一抑制：取消退避重连、清在途 bounce、停看门狗。
+        """休眠/锁屏统一抑制：停排退避重连、清在途 bounce、停看门狗。
 
-        看门狗会在下次连接拿到 Client IP 时自动重启（handle_output）。
+        抑制必须是"持续的"：睡/锁期间连接若断掉，handle_connection_finished 仍会调
+        on_process_exited，靠 set_enabled(False) 挡住排退避（否则会在锁屏后面弹授权框）。
+        唤醒由 _recover_connection 调 set_enabled(auto_reconnect) 恢复。
+
+        看门狗在下次连接拿到 Client IP 时自动重启；连接若存活到唤醒，
+        由 _recover_connection 补回（见该处注释）。
         """
-        self.reconnect_manager.cancel()
-        self._watchdog.stop()
+        # 在途 bounce 是内部重连意图、不是用户主动断开：还原 _manual_stop，
+        # 否则 sleep 打断 bounce 后它会被当成"用户断开"，卡死后续唤醒恢复。
+        if self._bounce_pending:
+            self._manual_stop = False
         self._bounce_pending = False
+        self.reconnect_manager.set_enabled(False)
+        self._watchdog.stop()
 
     def _on_system_sleep(self):
         """系统休眠：抑制一切在途重连，避免盒盖期间无人应答的授权框。"""
         from utils import diagnostics
 
         self._suppress_reconnect()
-        diagnostics.append("系统休眠：已取消在途重连并暂停看门狗")
+        diagnostics.append("系统休眠：已抑制重连并暂停看门狗")
 
     def _on_screen_sleep(self):
         """屏幕休眠（锁屏）：同系统休眠，抑制在途重连。"""
         from utils import diagnostics
 
         self._suppress_reconnect()
-        diagnostics.append("屏幕休眠（锁屏）：已取消在途重连并暂停看门狗")
+        diagnostics.append("屏幕休眠（锁屏）：已抑制重连并暂停看门狗")
 
     def _on_system_wake(self):
-        self._recover_connection("系统唤醒")
+        # 整机休眠会挂起内核，唤醒后隧道多已假死：存活也先断后连
+        self._recover_connection("系统唤醒", bounce_if_alive=True)
 
     def _on_screen_wake(self):
-        self._recover_connection("屏幕唤醒")
+        # 锁屏不挂起内核：仅"确实已断开"才重连，存活则交给看门狗，避免每次息屏都断一下
+        self._recover_connection("屏幕唤醒", bounce_if_alive=False)
 
-    def _recover_connection(self, reason: str):
-        """唤醒/解锁恢复：处于"应连接"态则立即重连（防重入 + 5s 防抖）。
+    def _recover_connection(self, reason: str, bounce_if_alive: bool = True):
+        """唤醒/解锁恢复：处于"应连接"态则恢复连接（防重入 + 5s 防抖）。
 
-        系统唤醒与屏幕唤醒在开盖时会先后触发，防抖确保只恢复一次；
+        bounce_if_alive=True（系统唤醒）：内核还活着也先断后连；
+        bounce_if_alive=False（屏幕唤醒）：内核还活着就保持不动，交给看门狗。
         自动重连开关关闭、手动断开、认证失败、无凭据时一律跳过（落诊断日志）。
         """
         import time
 
         from utils import diagnostics
 
-        # 睡/锁期间看门狗被 _suppress_reconnect 停掉；若连接仍活着（如锁屏时内核未挂起），
-        # 恢复被跳过时没有新 Client IP 触发重启，须在此补回，避免自愈能力永久失效。
-        if (
-            getattr(self, "tun_mode", False)
-            and self.worker is not None
-            and self.worker.isRunning()
-        ):
+        # 唤醒即恢复被睡/锁抑制的重连能力
+        self.reconnect_manager.set_enabled(self.auto_reconnect)
+        # 睡/锁期间看门狗被停掉；连接仍活着就补回，否则自愈能力永久失效
+        alive = self.worker is not None and self.worker.isRunning()
+        if getattr(self, "tun_mode", False) and alive:
             self._watchdog.start()
 
         now = time.monotonic()
@@ -741,6 +751,10 @@ class MainWindow(QMainWindow):
         if not (self.username_input.text() and self.password_input.text()):
             diagnostics.append(f"{reason}：无凭据，跳过")
             return
+        if alive and not bounce_if_alive:
+            diagnostics.append(f"{reason}：连接仍存活，保持不动")
+            return
+
         self._last_recover_ts = now
         self.output_text.append(f"[BITZH Connect] 检测到{reason}，正在重新连接…\n")
         diagnostics.append(f"{reason}：恢复连接")

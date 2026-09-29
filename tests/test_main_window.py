@@ -13,6 +13,9 @@ def window(qtbot):
     qtbot.addWidget(w)
     yield w
     w.reconnect_manager.cancel()
+    # 看门狗无 Qt 父对象，仅由 Python 引用保活：若不显式停掉，其 QTimer 可能在
+    # 后续测试的事件循环里迟到触发，对已脱钩的 stub worker 调 stop_connection。
+    w._watchdog.stop()
 
 
 def test_connect_button_disabled_without_credentials(window):
@@ -201,6 +204,7 @@ def test_recover_connection_respects_auto_reconnect_off(window, monkeypatch):
 def test_recover_connection_skips_manual_stop(window):
     window.username_input.setText("2024000001")
     window.password_input.setText("secret")
+    window.auto_reconnect = True
     window._manual_stop = True
     window._auth_failed = False
     window.connect_button.setChecked(False)
@@ -247,6 +251,105 @@ def test_recover_connection_restores_watchdog_when_skipped(window, monkeypatch):
     window._recover_connection("屏幕唤醒")
     assert window._watchdog._running is True      # 看门狗补回
     assert window.connect_button.isChecked() is False  # 但仍不重连
+
+
+def test_sleep_during_pending_bounce_does_not_strand(window, monkeypatch):
+    """sleep 打断在途 bounce：还原 _manual_stop，唤醒后仍能恢复（否则永久卡断开）。"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.connect_button.setChecked(True)
+
+    class _AliveWorker:
+        def isRunning(self):
+            return True
+
+    window.worker = _AliveWorker()
+    window._bounce_connection()
+    assert window._bounce_pending is True
+    # 模拟 bounce 的 stop_connection(manual=True) 效果（stop 已 mock，不会真置位）
+    window._manual_stop = True
+
+    window._on_screen_sleep()
+    assert window._manual_stop is False
+    assert window._bounce_pending is False
+    assert window.reconnect_manager._enabled is False
+
+    # 唤醒：已断开（worker 收尾）→ 应能恢复
+    window.worker = None
+    fired.clear()
+    window._recover_connection("屏幕唤醒", bounce_if_alive=False)
+    assert fired == ["start"]
+
+
+def test_screen_lock_suppresses_backoff_retry(window):
+    """锁屏期间连接断掉：不得再排退避重连（否则锁屏后弹授权框）。"""
+    window.reconnect_manager.set_enabled(True)
+    window._on_screen_sleep()
+    window._manual_stop = False
+    window._auth_failed = False
+    window.reconnect_manager.on_process_exited(manual=False, auth_failed=False)
+    assert not window.reconnect_manager._retry_timer.isActive()
+    assert window.reconnect_manager.retry_count == 0
+
+
+def test_screen_wake_leaves_alive_connection_untouched(window, monkeypatch):
+    """屏幕唤醒：内核仍存活则不 bounce，只补回看门狗。"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    window.tun_mode = True
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.connect_button.setChecked(True)
+
+    class _AliveWorker:
+        def isRunning(self):
+            return True
+
+    window.worker = _AliveWorker()
+    window._watchdog.stop()
+    fired.clear()
+
+    window._on_screen_wake()
+    assert fired == []
+    assert window.connect_button.isChecked() is True
+    assert window._watchdog._running is True
+
+
+def test_system_wake_bounces_alive_worker(window, monkeypatch):
+    """系统唤醒：内核存活也先断后连（休眠后隧道多已假死）。"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.connect_button.setChecked(True)
+
+    class _AliveWorker:
+        def isRunning(self):
+            return True
+
+    window.worker = _AliveWorker()
+    fired.clear()
+
+    window._on_system_wake()
+    assert fired == ["stop"]            # 先断；等旧 worker 收尾才重连
+    assert window._bounce_pending is True
+    window.worker = None
+    window._maybe_finish_bounce()
+    assert fired == ["stop", "start"]
 
 
 def test_screen_sleep_suppresses_inflight(window):
