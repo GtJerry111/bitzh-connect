@@ -716,6 +716,15 @@ class MainWindow(QMainWindow):
 
         from utils import diagnostics
 
+        # 睡/锁期间看门狗被 _suppress_reconnect 停掉；若连接仍活着（如锁屏时内核未挂起），
+        # 恢复被跳过时没有新 Client IP 触发重启，须在此补回，避免自愈能力永久失效。
+        if (
+            getattr(self, "tun_mode", False)
+            and self.worker is not None
+            and self.worker.isRunning()
+        ):
+            self._watchdog.start()
+
         now = time.monotonic()
         if self._bounce_pending:
             diagnostics.append(f"{reason}：已有在途重连，忽略")

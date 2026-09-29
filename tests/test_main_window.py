@@ -227,6 +227,28 @@ def test_recover_connection_bounces_when_checked(window, monkeypatch):
     assert window.connect_button.isChecked() is True
 
 
+def test_recover_connection_restores_watchdog_when_skipped(window, monkeypatch):
+    """恢复被跳过（自动重连关闭）但 TUN 连接仍活着：看门狗须补回，否则自愈永久失效。"""
+    window.tun_mode = True
+    window.auto_reconnect = False
+    window._manual_stop = False
+    window._auth_failed = False
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.connect_button.setChecked(False)
+
+    class _AliveWorker:
+        def isRunning(self):
+            return True
+
+    window.worker = _AliveWorker()
+    window._watchdog.stop()
+
+    window._recover_connection("屏幕唤醒")
+    assert window._watchdog._running is True      # 看门狗补回
+    assert window.connect_button.isChecked() is False  # 但仍不重连
+
+
 def test_screen_sleep_suppresses_inflight(window):
     """锁屏：取消退避重连 + 清 bounce + 停看门狗"""
     window.reconnect_manager.on_process_exited(manual=False, auth_failed=False)
