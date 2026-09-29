@@ -146,6 +146,100 @@ def test_wake_bounces_active_connection(window, monkeypatch):
     assert window.connect_button.isChecked() is True
 
 
+def test_recover_connection_reconnects_when_disconnected(window, monkeypatch):
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.worker = None
+    window.connect_button.setChecked(False)
+    fired.clear()
+
+    window._recover_connection("屏幕唤醒")
+    assert window.connect_button.isChecked() is True
+    assert fired == ["start"]
+
+
+def test_recover_connection_debounced(window, monkeypatch):
+    """系统唤醒 + 屏幕唤醒同拍只恢复一次（5s 防抖）"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.worker = None
+    window.connect_button.setChecked(False)
+    fired.clear()
+
+    window._recover_connection("系统唤醒")
+    window._recover_connection("屏幕唤醒")
+    assert fired == ["start"]
+
+
+def test_recover_connection_respects_auto_reconnect_off(window, monkeypatch):
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.auto_reconnect = False
+    window._manual_stop = False
+    window._auth_failed = False
+    window.worker = None
+    window.connect_button.setChecked(False)
+    fired.clear()
+
+    window._recover_connection("系统唤醒")
+    assert window.connect_button.isChecked() is False
+    assert fired == []
+
+
+def test_recover_connection_skips_manual_stop(window):
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window._manual_stop = True
+    window._auth_failed = False
+    window.connect_button.setChecked(False)
+    window._recover_connection("屏幕唤醒")
+    assert window.connect_button.isChecked() is False
+
+
+def test_recover_connection_bounces_when_checked(window, monkeypatch):
+    """内核仍勾选（可能假死）：唤醒走先断后连"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+    window.username_input.setText("2024000001")
+    window.password_input.setText("secret")
+    window.auto_reconnect = True
+    window._manual_stop = False
+    window._auth_failed = False
+    window.connect_button.setChecked(True)
+    window.worker = None
+    fired.clear()
+
+    window._recover_connection("屏幕唤醒")
+    assert fired == ["stop", "start"]
+    assert window.connect_button.isChecked() is True
+
+
+def test_screen_sleep_suppresses_inflight(window):
+    """锁屏：取消退避重连 + 清 bounce + 停看门狗"""
+    window.reconnect_manager.on_process_exited(manual=False, auth_failed=False)
+    window._bounce_pending = True
+    window._watchdog.start()
+
+    window._on_screen_sleep()
+    assert not window.reconnect_manager._retry_timer.isActive()
+    assert window.reconnect_manager.retry_count == 0
+    assert window._bounce_pending is False
+    assert window._watchdog._running is False
+
+
 def test_bounce_defers_until_worker_finished(window, monkeypatch):
     """旧 worker 仍在运行时不立即重连（固定 1s 盲等的根因）。"""
     fired = []
@@ -203,7 +297,7 @@ def test_wake_noop_when_manually_disconnected(window):
     window._manual_stop = True
     window._auth_failed = False
     window._on_system_wake()
-    assert "休眠唤醒" not in window.output_text.toPlainText()
+    assert "正在重新连接" not in window.output_text.toPlainText()
 
 
 def test_app_activate_shows_hidden_window(window):

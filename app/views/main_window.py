@@ -677,24 +677,64 @@ class MainWindow(QMainWindow):
         self._bounce_pending = False
         self.connect_button.setChecked(True)
 
-    def _on_system_sleep(self):
-        """系统休眠：取消在途重连退避——盒盖期间触发重连只会在无人理会时弹授权框。"""
-        self._asleep = True
+    def _suppress_reconnect(self):
+        """休眠/锁屏统一抑制：取消退避重连、清在途 bounce、停看门狗。
+
+        看门狗会在下次连接拿到 Client IP 时自动重启（handle_output）。
+        """
         self.reconnect_manager.cancel()
+        self._watchdog.stop()
+        self._bounce_pending = False
+
+    def _on_system_sleep(self):
+        """系统休眠：抑制一切在途重连，避免盒盖期间无人应答的授权框。"""
+        from utils import diagnostics
+
+        self._suppress_reconnect()
+        diagnostics.append("系统休眠：已取消在途重连并暂停看门狗")
+
+    def _on_screen_sleep(self):
+        """屏幕休眠（锁屏）：同系统休眠，抑制在途重连。"""
+        from utils import diagnostics
+
+        self._suppress_reconnect()
+        diagnostics.append("屏幕休眠（锁屏）：已取消在途重连并暂停看门狗")
 
     def _on_system_wake(self):
-        """唤醒：处于"应连接"态（非手动断开、非认证失败）则立即重连。
+        self._recover_connection("系统唤醒")
 
-        两种情形：内核假死（按钮仍勾选）→ 先走后连 bounce；内核已在休眠期死亡
-        （按钮被收尾复位）→ 直接重连。TUN 断开走停止标记零弹窗，重连弹一次授权框
-        （用户刚开盖在场，时机合理）。
+    def _on_screen_wake(self):
+        self._recover_connection("屏幕唤醒")
+
+    def _recover_connection(self, reason: str):
+        """唤醒/解锁恢复：处于"应连接"态则立即重连（防重入 + 5s 防抖）。
+
+        系统唤醒与屏幕唤醒在开盖时会先后触发，防抖确保只恢复一次；
+        自动重连开关关闭、手动断开、认证失败、无凭据时一律跳过（落诊断日志）。
         """
-        self._asleep = False
+        import time
+
+        from utils import diagnostics
+
+        now = time.monotonic()
+        if self._bounce_pending:
+            diagnostics.append(f"{reason}：已有在途重连，忽略")
+            return
+        if now - self._last_recover_ts < 5:
+            diagnostics.append(f"{reason}：距上次恢复不足 5s，忽略")
+            return
+        if not self.auto_reconnect:
+            diagnostics.append(f"{reason}：自动重连已关闭，跳过")
+            return
         if self._manual_stop or self._auth_failed:
+            diagnostics.append(f"{reason}：手动断开或认证失败，跳过")
             return
         if not (self.username_input.text() and self.password_input.text()):
+            diagnostics.append(f"{reason}：无凭据，跳过")
             return
-        self.output_text.append("[BITZH Connect] 检测到系统从休眠唤醒，正在重新连接…\n")
+        self._last_recover_ts = now
+        self.output_text.append(f"[BITZH Connect] 检测到{reason}，正在重新连接…\n")
+        diagnostics.append(f"{reason}：恢复连接")
         if self.connect_button.isChecked():
             self._bounce_connection()
         else:

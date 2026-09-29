@@ -42,6 +42,16 @@ def install_sleep_wake_hooks(window) -> bool:
 
             onWake_ = objc.selector(onWake_, signature=b"v@:@")
 
+            def onScreenSleep_(self, notification):
+                self._window._on_screen_sleep()
+
+            onScreenSleep_ = objc.selector(onScreenSleep_, signature=b"v@:@")
+
+            def onScreenWake_(self, notification):
+                self._window._on_screen_wake()
+
+            onScreenWake_ = objc.selector(onScreenWake_, signature=b"v@:@")
+
         center = objc.lookUpClass("NSWorkspace").sharedWorkspace().notificationCenter()
         observer = _Observer.alloc().initWithWindow_(window)
         center.addObserver_selector_name_object_(
@@ -50,8 +60,20 @@ def install_sleep_wake_hooks(window) -> bool:
         center.addObserver_selector_name_object_(
             observer, "onWake:", "NSWorkspaceDidWakeNotification", None
         )
+        center.addObserver_selector_name_object_(
+            observer, "onScreenSleep:", "NSWorkspaceScreensDidSleepNotification", None
+        )
+        center.addObserver_selector_name_object_(
+            observer, "onScreenWake:", "NSWorkspaceScreensDidWakeNotification", None
+        )
         # 防 GC：observer 须挂在长生命周期对象上
         window._sleep_wake_observer = observer
         return True
-    except Exception:
+    except Exception as exc:
+        try:
+            from . import diagnostics
+
+            diagnostics.append(f"休眠/唤醒监听安装失败：{exc!r}")
+        except Exception:
+            pass
         return False
