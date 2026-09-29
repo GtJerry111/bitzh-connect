@@ -107,19 +107,13 @@ def test_mode_switch_bounces_when_connected(window, monkeypatch):
     fired = []
     monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
     monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
-    delayed = []
-    monkeypatch.setattr(
-        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
-    )
     window.username_input.setText("2024000001")
     window.password_input.setText("secret")
-    window.connect_button.setChecked(True)  # 模拟已连接（start 已 mock）
+    window.connect_button.setChecked(True)  # 模拟已连接（start/stop 已 mock）
     fired.clear()
 
     window.mode_switch._set_current(0)  # 切到代理模式
     assert window.tun_mode is False
-    assert fired == ["stop"]  # 先完整断开
-    delayed[0]()  # 1s 后重连
     assert fired == ["stop", "start"]
     assert window.connect_button.isChecked() is True
 
@@ -136,7 +130,7 @@ def test_sleep_cancels_pending_reconnect(window):
 
 
 def test_wake_bounces_active_connection(window, monkeypatch):
-    """唤醒且处于"应连接"态：先断后连（bounce），TUN 断开零弹窗、重连一次授权"""
+    """唤醒且处于"应连接"态：先断后连（bounce），无固定延时"""
     window.username_input.setText("2024000001")
     window.password_input.setText("secret")
     window._manual_stop = False
@@ -144,19 +138,64 @@ def test_wake_bounces_active_connection(window, monkeypatch):
     fired = []
     monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
     monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
-    delayed = []
-    monkeypatch.setattr(
-        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
-    )
 
-    window.connect_button.setChecked(True)  # 模拟已连接（start 已 mock 不真实连接）
+    window.connect_button.setChecked(True)  # 模拟已连接（start 已 mock）
     fired.clear()
     window._on_system_wake()
-    assert fired == ["stop"]  # 先完整断开
+    assert fired == ["stop", "start"]
+    assert window.connect_button.isChecked() is True
+
+
+def test_bounce_defers_until_worker_finished(window, monkeypatch):
+    """旧 worker 仍在运行时不立即重连（固定 1s 盲等的根因）。"""
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+
+    window.connect_button.setChecked(True)  # toggled → start（已 mock）
+    fired.clear()
+
+    class _AliveWorker:
+        def isRunning(self):
+            return True
+
+    window.worker = _AliveWorker()
+    window._bounce_connection()
+    assert fired == ["stop"]  # 只断了，没重连
+    assert window._bounce_pending is True
     assert window.connect_button.isChecked() is False
-    delayed[0]()  # 1s 后的重连回调
+
+    # 模拟旧 worker 收尾后 handle_connection_finished 的回调
+    window.worker = None
+    window._maybe_finish_bounce()
+    assert window._bounce_pending is False
     assert window.connect_button.isChecked() is True
     assert fired == ["stop", "start"]
+
+
+def test_bounce_reconnects_immediately_without_worker(window, monkeypatch):
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
+
+    window.connect_button.setChecked(True)
+    fired.clear()
+    window.worker = None
+
+    window._bounce_connection()
+    assert fired == ["stop", "start"]
+    assert window.connect_button.isChecked() is True
+
+
+def test_connection_finished_finishes_pending_bounce(window, monkeypatch):
+    from utils.connection_utils import handle_connection_finished
+
+    calls = []
+    monkeypatch.setattr(window, "_maybe_finish_bounce", lambda: calls.append(True))
+    window._bounce_pending = True
+    window.worker = None
+    handle_connection_finished(window, -1)
+    assert calls == [True]
 
 
 def test_wake_noop_when_manually_disconnected(window):
@@ -375,17 +414,16 @@ def test_on_helper_install_done_retries_or_falls_back(window, monkeypatch):
 
 def test_on_helper_install_done_bounces_when_already_checked(window, monkeypatch):
     """按钮已勾选时 setChecked(True) 是 no-op：须走 bounce 确保重连。"""
-    monkeypatch.setattr(window, "start_connection", lambda: None)
-    monkeypatch.setattr(window, "stop_connection", lambda: None)
-    delayed = []
-    monkeypatch.setattr(
-        "views.main_window.QTimer.singleShot", lambda ms, fn: delayed.append(fn)
-    )
+    fired = []
+    monkeypatch.setattr(window, "start_connection", lambda: fired.append("start"))
+    monkeypatch.setattr(window, "stop_connection", lambda: fired.append("stop"))
     window.connect_button.setChecked(True)  # 模拟已连接（start/stop 已 mock）
+    fired.clear()
 
     window._on_helper_install_done(True)
-    assert window._bounce_pending is True  # 走了 bounce，而非依赖 setChecked no-op
-    assert window.connect_button.isChecked() is False
+    assert fired == ["stop", "start"]
+    assert window.connect_button.isChecked() is True
+    assert window._bounce_pending is False
 
 
 def test_watchdog_starts_on_connect_and_stops_on_disconnect(window, monkeypatch):

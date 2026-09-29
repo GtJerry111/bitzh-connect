@@ -166,6 +166,8 @@ class MainWindow(QMainWindow):
         self.virtual_ip = None
         self._manual_stop = True
         self._auth_failed = False
+        self._bounce_pending = False
+        self._last_recover_ts = 0.0
         self._helper_install_declined = False
         self._rate_monitor = None
         self._rate_monitor_gen = 0  # 在途重试链世代号：stop/重启即翻篇，防止断连后建起残留 monitor
@@ -654,16 +656,26 @@ class MainWindow(QMainWindow):
         self._bounce_connection()
 
     def _bounce_connection(self):
-        """先断后连：worker 收尾（finished→复位）需要一拍，1s 后重连足够稳。"""
+        """先断后连：等旧 worker 真正收尾再重连（不再固定 1s 盲等）。
+
+        TUN 内核关闭要 ~3s，固定 1s 会让重连撞上仍在运行的旧 worker，
+        被 start_connection 的 isRunning 守卫静默吞掉。改为事件驱动：
+        worker 存活 → 由 handle_connection_finished 回调 _maybe_finish_bounce；
+        worker 已收尾（或从未有）→ 立即重连。
+        """
         self._bounce_pending = True
         self.connect_button.setChecked(False)
-        QTimer.singleShot(1000, self._bounce_reconnect)
+        self._maybe_finish_bounce()
 
-    def _bounce_reconnect(self):
-        """bounce 第二拍（一次性守卫：这一拍内用户操作过则不强行重连）。"""
-        if getattr(self, "_bounce_pending", False):
-            self._bounce_pending = False
-            self.connect_button.setChecked(True)
+    def _maybe_finish_bounce(self):
+        """bounce 第二拍：旧 worker 已收尾才真正重连（否则等 finished 回调）。"""
+        if not self._bounce_pending:
+            return
+        worker = self.worker
+        if worker is not None and worker.isRunning():
+            return
+        self._bounce_pending = False
+        self.connect_button.setChecked(True)
 
     def _on_system_sleep(self):
         """系统休眠：取消在途重连退避——盒盖期间触发重连只会在无人理会时弹授权框。"""

@@ -161,6 +161,10 @@ def handle_connection_finished(window, exit_code):
         f"原因={reason} 接口={iface} 服务器路由出口={route}"
     )
     window.reconnect_manager.on_process_exited(manual=manual or never_started, auth_failed=auth_failed)
+    # bounce 第二拍：旧 worker 已置 None，此时真正重连（事件驱动，无固定延时）
+    finish_bounce = getattr(window, "_maybe_finish_bounce", None)
+    if finish_bounce is not None:
+        finish_bounce()
 
 
 def build_command_args(window, command, tun_bind_interface=None):
