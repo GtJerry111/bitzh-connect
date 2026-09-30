@@ -3,7 +3,7 @@
 <img src="app/resources/icons/icon.png" 
          width="128" 
          height="128" 
-         alt="Icon">
+         alt="BITZH Connect app icon">
 
 # BITZH Connect
 
