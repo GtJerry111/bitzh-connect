@@ -25,6 +25,14 @@ def test_classifies_known_processes():
     assert rows[1].name == "kernel"
 
 
+def test_classifies_linux_gui_process():
+    rows = slim_audit.parse_process_rows(
+        "105 1 90000 1.0 /usr/lib/bitzh-connect/bitzh-connect\n106 1 7000 0.0 /usr/bin/python3"
+    )
+    assert rows[0].name == "gui"
+    assert rows[1].name == "other"
+
+
 def test_classifies_helper_and_other_processes():
     rows = slim_audit.parse_process_rows(
         "103 1 5000 0.1 bitzh-helper\n104 1 7000 0.0 /usr/bin/python3"

@@ -19,7 +19,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-_GUI_MARKERS = ("bitzh connect",)
+_GUI_MARKERS = ("bitzh connect", "bitzh-connect")
 _KERNEL_MARKERS = ("zju-connect",)
 _HELPER_MARKERS = ("bitzh-helper",)
 
