@@ -373,3 +373,25 @@ focused audit test and full suite must be rerun after this fix.
 - [ ] Campus-network login, TUN/proxy connection, helper install/uninstall, and sustained
       RSS/CPU scenarios remain unverified on this run because they require real credentials,
       network access, and/or elevation.
+
+### macOS runtime verification (2026-10-13)
+
+- [x] Existing helper handshake and status verified: protocol version `1`, LaunchDaemon
+      running, and helper successfully started/stopped the bundled kernel.
+- [x] TUN mode verified against the real campus network: authenticated kernel reached a
+      campus site and received the expected CAS redirect/HTTP 200 response.
+- [x] Proxy mode verified with temporary `1180/1181` bindings while TUN held `1080/1081`:
+      authentication reached Client IP, SOCKS5 and HTTP listeners started, and an HTTP
+      proxy request to the campus site returned HTTP 200. The temporary proxy run exited
+      with code `0` in the lifecycle-only test.
+- [x] GUI idle sample for approximately 60 seconds: RSS stayed about 164-174MB and CPU
+      stayed below 3% after startup, with no unbounded increase.
+- [x] TUN/helper sample for approximately 60 seconds: kernel RSS stayed about 17-20MB
+      and CPU was `0.0%`; helper processes stayed about 0.6-7.8MB and `0.0%` CPU.
+- [ ] A proxy traffic run returned HTTP 200 but produced exit code `2` during manual
+      shutdown and a gVisor stack in the kernel log. This is recorded as a separate
+      upstream/kernel shutdown-path issue; it is not evidence of a 2GB memory leak.
+- [ ] Actual helper uninstall/reinstall was not run because non-interactive sudo was
+      unavailable and the test would otherwise leave the live TUN connection without a
+      guaranteed restore path. Current installation, handshake, status, and generated
+      install/uninstall script cleanup were verified.
