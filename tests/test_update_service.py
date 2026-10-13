@@ -31,6 +31,40 @@ def test_worker_held_until_update_available(qtbot, monkeypatch):
     qtbot.waitUntil(lambda: service._workers == [], timeout=1000)
 
 
+def test_worker_released_on_up_to_date(qtbot, monkeypatch):
+    """已是最新版（up_to_date）也是终态，worker 须被清理，否则每次检查都泄漏。"""
+    from services.update_service import UpdateService
+
+    monkeypatch.setattr(
+        "services.update_service.UpdateChecker.get_latest_version",
+        lambda self: "1.0.0",
+    )
+    service = UpdateService()
+    signals = service.check_for_updates("1.0.0")
+
+    done = []
+    signals.up_to_date.connect(lambda: done.append(True))
+    qtbot.waitUntil(lambda: done == [True], timeout=5000)
+    qtbot.waitUntil(lambda: service._workers == [], timeout=1000)
+
+
+def test_worker_released_on_error(qtbot, monkeypatch):
+    """检查失败（error）也是终态，worker 须被清理，否则每次检查都泄漏。"""
+    from services.update_service import UpdateService
+
+    monkeypatch.setattr(
+        "services.update_service.UpdateChecker.get_latest_version",
+        lambda self: None,
+    )
+    service = UpdateService()
+    signals = service.check_for_updates("1.0.0")
+
+    errors = []
+    signals.error.connect(lambda msg: errors.append(msg))
+    qtbot.waitUntil(lambda: errors != [], timeout=5000)
+    qtbot.waitUntil(lambda: service._workers == [], timeout=1000)
+
+
 def test_get_latest_version_skips_drafts_and_handles_prerelease(monkeypatch):
     """releases 列表取第一条非草稿（预发布也要命中——流水线默认 prerelease:true，
     /latest 接口查不到预发布是本修复的初衷）"""

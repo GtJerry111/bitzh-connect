@@ -64,9 +64,16 @@ class UpdateService:
     def check_for_updates(self, current_version):
         worker = UpdateChecker(current_version)
         self._workers.append(worker)
-        worker.signals.update_available.connect(
-            lambda _v, w=worker: self._workers.remove(w)
-        )
+
+        def release(_arg=None, w=worker):
+            # 幂等：三个终态信号任一触发即清理；重复发射也不会二次 remove
+            if w in self._workers:
+                self._workers.remove(w)
+
+        # 三类终态信号都要释放引用，否则 up_to_date / error 路径会持续泄漏
+        worker.signals.update_available.connect(release)
+        worker.signals.up_to_date.connect(release)
+        worker.signals.error.connect(release)
         # 延迟到事件循环下一轮再 start：调用方先连信号，消除竞态
         QTimer.singleShot(0, lambda: self.thread_pool.start(worker))
         return worker.signals
