@@ -356,3 +356,20 @@ focused audit test and full suite must be rerun after this fix.
       current kernel, marked a documented external blocker.
 - [ ] Inspect final diff: no appearance-only UI changes, no default changes, no broad
       source-tree inclusion in the release workflow.
+
+### macOS arm64 verification (2026-10-13)
+
+- [x] Rebuilt the macOS arm64 app with the release command, adding local-only
+      `--disable-cache=ccache` because the downloaded Nuitka ccache binary was x86_64
+      while this host is arm64. The C compiler and linker completed successfully.
+- [x] Artifact assertions passed: `Contents/MacOS/app/core/zju-connect` exists and
+      `Contents/MacOS/app` contains only `core`.
+- [x] Packaged executable startup smoke passed: the app stayed alive for 8 seconds and
+      exited cleanly after termination; no startup log output was produced.
+- [x] The new app bundle is approximately 106MB (`slim_audit.py` reports 110,813,889
+      bytes). The currently installed older bundle is approximately 131MB and still
+      contains `app/resources/resources.qrc` and `QtPdf`, so the local A/B indicates
+      approximately 25MB (19%) installed-bundle reduction.
+- [ ] Campus-network login, TUN/proxy connection, helper install/uninstall, and sustained
+      RSS/CPU scenarios remain unverified on this run because they require real credentials,
+      network access, and/or elevation.
