@@ -5,15 +5,15 @@ description = "A GUI for connecting to the BITZH EasyConnect network."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "nuitka>=4.0.8",
     "packaging>=26.2",
     "psutil>=6.0",
     "pyobjc>=12.1 ; sys_platform == 'darwin'",
-    "pyside6>=6.11.0",
+    "pyside6-essentials>=6.11.0",
     "requests>=2.33.1",
 ]
 
 [dependency-groups]
+build = ["nuitka>=4.0.8"]
 dev = [
     "pillow>=12.3.0",
     "pytest>=8.3",
