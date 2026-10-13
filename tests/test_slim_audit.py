@@ -52,6 +52,14 @@ def test_parse_reads_stable_columns():
     assert row.command == "/Applications/BITZH Connect"
 
 
+def test_parse_marks_unavailable_cpu_as_none_and_reads_threads():
+    rows = slim_audit.parse_process_rows(
+        "101 1 2048 NA 7 BITZH Connect", threads_column=True
+    )
+    assert rows[0].cpu_percent is None
+    assert rows[0].threads == 7
+
+
 def test_artifact_totals_are_deterministic(tmp_path):
     (tmp_path / "a").write_bytes(b"123")
     (tmp_path / "b").write_bytes(b"12345")

@@ -41,7 +41,7 @@ class ProcessRow:
     pid: int
     ppid: int
     rss_mb: float
-    cpu_percent: float
+    cpu_percent: float | None
     threads: int | None
     command: str
 
@@ -63,7 +63,7 @@ def parse_process_rows(text: str, *, threads_column: bool = False) -> list[Proce
             pid = int(parts[0])
             ppid = int(parts[1])
             rss_mb = int(parts[2]) / 1024.0
-            cpu_percent = float(parts[3])
+            cpu_percent = None if parts[3].upper() in {"NA", "N/A"} else float(parts[3])
         except ValueError:
             continue
         threads: int | None = None
@@ -171,12 +171,39 @@ def _collect_process_output():
     return proc.stdout, None
 
 
+def _thread_count(pid: int) -> int | None:
+    """Return a best-effort thread count without making CPU data up."""
+    if sys.platform == "darwin":
+        try:
+            proc = subprocess.run(
+                ["ps", "-M", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        lines = [line for line in proc.stdout.splitlines() if line.strip()]
+        return max(len(lines) - 1, 0)
+    if os.name != "nt":
+        try:
+            for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+                if line.startswith("Threads:"):
+                    return int(line.split(":", 1)[1].strip())
+        except (OSError, ValueError):
+            return None
+    return None
+
+
 def _powershell_process_output():
-    # Win32_Process 提供 ppid/线程数但不提供 CPU 百分比，此处 CPU 记 0。
+    # Win32_Process 提供 ppid/线程数但不提供 CPU 百分比. CPU is null rather
+    # than a fabricated zero so callers cannot mistake unavailable data for idle.
     command = (
         "Get-CimInstance Win32_Process | ForEach-Object { "
         "'{0} {1} {2} {3} {4} {5}' -f $_.ProcessId, $_.ParentProcessId, "
-        "[int]($_.WorkingSetSize / 1KB), 0, $_.ThreadCount, $_.CommandLine }"
+        "[int]($_.WorkingSetSize / 1KB), 'NA', $_.ThreadCount, $_.CommandLine }"
     )
     try:
         proc = subprocess.run(
@@ -222,6 +249,10 @@ def cmd_processes() -> int:
         _emit({"available": False, "reason": "no process rows parsed"})
         return 0
     for row in rows:
+        threads = row.threads if row.threads is not None else _thread_count(row.pid)
+        cpu_percent = row.cpu_percent
+        if os.name == "nt" and row.cpu_percent == 0.0 and "NA" in output:
+            cpu_percent = None
         _emit(
             {
                 "available": True,
@@ -229,8 +260,8 @@ def cmd_processes() -> int:
                 "pid": row.pid,
                 "ppid": row.ppid,
                 "rss_mb": round(row.rss_mb, 2),
-                "cpu_percent": row.cpu_percent,
-                "threads": row.threads,
+                "cpu_percent": cpu_percent,
+                "threads": threads,
                 "command": row.command,
             }
         )

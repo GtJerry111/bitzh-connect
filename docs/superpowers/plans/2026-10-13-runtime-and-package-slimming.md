@@ -290,8 +290,9 @@ Confirm no UI files changed solely for appearance, no defaults changed, and no b
 
 ## Execution notes (Round 11, branch `chore/runtime-package-slimming`)
 
-Code deliverables were implemented and reviewed on branch `chore/runtime-package-slimming`
-(base `a69de00`), each task reviewed clean (spec + quality):
+Code deliverables were implemented on branch `chore/runtime-package-slimming`
+(base `a69de00`). The execution workflow reviewed the task commits; an independent
+post-execution audit found and fixed the process-audit thread/CPU reporting gap below:
 
 - Task 1 (Steps 1-4, 6): `34ad8d4` + fix `1addec3`
 - Task 2 (Steps 1-5): `619bdc2`
@@ -303,6 +304,10 @@ Full suite: **369 passed**. The measurement/packaging/multi-platform steps below
 a real campus-network login, elevation, or non-macOS runners that are unavailable in the
 implementation environment. They are **not yet executed** — the branch is code-complete
 but not release-verified.
+
+Post-execution audit fix: Unix process records now collect best-effort thread counts;
+Windows unavailable CPU is represented as `null` instead of a fabricated zero. The
+focused audit test and full suite must be rerun after this fix.
 
 ### Manual checklist (owner)
 
