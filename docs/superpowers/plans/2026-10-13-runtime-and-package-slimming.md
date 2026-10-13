@@ -287,3 +287,67 @@ Confirm no UI files changed solely for appearance, no defaults changed, and no b
 - The plan deliberately leaves debug-log limits, sampling interval changes, and kernel replacement out until measurements justify them.
 - No step relies on an unspecified placeholder; every change has a file, command, or acceptance condition.
 - Completion requires passing tests plus packaged-app smoke checks, not only a smaller installer.
+
+## Execution notes (Round 11, branch `chore/runtime-package-slimming`)
+
+Code deliverables were implemented and reviewed on branch `chore/runtime-package-slimming`
+(base `a69de00`), each task reviewed clean (spec + quality):
+
+- Task 1 (Steps 1-4, 6): `34ad8d4` + fix `1addec3`
+- Task 2 (Steps 1-5): `619bdc2`
+- Task 3 (Steps 1-5, 7): `230202c`
+- Task 4 (Steps 1-4): `62b03c7`
+
+Full suite: **369 passed**. The measurement/packaging/multi-platform steps below were
+**deferred by the project owner to manual verification** because they need the real app,
+a real campus-network login, elevation, or non-macOS runners that are unavailable in the
+implementation environment. They are **not yet executed** — the branch is code-complete
+but not release-verified.
+
+### Manual checklist (owner)
+
+**A. Runtime baselines — Task 1 Step 5**
+- [ ] For 60s each, record per-process avg/peak RSS + CPU (GUI, `zju-connect`, `bitzh-helper`):
+      GUI idle / TUN idle / proxy idle / sustained traffic / `debug_dump` on / off.
+      Helper: `uv run --no-sync python scripts/slim_audit.py processes`
+- [ ] Record artifact size (`... slim_audit.py artifact <root>`) and log growth
+      (`... slim_audit.py logs`) before/after.
+- [ ] If `zju-connect` RSS grows with traffic, capture exact kernel version, argv, traffic
+      profile, timestamps, log size — required evidence for Task 7 Step 4.
+
+**B. Packaging build + smoke — Task 3 Step 6**
+- [ ] Run the exact CI Nuitka command locally for macOS (see `.github/workflows/release.yml`).
+- [ ] Confirm the new `Assert artifact contents (macOS)` step passes:
+      kernel exists at `Contents/MacOS/app/core/zju-connect`, and `app/` contains only `core`.
+- [ ] Confirm `--lto=yes` builds without error and the app still launches.
+- [ ] Launch the packaged app; verify main window, connect/disconnect, settings, menu bar/tray,
+      update check, helper/TUN entry points. Compare artifact contents before/after.
+- [ ] Note: `.app-version` is still bundled as a data file though the app reads it from QRC;
+      drop it if the build proves it unused (reviewer Minor #5).
+
+**C. Installed footprint — Task 5**
+- [ ] macOS: sizes of app bundle, `/Library/PrivilegedHelperTools/bitzh-helper`,
+      `/Library/PrivilegedHelperTools/zju-connect`, LaunchDaemon plist, diagnostics logs,
+      `/tmp/bitzh-tun-*`.
+- [ ] Controlled install/uninstall: normal disconnect removes TUN log/pid/stop; upgrade leaves
+      no obsolete helper; uninstall removes helper service + socket.
+- [ ] Only fix observed residue, with a regression test first.
+
+**D. CPU attribution — Task 6**
+- [ ] Compare CPU from `nettop` children vs GUI vs `zju-connect` vs helper at the current 1s
+      UI cadence / 300ms TUN worker behavior.
+- [ ] Only if a hotspot is confirmed: persistent `nettop` sampler (Step 2) and/or TUN read
+      optimization (Step 3); re-run the same 60s scenarios and keep only material wins.
+
+**E. Acceptance — Task 7**
+- [ ] `uv run --no-sync pytest -q`.
+- [ ] Packaged smoke on each available target: launch, login form, settings, theme switching,
+      connect/disconnect, proxy, TUN, auto-reconnect, sleep/wake, tray, update check,
+      helper install/uninstall, clean exit.
+- [ ] Before/after: artifact bytes, installed bytes, GUI/kernel/helper peak RSS, avg/p95 CPU,
+      child-process count, log growth.
+- [ ] Kernel-memory branch: if `zju-connect` is the source, A/B the newest compatible kernel
+      with the same argv/traffic; update pin if fixed, else file an upstream note and keep the
+      current kernel, marked a documented external blocker.
+- [ ] Inspect final diff: no appearance-only UI changes, no default changes, no broad
+      source-tree inclusion in the release workflow.
