@@ -94,10 +94,12 @@ jobs:
         with:
           version: "0.7.20"
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
 
       - name: Install Dependencies
-        run: uv sync
+        run: uv sync --group build
 
       # 修复：build checkout 未指定 ref，tag 构建时检出的是 tag 提交（.app-version 还是旧值）。
       # 这里直接按 tag 名覆盖，确保产物内嵌版本 === 发布版本。
@@ -137,10 +139,11 @@ jobs:
           pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
 
           python -m nuitka \
+            --lto=yes \
             --standalone \
             --assume-yes-for-downloads \
             --enable-plugin=pyside6 \
-            --include-data-dir=app=app \
+            --include-data-files=app/core/zju-connect=app/core/zju-connect \
             --include-data-files=.app-version=.app-version \
             --macos-target-arch=${{ matrix.target_arch }} \
             --macos-create-app-bundle \
@@ -152,6 +155,25 @@ jobs:
             app/main.py
 
           mv dist/main.app dist/BITZH\ Connect.app
+
+      - name: Assert artifact contents (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="dist/BITZH Connect.app"
+          KERNEL="$APP/Contents/MacOS/app/core/zju-connect"
+          if [ ! -f "$KERNEL" ]; then
+            echo "::error::missing bundled kernel: $KERNEL"
+            exit 1
+          fi
+          UNEXPECTED=$(find "$APP/Contents/MacOS/app" -mindepth 1 -maxdepth 1 ! -name core)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::unexpected files under packaged app/: $UNEXPECTED"
+            exit 1
+          fi
+          echo "kernel OK: $KERNEL"
+          uv run --no-sync python scripts/slim_audit.py artifact "$APP"
 
       - name: Build Privileged Helper (macOS)
         if: runner.os == 'macOS'
@@ -192,11 +214,12 @@ jobs:
           pyside6-rcc .\app\resources\resources.qrc -o .\app\common\resources.py
 
           python -m nuitka `
+            --lto=yes `
             --standalone `
             --assume-yes-for-downloads `
             --enable-plugin=pyside6 `
-            --include-data-dir=app=app `
             --include-data-files=app\core\zju-connect.exe=app\core\zju-connect.exe `
+            --include-data-files=app\core\wintun.dll=app\core\wintun.dll `
             --include-data-files=.app-version=.app-version `
             --product-name="BITZH Connect" `
             --product-version=$(Get-Content .app-version) `
@@ -206,6 +229,23 @@ jobs:
             --output-dir=dist `
             --remove-output `
             app/main.py
+
+      - name: Assert artifact contents (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $root = "dist\main.dist"
+          $kernel = Join-Path $root "app\core\zju-connect.exe"
+          $wintun = Join-Path $root "app\core\wintun.dll"
+          if (-not (Test-Path $kernel)) { Write-Error "missing bundled kernel: $kernel"; exit 1 }
+          if (-not (Test-Path $wintun)) { Write-Error "missing wintun.dll: $wintun"; exit 1 }
+          $unexpected = Get-ChildItem -Path (Join-Path $root "app") -Force | Where-Object { $_.Name -ne 'core' }
+          if ($unexpected) {
+            Write-Error "unexpected files under packaged app: $($unexpected.Name -join ', ')"
+            exit 1
+          }
+          Write-Host "kernel OK: $kernel"
+          uv run --no-sync python scripts/slim_audit.py artifact $root
 
       - name: Compile Installer (Windows)
         if: runner.os == 'Windows'
@@ -250,10 +290,11 @@ jobs:
           pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
 
           python -m nuitka \
+            --lto=yes \
             --standalone \
             --assume-yes-for-downloads \
             --enable-plugin=pyside6 \
-            --include-data-dir=app=app \
+            --include-data-files=app/core/zju-connect=app/core/zju-connect \
             --include-data-files=.app-version=.app-version \
             --product-name="BITZH Connect" \
             --product-version=$(cat .app-version) \
@@ -265,6 +306,25 @@ jobs:
 
             mv dist/main.dist dist/bitzh-connect
             mv dist/bitzh-connect/main.bin dist/bitzh-connect/bitzh-connect
+
+      - name: Assert artifact contents (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="dist/bitzh-connect"
+          KERNEL="$ROOT/app/core/zju-connect"
+          if [ ! -f "$KERNEL" ]; then
+            echo "::error::missing bundled kernel: $KERNEL"
+            exit 1
+          fi
+          UNEXPECTED=$(find "$ROOT/app" -mindepth 1 -maxdepth 1 ! -name core)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::unexpected files under packaged app/: $UNEXPECTED"
+            exit 1
+          fi
+          echo "kernel OK: $KERNEL"
+          uv run --no-sync python scripts/slim_audit.py artifact "$ROOT"
 
       - name: Create DEB Package (Linux)
         if: runner.os == 'Linux'
