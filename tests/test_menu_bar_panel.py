@@ -326,3 +326,11 @@ def test_direct_ip_edit_button_opens_settings(panel, main, monkeypatch):
     panel._direct_ip_row.clicked.emit()
     panel._direct_ip_edit_btn.click()
     assert called == [1]
+
+
+def test_direct_ip_row_refreshes_ink_color_on_theme(panel, main, monkeypatch):
+    from common import theme
+
+    monkeypatch.setattr(theme, "_APPEARANCE_OVERRIDE", "dark")
+    panel._apply_styles()
+    assert theme.semantic_color("ink") in panel._direct_ip_row.title.styleSheet()

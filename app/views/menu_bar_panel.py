@@ -515,6 +515,7 @@ class MenuBarPanel(QWidget):
                 QPushButton[chip="true"]:pressed {{ background: {chip_bd}; }}
             """)
         self._mode_row.refresh_theme()
+        self._direct_ip_row.refresh_theme()
         self._nav_row.refresh_theme()
         if not self._hint_active:
             self._subtitle.setStyleSheet(

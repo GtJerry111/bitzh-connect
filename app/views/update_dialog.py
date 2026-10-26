@@ -146,6 +146,11 @@ class UpdateDialog(QDialog):
         self.notes.setOpenExternalLinks(True)
         self.notes.setMinimumHeight(110)
         self.notes.setMaximumHeight(170)
+        self.notes.setStyleSheet(
+            f"QTextBrowser {{ background: {theme.with_alpha('ink', 0.04)};"
+            f" border: 1px solid {theme.semantic_color('separator')};"
+            " border-radius: 8px; padding: 8px; }"
+        )
         body = (self.release.body or "").strip()
         if body:
             self.notes.setMarkdown(body)
@@ -234,7 +239,9 @@ class UpdateDialog(QDialog):
         )
         self.install_warning.setWordWrap(True)
         self.install_warning.setStyleSheet(
-            "background: #fff8ef; border: 1px solid #f0d9bd; color: #a23f0d;"
+            f"background: {theme.with_alpha('working', 0.12)};"
+            f" border: 1px solid {theme.with_alpha('working', 0.35)};"
+            f" color: {theme.semantic_color('working')};"
             " border-radius: 8px; padding: 9px 11px; font-size: 12px;"
         )
         layout.addWidget(self.install_warning)
@@ -258,7 +265,9 @@ class UpdateDialog(QDialog):
         self.error_message = QLabel("")
         self.error_message.setWordWrap(True)
         self.error_message.setStyleSheet(
-            "background: #fff5f4; border: 1px solid #ffb3ae; color: #a12b22;"
+            f"background: {theme.with_alpha('error', 0.12)};"
+            f" border: 1px solid {theme.with_alpha('error', 0.35)};"
+            f" color: {theme.semantic_color('error')};"
             " border-radius: 8px; padding: 9px 11px; font-size: 12px;"
         )
         layout.addWidget(self.error_message)

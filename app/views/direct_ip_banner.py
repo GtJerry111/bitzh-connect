@@ -36,6 +36,7 @@ class DirectIpBanner(QWidget):
         self.close_btn.clicked.connect(self._dismiss)
         row.addWidget(self.close_btn, 0, Qt.AlignTop)
         self._apply_styles()
+        theme.on_scheme_changed(self._apply_styles)
         self.hide()
 
     def _apply_styles(self):
@@ -45,6 +46,7 @@ class DirectIpBanner(QWidget):
             f"#DirectIpBanner {{ background: {bg};"
             f" border: 1px solid {border}; border-radius: 8px; }}"
         )
+        self.icon.setStyleSheet(f"color: {theme.semantic_color('working')};")
         self.message.setStyleSheet(f"color: {theme.semantic_color('ink')};")
         self.logs_btn.setStyleSheet(
             f"color: {theme.semantic_color('working')}; font-size: 12px; border: none;"
