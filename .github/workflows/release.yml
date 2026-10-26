@@ -202,6 +202,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -214,10 +219,29 @@ jobs:
           cp artifacts/*/*.zip release/ 2>/dev/null || true
           cp artifacts/*/checksums-*.txt release/ 2>/dev/null || true
 
+      - name: Generate release notes
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          {
+            echo "## ${TAG}"
+            echo
+            if [ -n "$PREV" ]; then
+              git log --no-merges --invert-grep --grep='^chore: bump version' \
+                --pretty='- %s' "${PREV}..${TAG}"
+              echo
+              echo "Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV}...${TAG}"
+            else
+              echo "- Initial release"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Publish Release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "release/*"
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
-          generateReleaseNotes: true
+          bodyFile: release-notes.md

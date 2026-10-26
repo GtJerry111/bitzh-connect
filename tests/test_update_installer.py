@@ -102,3 +102,20 @@ def test_prepare_update_extracts_zip_and_checks_version(tmp_path):
 
     new_app = prepare_update(str(zip_path), str(tmp_path / "dest"), "1.5.0")
     assert new_app.name == "BITZH Connect.app"
+
+
+def test_launch_installer_does_not_use_nohup(monkeypatch):
+    import types
+    from utils import update_installer
+
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(update_installer.subprocess, "run", fake_run)
+    assert update_installer.launch_installer("/tmp/update.sh") is True
+    script = captured["args"][-1]
+    assert "nohup" not in script
+    assert "&" in script

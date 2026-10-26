@@ -191,8 +191,11 @@ def launch_installer(script_path: str, pid: int | None = None) -> bool:
 
     `do shell script "... &"` 会立即返回；脚本自己在后台等待 App 退出后替换。
     """
+    # 不能使用 nohup：osascript 提权执行时没有控制终端，macOS 的 nohup 会报
+    # "can't detach from console" 并直接失败（与 TUN launcher 踩过的坑相同）。
+    # 后台 + 重定向已足够；脚本自己等待 App 退出后替换。
     command = (
-        f"/usr/bin/nohup /bin/sh {shlex.quote(script_path)} "
+        f"/bin/sh {shlex.quote(script_path)} "
         f">{shlex.quote(DOWNLOAD_LOG)} 2>&1 &"
     )
     applescript = f'do shell script "{command}" with administrator privileges'
