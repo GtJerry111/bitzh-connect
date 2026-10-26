@@ -168,12 +168,12 @@ jobs:
             --volname "BITZH Connect" \
             --background "app/resources/installer/bg.svg" \
             --window-pos 400 200 \
-            --window-size 660 400 \
-            --icon-size 100 \
-            --icon "BITZH Connect.app" 160 185 \
-            --app-drop-link 500 185 \
-            --add-file "安装说明.txt" "app/resources/installer/安装说明.txt" 160 300 \
-            --add-file "修复并打开.command" "app/resources/installer/修复并打开.command" 500 300 \
+            --window-size 660 500 \
+            --icon-size 90 \
+            --icon "BITZH Connect.app" 160 150 \
+            --app-drop-link 500 150 \
+            --add-file "安装说明.txt" "app/resources/installer/安装说明.txt" 160 340 \
+            --add-file "修复并打开.command" "app/resources/installer/修复并打开.command" 500 340 \
             "dist/bitzh-connect-darwin-${{ matrix.arch }}.dmg" \
             "dist/BITZH Connect.app"
 

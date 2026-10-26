@@ -1,7 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="660" height="400" viewBox="0 0 660 400" fill="none">
-  <path fill="#F1F1F5" d="M0 400L660 400L660 0L0 0L0 400Z"></path>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="660" height="500" viewBox="0 0 660 500" fill="none">
+  <path fill="#F1F1F5" d="M0 500L660 500L660 0L0 0L0 500Z"></path>
   <path fill-rule="evenodd" fill="#4E5969" d="M343.933 177.984L321.661 159.275C320.439 158.249 318.656 158.249 317.434 159.275L317.066 159.584C315.503 160.897 315.503 163.303 317.066 164.616L332.981 177.984C334.544 179.297 334.544 181.703 332.981 183.016L317.067 196.384C315.503 197.697 315.503 200.103 317.067 201.416L317.434 201.725C318.656 202.751 320.439 202.751 321.661 201.725L343.933 183.016C345.497 181.703 345.497 179.297 343.933 177.984Z"></path>
-  <text x="330" y="280" text-anchor="middle" font-family="Arial, Microsoft YaHei, SimHei" font-size="14" fill="#4E5969">请打开终端并粘贴运行以下命令解决隔离问题：</text>
-  <text x="330" y="305" text-anchor="middle" font-family="Courier New" font-size="12" fill="#000000" font-weight="bold">sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app</text>
+  <text x="330" y="240" text-anchor="middle" font-family="Arial, Microsoft YaHei, SimHei" font-size="15" font-weight="bold" fill="#1D1D1F">首次安装</text>
+  <text x="330" y="268" text-anchor="middle" font-family="Arial, Microsoft YaHei, SimHei" font-size="13" fill="#4E5969">1. 将 BITZH Connect 拖入 Applications</text>
+  <text x="330" y="292" text-anchor="middle" font-family="Arial, Microsoft YaHei, SimHei" font-size="13" fill="#4E5969">2. 双击下方「修复并打开.command」</text>
+  <text x="330" y="316" text-anchor="middle" font-family="Arial, Microsoft YaHei, SimHei" font-size="11" fill="#6B7280">若 macOS 提示无法验证，请右键脚本 → 打开</text>
 </svg>
-
