@@ -303,21 +303,32 @@ class MenuBarPanel(QWidget):
         self._direct_ip_scroll.setFrameShape(QFrame.NoFrame)
         self._direct_ip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._direct_ip_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._direct_ip_scroll.setAttribute(Qt.WA_TranslucentBackground, True)
+        self._direct_ip_scroll.viewport().setAutoFillBackground(False)
+        self._direct_ip_scroll.viewport().setStyleSheet("background: transparent;")
         self._direct_ip_scroll.setStyleSheet(
             "QScrollArea { background: transparent; border: none; }"
+            "QScrollArea > QWidget > QWidget { background: transparent; }"
         )
         self._direct_ip_details_host = QWidget()
+        self._direct_ip_details_host.setAutoFillBackground(False)
+        self._direct_ip_details_host.setStyleSheet("background: transparent;")
         self._direct_ip_details_layout = QVBoxLayout(self._direct_ip_details_host)
         self._direct_ip_details_layout.setContentsMargins(0, 0, 0, 0)
         self._direct_ip_details_layout.setSpacing(2)
         self._direct_ip_scroll.setWidget(self._direct_ip_details_host)
         self._direct_ip_scroll.setFixedHeight(26)
         area.addWidget(self._direct_ip_scroll)
-        self._direct_ip_edit_btn = QPushButton("编辑直连 IP")
+
+        edit_row = QHBoxLayout()
+        edit_row.setContentsMargins(0, 2, 0, 0)
+        edit_row.addStretch()
+        self._direct_ip_edit_btn = QPushButton("编辑 ›")
         self._direct_ip_edit_btn.setFlat(True)
         self._direct_ip_edit_btn.setCursor(Qt.PointingHandCursor)
         self._direct_ip_edit_btn.clicked.connect(self._open_direct_ip_settings)
-        area.addWidget(self._direct_ip_edit_btn, 0, Qt.AlignLeft)
+        edit_row.addWidget(self._direct_ip_edit_btn)
+        area.addLayout(edit_row)
         self._direct_ip_area.setVisible(False)
         rows.addWidget(self._direct_ip_area)
 
@@ -480,8 +491,10 @@ class MenuBarPanel(QWidget):
             f"color: {theme.with_alpha('separator', 0.4)};"
         )
         self._direct_ip_edit_btn.setStyleSheet(
-            f"QPushButton {{ border: none; color: {theme.semantic_color('accent')};"
-            " font-size: 11.5px; text-align: left; padding: 2px 0 0 0; }"
+            f"QPushButton {{ border: none;"
+            f" color: {theme.semantic_color('secondary_text')};"
+            " font-size: 11.5px; padding: 2px 4px; }"
+            f"QPushButton:hover {{ color: {theme.semantic_color('accent')}; }}"
         )
         chip_bg = "rgba(255,255,255,107)" if not theme.is_dark() else "rgba(64,64,68,128)"
         chip_bd = "rgba(255,255,255,140)" if not theme.is_dark() else "rgba(255,255,255,36)"
