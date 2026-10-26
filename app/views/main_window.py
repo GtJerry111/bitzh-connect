@@ -19,6 +19,8 @@ from utils.credential_utils import save_credentials
 from utils.connection_utils import start_connection, stop_connection
 from utils.password_utils import toggle_password_visibility
 from views.menu_utils import check_for_updates, show_advanced_settings
+from views.direct_ip_banner import DirectIpBanner
+from utils import diagnostics
 from utils.config_utils import load_config, load_settings, save_config
 from services.reconnect_manager import ReconnectManager
 from services.connection_watchdog import ConnectionWatchdog
@@ -152,6 +154,15 @@ class MainWindow(QMainWindow):
         self._ready = False  # 启动宽限期标志：静默启动时 Dock 激活不弹主窗口
         self.worker = None
         self.version = VERSION
+        self.direct_ip_enabled = False
+        self.direct_ips = []
+        self._direct_ip_configured = []
+        self._direct_ip_results: dict[str, bool] = {}
+        self._direct_ip_gateway = None
+        self._direct_ip_interface = None
+        self._direct_ip_route_error = None
+        self._direct_ip_banner_dismissed = False
+        self._direct_ip_skip_session = False
         self.load_settings()
         from common import theme
 
@@ -240,6 +251,11 @@ class MainWindow(QMainWindow):
         # 状态仪表盘（hero 布局）
         self.status_panel = StatusPanel(server_text=self.server_address)
         layout.addWidget(self.status_panel)
+
+        self.direct_ip_banner = DirectIpBanner()
+        self.direct_ip_banner.open_logs.connect(self._open_log_dir)
+        self.direct_ip_banner.dismissed.connect(self._on_direct_ip_banner_dismissed)
+        layout.addWidget(self.direct_ip_banner)
 
         # 资源区（初始隐藏，连接成功展开）
         self.nav_area = NavSection()
@@ -908,6 +924,78 @@ class MainWindow(QMainWindow):
 
     def load_settings(self):
         load_settings(self)
+
+    def _open_log_dir(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(diagnostics.log_dir()))
+
+    def _on_direct_ip_banner_dismissed(self):
+        self._direct_ip_banner_dismissed = True
+
+    def set_direct_ip_results(self, ips, results, gateway=None, interface=None,
+                              route_error=None):
+        self._direct_ip_configured = list(ips)
+        self._direct_ip_results = {
+            str(item.get("ip")): bool(item.get("ok")) for item in results
+        }
+        self._direct_ip_gateway = gateway
+        self._direct_ip_interface = interface
+        self._direct_ip_route_error = route_error
+        self._direct_ip_banner_dismissed = False
+        self._refresh_direct_ip_ui()
+
+    def clear_direct_ip_state(self):
+        self._direct_ip_configured = []
+        self._direct_ip_results = {}
+        self._direct_ip_gateway = None
+        self._direct_ip_interface = None
+        self._direct_ip_route_error = None
+        self._direct_ip_banner_dismissed = False
+        self.status_panel.set_direct_ip_text("")
+        self.direct_ip_banner.hide()
+        self._refresh_menu_bar_direct_ip()
+
+    def _refresh_direct_ip_ui(self):
+        total = len(self._direct_ip_results)
+        if (
+            not self.direct_ip_enabled
+            or not getattr(self, "virtual_ip", None)
+            or total == 0
+        ):
+            self.status_panel.set_direct_ip_text("")
+            self.direct_ip_banner.hide()
+            self._refresh_menu_bar_direct_ip()
+            return
+        ok = sum(1 for value in self._direct_ip_results.values() if value)
+        self.status_panel.set_direct_ip_text(f"直连 IP {ok}/{total}")
+        if ok < total and not self._direct_ip_banner_dismissed:
+            failed = [
+                ip for ip, success in self._direct_ip_results.items() if not success
+            ]
+            self.direct_ip_banner.show_message(ok, total, failed)
+        else:
+            self.direct_ip_banner.hide()
+        self._refresh_menu_bar_direct_ip()
+
+    def _refresh_menu_bar_direct_ip(self):
+        panel = getattr(self, "_menu_bar_panel", None)
+        sync = getattr(panel, "_sync_direct_ip_row", None)
+        if sync is not None:
+            sync()
+
+    def direct_ip_menu_state(self):
+        if not self.direct_ip_enabled or not getattr(self, "virtual_ip", None):
+            return None
+        total = len(self._direct_ip_results)
+        if total == 0:
+            return None
+        ok = sum(1 for value in self._direct_ip_results.values() if value)
+        return ok, total
+
+    def open_direct_ip_settings(self):
+        show_advanced_settings(self, focus_direct_ip=True)
 
     def check_updates_startup(self):
         check_for_updates(self, self.version, startup=True)

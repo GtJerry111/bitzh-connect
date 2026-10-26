@@ -77,6 +77,9 @@ def handle_output(window, text):
         window.virtual_ip = ip
         window.reconnect_manager.on_connection_established()
         window.status_panel.set_connected(ip)
+        refresh_direct_ip = getattr(window, "_refresh_direct_ip_ui", None)
+        if refresh_direct_ip is not None:
+            refresh_direct_ip()
         # 看门狗仅在 TUN 模式启动：代理模式无路由被抢/假死问题。
         # TUN 下按本次连接状态门控告警——已共存绑定则捕获无害、关保活则无周期输出属正常。
         if getattr(window, "_watchdog", None) is not None and getattr(window, "tun_mode", False):
@@ -132,6 +135,10 @@ def handle_connection_finished(window, exit_code):
         window.status_panel.set_disconnected(hero="认证失败", detail="请检查用户名和密码")
     else:
         window.status_panel.set_disconnected()
+
+    clear_direct_ip = getattr(window, "clear_direct_ip_state", None)
+    if clear_direct_ip is not None:
+        clear_direct_ip()
 
     # 编程式复位按钮必须屏蔽信号（grilling 确认的 plan 漏洞修复）：
     # 直接 setChecked(False) 会触发 toggled → stop_connection() → reconnect_manager.cancel()，

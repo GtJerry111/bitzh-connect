@@ -255,3 +255,24 @@ def test_state_changed_emitted_on_server_text_change(panel):
     panel.set_server_text("10.0.0.1:8443")
     assert panel.subtitle.text() == "10.0.0.1:8443"
     assert len(calls) == 1
+
+
+def test_connected_subtitle_can_include_direct_ip(qtbot):
+    from views.status_panel import StatusPanel
+
+    panel = StatusPanel(server_text="112.91.150.228")
+    qtbot.addWidget(panel)
+    panel.set_direct_ip_text("直连 IP 2/2")
+    panel.set_connected("10.0.43.111")
+    assert panel.subtitle.text() == "内网 IP 10.0.43.111 · 直连 IP 2/2"
+
+
+def test_direct_ip_text_clears_on_disconnect(qtbot):
+    from views.status_panel import StatusPanel
+
+    panel = StatusPanel(server_text="112.91.150.228")
+    qtbot.addWidget(panel)
+    panel.set_direct_ip_text("直连 IP 1/2")
+    panel.set_connected("10.0.43.111")
+    panel.set_disconnected()
+    assert "直连 IP" not in panel.subtitle.text()

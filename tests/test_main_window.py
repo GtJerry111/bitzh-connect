@@ -754,3 +754,42 @@ def test_connect_button_glass_base_background_translucent(window):
         )
         assert "background-color:" in base
         assert "rgba(" in base, f"connected={connected} 基底非半透明: {base.strip()}"
+
+
+def test_direct_ip_results_update_subtitle_and_banner(qtbot):
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.direct_ip_enabled = True
+    win.virtual_ip = "10.0.43.111"
+    win.status_panel.set_connected("10.0.43.111")
+    win.set_direct_ip_results(
+        ["10.182.37.18", "10.182.37.19"],
+        [
+            {"ip": "10.182.37.18", "ok": True},
+            {"ip": "10.182.37.19", "ok": False, "error": "route_add_failed"},
+        ],
+        gateway="10.0.0.1",
+        interface="en0",
+    )
+    assert "直连 IP 1/2" in win.status_panel.subtitle.text()
+    assert not win.direct_ip_banner.isHidden()
+    assert win.direct_ip_menu_state() == (1, 2)
+
+
+def test_clear_direct_ip_state(qtbot):
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.direct_ip_enabled = True
+    win.virtual_ip = "10.0.43.111"
+    win.status_panel.set_connected("10.0.43.111")
+    win.set_direct_ip_results(
+        ["10.182.37.18"], [{"ip": "10.182.37.18", "ok": False}]
+    )
+    win.clear_direct_ip_state()
+    assert win.direct_ip_menu_state() is None
+    assert win.direct_ip_banner.isHidden()
+    assert "直连 IP" not in win.status_panel.subtitle.text()

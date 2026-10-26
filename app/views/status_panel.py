@@ -81,6 +81,7 @@ class StatusPanel(QWidget):
         self._server_text = server_text
         self._connected_since: datetime | None = None
         self._virtual_ip: str | None = None
+        self._direct_ip_text = ""
         self._countdown_remaining = 0
         self._retry_attempt = 0
         self._dot_state = "idle"  # 当前语义色名（refresh_theme 重解析用）
@@ -362,7 +363,10 @@ class StatusPanel(QWidget):
         self._connected_since = datetime.now()
         self._virtual_ip = virtual_ip
         # 副标题只给"内网 IP"（用户语言）；服务器地址挪 tooltip（技术细节退后）
-        self._set_hero("已连接", "connected", f"内网 IP {virtual_ip}")
+        detail = f"内网 IP {virtual_ip}"
+        if self._direct_ip_text:
+            detail = f"{detail} · {self._direct_ip_text}"
+        self._set_hero("已连接", "connected", detail)
         self.subtitle.setToolTip(self._server_text)
         self._set_value(self.duration_value, "00:00:00", placeholder=False)
         self._set_value(self.up_value, "—", placeholder=True)
@@ -398,12 +402,22 @@ class StatusPanel(QWidget):
         self._set_stats_visible(False)
         self.areas_changed.emit(True, False)
 
+    def set_direct_ip_text(self, text: str):
+        self._direct_ip_text = text or ""
+        if self._virtual_ip:
+            detail = f"内网 IP {self._virtual_ip}"
+            if self._direct_ip_text:
+                detail = f"{detail} · {self._direct_ip_text}"
+            self.subtitle.setText(detail)
+            self.state_changed.emit()
+
     def set_disconnected(self, hero: str = "未连接", detail: str = ""):
         self.spinner.stop()
         self.status_dot.setVisible(True)
         self._countdown_timer.stop()
         self._connected_since = None
         self._virtual_ip = None
+        self._direct_ip_text = ""
         self._duration_timer.stop()
         is_error = hero != "未连接"
         self._set_hero(hero, "error" if is_error else "idle", detail or self._server_text)
