@@ -62,6 +62,13 @@ def _draw_icon(painter: QPainter, kind: str):
         for x in (6.8, 9.0, 11.2):
             painter.drawEllipse(QPointF(x, 7.3), 0.7, 0.7)
         painter.restore()
+    elif kind == "route":
+        painter.drawLine(QPointF(5, 6), QPointF(10, 6))
+        painter.drawLine(QPointF(10, 6), QPointF(14, 10))
+        painter.drawLine(QPointF(14, 10), QPointF(19, 10))
+        painter.drawLine(QPointF(5, 18), QPointF(10, 18))
+        painter.drawLine(QPointF(10, 18), QPointF(14, 14))
+        painter.drawLine(QPointF(14, 14), QPointF(19, 14))
     elif kind == "chevron_right":
         painter.drawLine(QPointF(9, 5), QPointF(16, 12))
         painter.drawLine(QPointF(16, 12), QPointF(9, 19))
@@ -275,6 +282,13 @@ class MenuBarPanel(QWidget):
         self._row_sep = QFrame()
         self._row_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._row_sep)
+        self._direct_ip_row = _Row("route", "直连 IP")
+        self._direct_ip_row.set_trailing(_Icon("chevron_right", 10))
+        self._direct_ip_row.clicked.connect(self._on_direct_ip_row)
+        rows.addWidget(self._direct_ip_row)
+        self._direct_ip_sep = QFrame()
+        self._direct_ip_sep.setFrameShape(QFrame.HLine)
+        rows.addWidget(self._direct_ip_sep)
         self._nav_row = _Row("grid", "校内导航")
         self._nav_chevron = Chevron(color_name="ink")
         self._nav_chevron.set_angle(90.0)  # 收起态朝下（展开器语义）
@@ -427,6 +441,9 @@ class MenuBarPanel(QWidget):
             f"color: {theme.with_alpha('separator', 0.6)};"
         )
         self._row_sep.setStyleSheet(f"color: {theme.with_alpha('separator', 0.4)};")
+        self._direct_ip_sep.setStyleSheet(
+            f"color: {theme.with_alpha('separator', 0.4)};"
+        )
         chip_bg = "rgba(255,255,255,107)" if not theme.is_dark() else "rgba(64,64,68,128)"
         chip_bd = "rgba(255,255,255,140)" if not theme.is_dark() else "rgba(255,255,255,36)"
         self._open_btn.setStyleSheet(f"""
@@ -471,6 +488,7 @@ class MenuBarPanel(QWidget):
         self._set_stats_visible(state == "connected")
         self._sync_toggle(self._main.connect_button.isChecked())
         self._sync_mode_label()
+        self._sync_direct_ip_row()
 
     def _sync_toggle(self, checked: bool):
         # 同态 setChecked 不发信号，不回环；异态经 toggled 走 knob 动画
@@ -496,6 +514,33 @@ class MenuBarPanel(QWidget):
 
     def _sync_mode_label(self):
         self._mode_row.value.setText("TUN" if self._main.tun_mode else "代理")
+
+    def _on_direct_ip_row(self):
+        self.hide_panel()
+        self._main.open_direct_ip_settings()
+
+    def _sync_direct_ip_row(self):
+        state = None
+        getter = getattr(self._main, "direct_ip_menu_state", None)
+        if getter is not None:
+            state = getter()
+        if state is None:
+            self._direct_ip_row.hide()
+            self._direct_ip_sep.hide()
+            return
+        ok, total = state
+        self._direct_ip_row.show()
+        self._direct_ip_sep.show()
+        if ok == total:
+            self._direct_ip_row.value.setText(f"● {total} 个")
+            self._direct_ip_row.value.setStyleSheet(
+                f"color: {theme.semantic_color('connected')};"
+            )
+        else:
+            self._direct_ip_row.value.setText(f"● {ok}/{total}")
+            self._direct_ip_row.value.setStyleSheet(
+                f"color: {theme.semantic_color('working')};"
+            )
 
     def _set_stats_visible(self, visible: bool):
         if visible == getattr(self, "_stats_visible", False):

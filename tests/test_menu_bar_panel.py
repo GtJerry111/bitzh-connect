@@ -272,3 +272,29 @@ def test_row_icon_uses_ink(panel):
 def test_nav_chevron_uses_ink(panel):
     assert panel._nav_chevron._color_name == "ink"
 
+
+
+def test_direct_ip_row_hidden_by_default(panel):
+    assert panel._direct_ip_row.isHidden()
+
+
+def test_direct_ip_row_shows_when_main_reports_state(panel, main, monkeypatch):
+    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (2, 2))
+    panel._sync_from_main()
+    assert not panel._direct_ip_row.isHidden()
+    assert "2" in panel._direct_ip_row.value.text()
+
+
+def test_direct_ip_row_partial_failure(panel, main, monkeypatch):
+    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (1, 2))
+    panel._sync_from_main()
+    assert "1/2" in panel._direct_ip_row.value.text()
+
+
+def test_direct_ip_row_click_opens_settings(panel, main, monkeypatch):
+    called = []
+    monkeypatch.setattr(main, "open_direct_ip_settings", lambda: called.append(1))
+    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (2, 2))
+    panel._sync_from_main()
+    panel._direct_ip_row.clicked.emit()
+    assert called == [1]
