@@ -471,3 +471,16 @@ def test_direct_ip_invalid_blocks_accept(dialog):
     dialog.accept()
     assert not dialog.direct_ip_card.error.isHidden()
     assert dialog.result() == 0
+
+
+def test_direct_ip_validation_refits_dialog_height(dialog, qtbot):
+    dialog.show()
+    dialog._tabs.setCurrentIndex(1)
+    dialog._fit_to_tab(1)
+    h0 = dialog.height()
+    dialog.direct_ip_card.toggle.setChecked(True)
+    dialog.direct_ip_card.rows[0].set_text("10.182.37")
+    dialog.accept()
+    qtbot.wait(30)
+    assert not dialog.direct_ip_card.error.isHidden()
+    assert dialog.height() >= h0
