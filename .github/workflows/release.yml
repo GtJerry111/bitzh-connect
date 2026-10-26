@@ -5,7 +5,6 @@ on:
     branches: ["main"]
     tags:
       - "v*"
-
   pull_request:
     branches: ["main"]
 
@@ -33,10 +32,10 @@ jobs:
           if [ "$CURRENT_VERSION" != "$VERSION" ]; then
             echo "Updating .app-version to $VERSION"
             echo "$VERSION" > .app-version
-            
+
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
-            
+
             git add .app-version
             git commit -m "chore: bump version to $VERSION"
             git push origin HEAD:main
@@ -47,18 +46,12 @@ jobs:
 
   build:
     needs: [update-version]
-    if: always() # Continue even if update-version was skipped or failed
+    if: always()
     permissions: write-all
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            os_name: windows
-            arch: amd64
-          - os: windows-11-arm
-            os_name: windows
-            arch: arm64
           - os: macos-15-intel
             os_name: darwin
             arch: amd64
@@ -67,16 +60,6 @@ jobs:
             os_name: darwin
             arch: arm64
             target_arch: arm64
-          # Linux 构建锚定版本即 glibc 下限（产物可跑该版本及以上）：
-          # - amd64 锚 22.04（glibc 2.35，覆盖 22.04+；20.04 runner 已被 GitHub 退役且 EOL）
-          # - arm64 只能锚 24.04：PySide6 的 aarch64 wheel 仅提供 manylinux_2_39，
-          #   22.04（glibc 2.35）连 uv sync 都装不上（无源码包可回退编译）
-          - os: ubuntu-22.04
-            os_name: linux
-            arch: amd64
-          - os: ubuntu-24.04-arm
-            os_name: linux
-            arch: arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -101,39 +84,20 @@ jobs:
       - name: Install Dependencies
         run: uv sync --group build
 
-      # 修复：build checkout 未指定 ref，tag 构建时检出的是 tag 提交（.app-version 还是旧值）。
-      # 这里直接按 tag 名覆盖，确保产物内嵌版本 === 发布版本。
+      # tag 构建检出的是 tag 提交，这里按 tag 名覆盖，确保产物内嵌版本 === 发布版本
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: echo "${GITHUB_REF_NAME#v}" > .app-version
 
-      # Download ZJU-connect core package
-      - name: Download ZJU-connect Core
+      - name: Download ZJU-connect Core (macOS)
         run: |
           mkdir -p app/core
-          curl -L "https://github.com/Mythologyli/zju-connect/releases/download/v1.3.1/zju-connect-${{ matrix.os_name }}-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
-          if [ "${{ matrix.os_name }}" = "windows" ]; then
-            powershell -command "Expand-Archive -Path app/core/zju-connect.zip -DestinationPath app/core"
-          else
-            unzip -o app/core/zju-connect.zip -d app/core
-          fi
+          curl -L "https://github.com/Mythologyli/zju-connect/releases/download/v1.3.1/zju-connect-darwin-${{ matrix.arch }}.zip" -o app/core/zju-connect.zip
+          unzip -o app/core/zju-connect.zip -d app/core
           rm app/core/zju-connect.zip
-        shell: bash
 
-      # TUN 模式依赖 wintun 驱动库，按 matrix.arch 取对应架构的 dll 放进内核目录
-      - name: Bundle wintun.dll (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          curl -L "https://www.wintun.net/builds/wintun-0.14.1.zip" -o wintun.zip
-          powershell -command "Expand-Archive -Path wintun.zip -DestinationPath wintun"
-          cp "wintun/wintun/bin/${{ matrix.arch }}/wintun.dll" app/core/
-          rm -rf wintun wintun.zip
-        shell: bash
-
-      # macOS specific build
       - name: Build Executable (macOS)
-        if: runner.os == 'macOS'
         run: |
           source .venv/bin/activate
           pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
@@ -154,10 +118,9 @@ jobs:
             --remove-output \
             app/main.py
 
-          mv dist/main.app dist/BITZH\ Connect.app
+          mv dist/main.app "dist/BITZH Connect.app"
 
       - name: Assert artifact contents (macOS)
-        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -176,9 +139,7 @@ jobs:
           uv run --no-sync python scripts/slim_audit.py artifact "$APP"
 
       - name: Build Privileged Helper (macOS)
-        if: runner.os == 'macOS'
         run: |
-          # helper 目前无签名/公证，放在 Build Executable 之后；若将来引入签名，本步骤须移到签名之前
           source .venv/bin/activate
           PYTHONPATH=app python -m nuitka \
             --onefile \
@@ -191,8 +152,16 @@ jobs:
           cp dist_helper/bitzh-helper "dist/BITZH Connect.app/Contents/MacOS/bitzh-helper"
           rm -rf dist_helper
 
+      - name: Assert helper (macOS)
+        run: test -f "dist/BITZH Connect.app/Contents/MacOS/bitzh-helper"
+
+      - name: Create ZIP asset (in-app update)
+        run: |
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent \
+            "dist/BITZH Connect.app" \
+            "dist/bitzh-connect-darwin-${{ matrix.arch }}.zip"
+
       - name: Create DMG (macOS)
-        if: runner.os == 'macOS'
         run: |
           brew install create-dmg
           create-dmg \
@@ -203,186 +172,27 @@ jobs:
             --icon-size 100 \
             --icon "BITZH Connect.app" 160 185 \
             --app-drop-link 500 185 \
-            "dist/bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}.dmg" \
+            --add-file "安装说明.txt" "app/resources/installer/安装说明.txt" 160 300 \
+            --add-file "修复并打开.command" "app/resources/installer/修复并打开.command" 500 300 \
+            "dist/bitzh-connect-darwin-${{ matrix.arch }}.dmg" \
             "dist/BITZH Connect.app"
 
-      # Windows specific build
-      - name: Build Executable (Windows)
-        if: runner.os == 'Windows'
+      - name: Generate checksums
         run: |
-          .\.venv\Scripts\Activate.ps1
-          pyside6-rcc .\app\resources\resources.qrc -o .\app\common\resources.py
+          cd dist
+          shasum -a 256 \
+            "bitzh-connect-darwin-${{ matrix.arch }}.zip" \
+            "bitzh-connect-darwin-${{ matrix.arch }}.dmg" \
+            > "checksums-darwin-${{ matrix.arch }}.txt"
 
-          python -m nuitka `
-            --lto=yes `
-            --standalone `
-            --assume-yes-for-downloads `
-            --enable-plugin=pyside6 `
-            --include-data-files=app\core\zju-connect.exe=app\core\zju-connect.exe `
-            --include-data-files=app\core\wintun.dll=app\core\wintun.dll `
-            --include-data-files=.app-version=.app-version `
-            --product-name="BITZH Connect" `
-            --product-version=$(Get-Content .app-version) `
-            --file-description="BITZH Connect" `
-            --windows-icon-from-ico=app\resources\icons\icon.ico `
-            --windows-console-mode=disable `
-            --output-dir=dist `
-            --remove-output `
-            app/main.py
-
-      - name: Assert artifact contents (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $root = "dist\main.dist"
-          $kernel = Join-Path $root "app\core\zju-connect.exe"
-          $wintun = Join-Path $root "app\core\wintun.dll"
-          if (-not (Test-Path $kernel)) { Write-Error "missing bundled kernel: $kernel"; exit 1 }
-          if (-not (Test-Path $wintun)) { Write-Error "missing wintun.dll: $wintun"; exit 1 }
-          $unexpected = Get-ChildItem -Path (Join-Path $root "app") -Force | Where-Object { $_.Name -ne 'core' }
-          if ($unexpected) {
-            Write-Error "unexpected files under packaged app: $($unexpected.Name -join ', ')"
-            exit 1
-          }
-          Write-Host "kernel OK: $kernel"
-          uv run --no-sync python scripts/slim_audit.py artifact $root
-
-      - name: Compile Installer (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          # Install Inno Setup
-          choco install innosetup -y
-
-          # Compile installer
-          $version = Get-Content .app-version
-          $setup_script = ".\setup.iss"
-          iscc /DMyAppVersion="$version" `
-               /DArchitecture="${{ matrix.arch }}" `
-               $setup_script
-
-      # Linux specific build
-      - name: Cache apt packages
-        if: runner.os == 'Linux'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: libglib2.0-0 libgl1 dpkg-dev debhelper
-            libxcb-xinerama0
-            libxkbcommon-x11-0
-            libxcb-icccm4
-            libxcb-image0
-            libxcb-keysyms1
-            libxcb-randr0
-            libxcb-render-util0
-            libxcb-xfixes0
-            libxcb-shape0
-            libxcb-cursor0
-            libxcb-sync1
-            libxcb-xkb1
-            libxcb1
-            patchelf
-            build-essential
-          version: 1.0
-
-      - name: Build Executable (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          source .venv/bin/activate
-          pyside6-rcc app/resources/resources.qrc -o app/common/resources.py
-
-          python -m nuitka \
-            --lto=yes \
-            --standalone \
-            --assume-yes-for-downloads \
-            --enable-plugin=pyside6 \
-            --include-data-files=app/core/zju-connect=app/core/zju-connect \
-            --include-data-files=.app-version=.app-version \
-            --product-name="BITZH Connect" \
-            --product-version=$(cat .app-version) \
-            --file-description="BITZH Connect" \
-            --linux-icon=app/resources/icons/icon.png \
-            --output-dir=dist \
-            --remove-output \
-            app/main.py
-
-            mv dist/main.dist dist/bitzh-connect
-            mv dist/bitzh-connect/main.bin dist/bitzh-connect/bitzh-connect
-
-      - name: Assert artifact contents (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="dist/bitzh-connect"
-          KERNEL="$ROOT/app/core/zju-connect"
-          if [ ! -f "$KERNEL" ]; then
-            echo "::error::missing bundled kernel: $KERNEL"
-            exit 1
-          fi
-          UNEXPECTED=$(find "$ROOT/app" -mindepth 1 -maxdepth 1 ! -name core)
-          if [ -n "$UNEXPECTED" ]; then
-            echo "::error::unexpected files under packaged app/: $UNEXPECTED"
-            exit 1
-          fi
-          echo "kernel OK: $KERNEL"
-          uv run --no-sync python scripts/slim_audit.py artifact "$ROOT"
-
-      - name: Create DEB Package (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          VERSION=$(cat .app-version)
-          mkdir -p deb/DEBIAN
-          mkdir -p deb/usr/bin
-          mkdir -p deb/usr/share/applications
-          mkdir -p deb/usr/share/icons/hicolor/256x256/apps
-          mkdir -p deb/usr/lib/bitzh-connect
-
-          # Copy the entire distribution folder instead of just the binary
-          cp -r dist/bitzh-connect/* deb/usr/lib/bitzh-connect/
-
-          cat > deb/usr/bin/bitzh-connect << EOF
-          #!/bin/bash
-          export PYTHONPATH=/usr/lib/bitzh-connect
-          export LD_LIBRARY_PATH=/usr/lib/bitzh-connect:\$LD_LIBRARY_PATH
-          cd /usr/lib/bitzh-connect
-          exec ./bitzh-connect "\$@"
-          EOF
-
-          chmod +x deb/usr/bin/bitzh-connect
-
-          cp app/resources/icons/icon.png deb/usr/share/icons/hicolor/256x256/apps/bitzh-connect.png
-
-          cat > deb/usr/share/applications/bitzh-connect.desktop << EOF
-          [Desktop Entry]
-          Name=BITZH Connect
-          Exec=bitzh-connect
-          Icon=bitzh-connect
-          Type=Application
-          Categories=Network;
-          EOF
-
-          cat > deb/DEBIAN/control << EOF
-          Package: bitzh-connect
-          Version: $VERSION
-          Section: net
-          Priority: optional
-          Architecture: ${{ matrix.arch == 'amd64' && 'amd64' || 'arm64' }}
-          Maintainer: BITZH Connect
-          Description: BITZH Connect
-           A VPN client for ZJU Connect/EasyConnect users.
-          Depends: libc6, libglib2.0-0, libgl1
-          EOF
-
-          dpkg-deb --build deb dist/bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}.deb
-
-      # Upload artifacts common step
       - name: Archive Executable
         uses: actions/upload-artifact@v4
         with:
           name: bitzh-connect-${{ matrix.os_name }}-${{ matrix.arch }}
           path: |
-            ${{ runner.os == 'macOS' && 'dist/bitzh-connect-*.dmg' || '' }}
-            ${{ runner.os == 'Windows' && 'dist/bitzh-connect-*-setup.exe' || '' }}
-            ${{ runner.os == 'Linux' && 'dist/bitzh-connect-*.deb' || '' }}
+            dist/*.dmg
+            dist/*.zip
+            dist/checksums-*.txt
           if-no-files-found: error
 
   release:
@@ -401,8 +211,8 @@ jobs:
         run: |
           mkdir -p release
           cp artifacts/*/*.dmg release/ 2>/dev/null || true
-          cp artifacts/*/*.exe release/ 2>/dev/null || true
-          cp artifacts/*/*.deb release/ 2>/dev/null || true
+          cp artifacts/*/*.zip release/ 2>/dev/null || true
+          cp artifacts/*/checksums-*.txt release/ 2>/dev/null || true
 
       - name: Publish Release
         uses: ncipollo/release-action@v1

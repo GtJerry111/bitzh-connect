@@ -13,6 +13,12 @@ REPO_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
 RELEASES_API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases"
 RELEASES_URL = f"{REPO_URL}/releases"
 
+# 更新下载镜像：auto = GitHub 直连失败后回退；github = 仅直连；
+# 其他值视为自定义前缀或含 {url} 的模板（例如 https://gh-proxy.com/）。
+UPDATE_MIRROR_AUTO = "auto"
+UPDATE_MIRROR_GITHUB = "github"
+UPDATE_MIRROR_DEFAULT_URL = "https://gh-proxy.com/"
+
 # BITZH VPN 默认服务器（已验证为标准深信服 EasyConnect）
 DEFAULT_SERVER = "112.91.150.228"
 DEFAULT_PORT = "443"

@@ -33,7 +33,8 @@ BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的�
 - **BIT 品牌视觉**：校徽绿主题、校训书法水印、深浅色三态（跟随系统/浅色/深色）
 - 与 **EasyConnect** 相比更快速、更轻量
 - 基于 PySide6，易于构建，方便初学者参与维护
-- 跨平台支持，对 **macOS** 版本进行了原生适配和优化
+- **应用内更新**：检查更新、下载、SHA256 校验、安装并重启；GitHub 直连失败时自动切换镜像，也可自定义更新源
+- 官方构建聚焦 **macOS**（Apple Silicon / Intel）；源码保留跨平台保护，但不再发布 Linux/Windows 安装包
 - macOS 原生体验：菜单栏常驻图标，左键展开液态玻璃快捷面板（macOS 26+，旧系统毛玻璃；连接开关/速率/模式/校内导航），右键快捷菜单可开启「在菜单栏显示速度」——图标旁实时显示两行速率，随菜单栏深浅色自动反色
 - 密码本地加密保存，不明文落盘，无需访问系统钥匙串
 - 连接诊断日志本地落盘（自动轮转、不含密码），高级设置中一键打开日志目录，断线后可事后定位原因
@@ -51,13 +52,17 @@ BITZH Connect 是 [ZJU Connect](https://github.com/Mythologyli/zju-connect) 的�
 
 ### 方式一：下载预编译版本
 
-BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新版本。Linux 版为 deb 包，支持 Ubuntu 22.04 及以上版本。
+BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.com/GtJerry111/bitzh-connect/releases/latest)获取最新 macOS 版本（Apple Silicon / Intel）。
 
 > [!IMPORTANT]
-> macOS 版本需通过以下命令授予应用权限：
+> 首次安装：将 **BITZH Connect.app** 拖入 `Applications`，然后双击 DMG 里的
+> **“修复并打开.command”**。如果 macOS 提示无法验证，请右键脚本 → 打开。
+> 脚本会移除隔离属性并启动 App；后续版本支持应用内更新，不再需要手动下载。
+>
+> 如果脚本无法运行，也可以在终端执行：
 >
 > ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app
+> sudo xattr -rd com.apple.quarantine "/Applications/BITZH Connect.app"
 > ```
 
 ### 方式二：从源码构建
@@ -80,18 +85,11 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 
 3. 运行应用：
 
-   macOS/Linux
+   macOS
 
    ```bash
    source .venv/bin/activate
    uv run app/main.py
-   ```
-
-   Windows (Powershell)
-
-   ```powershell
-   .\.venv\Scripts\activate.ps1
-   uv run .\app\main.py
    ```
 
 4. （可选）构建二进制文件：
@@ -105,7 +103,7 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 > [!NOTE]
 >
 > 1. TUN 模式需要管理员授权：**首次连接时安装一次特权服务**（自动完成，含清除 quarantine），
->    之后每次连接不再需要密码；Linux 通过 pkexec 提权；本期暂不支持 Windows
+>    之后每次连接不再需要密码；官方安装包仅提供 macOS 版本
 >    （若安装被取消，会自动回退为"每次连接授权一次"）
 > 2. 可与 Clash/FlClash 的 TUN 模式共存：本软件只加校园网明细路由，外网交给对方；
 >    检测到去 VPN 服务器的流量会被对方 TUN 截走时，会自动把内核底层连接绑定到物理网卡绕过
@@ -123,6 +121,12 @@ BITZH Connect 提供开箱即用体验，您可从[发布页面](https://github.
 - 换 Wi-Fi/网线后需要重连，才会使用新的默认网关；
 - 如果使用跳板机，请把跳板机 IP 也加入列表；
 - 路由已加不等于公司服务一定可达；失败时查看主窗口警告条或日志。
+
+### 应用内更新
+
+「设置 → 帮助 → 检查更新」已支持完整的内置更新流程：下载、SHA256 校验、替换 App、更新特权服务并重启。
+默认识别 GitHub；如果 GitHub 直连失败，会自动尝试 `gh-proxy.com`。也可以在同一页面选择「仅 GitHub」或填写自定义镜像前缀/模板。
+首次安装仍建议使用 DMG 内的“修复并打开.command”；后续版本不再需要手动下载。
 
 ## 与其他应用协同工作
 

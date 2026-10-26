@@ -3,7 +3,17 @@ import webbrowser
 from PySide6.QtWidgets import QMessageBox
 from .advanced_panel import AdvancedSettingsDialog
 from platform import system
-from services.update_service import UpdateService
+from services.update_service import (
+    UpdateService,
+    fetch_asset_text,
+)
+from utils.update_installer import (
+    checksum_asset as find_checksum_asset,
+    current_arch,
+    find_checksum,
+    select_update_asset,
+)
+from views.update_dialog import UpdateDialog
 from common.constants import RELEASES_URL
 
 if system() == "Darwin":
@@ -28,17 +38,48 @@ def check_for_updates(parent, current_version, startup=False):
     Returns:
         UpdateSignals——调用方可以追加连接自己的收尾逻辑（如停转等待指示器）。
     """
-    signals = update_service.check_for_updates(current_version)
+    mirror = getattr(parent, "update_mirror", None)
+    if not mirror:
+        top = parent.parent() if hasattr(parent, "parent") else None
+        mirror = getattr(top, "update_mirror", "auto")
+    signals = update_service.check_for_updates(current_version, mirror)
+    state = {"release": False}
+
+    def on_release(release):
+        state["release"] = True
+        if startup:
+            parent.output_text.append(f"New version {release.version} is available.\n")
+            return
+        asset = select_update_asset(release.assets)
+        if asset is None:
+            QMessageBox.information(
+                parent,
+                "检查更新",
+                "发现新版本，但当前版本没有适用于本机的 macOS 更新包，"
+                "请前往 GitHub 下载。",
+            )
+            webbrowser.open(release.html_url or RELEASES_URL)
+            return
+        checksum = None
+        checksum_file = find_checksum_asset(release.assets, current_arch())
+        if checksum_file is not None:
+            checksum = find_checksum(
+                fetch_asset_text(checksum_file, mirror), asset["name"]
+            )
+        UpdateDialog(release, asset, checksum, mirror, parent, current_version).exec()
 
     def on_update_available(latest_version):
-        if not startup:
-            reply = QMessageBox.question(
-                parent, "检查更新", f"发现新版本 {latest_version}，是否前往下载？"
-            )
-            if reply == QMessageBox.Yes:
-                webbrowser.open(RELEASES_URL)
-        else:
+        # 老 API/测试桩没有 release 信息时，保留跳转下载页的兜底。
+        if state["release"]:
+            return
+        if startup:
             parent.output_text.append(f"New version {latest_version} is available.\n")
+            return
+        reply = QMessageBox.question(
+            parent, "检查更新", f"发现新版本 {latest_version}，是否前往下载？"
+        )
+        if reply == QMessageBox.Yes:
+            webbrowser.open(RELEASES_URL)
 
     def on_up_to_date():
         if not startup:
@@ -55,6 +96,7 @@ def check_for_updates(parent, current_version, startup=False):
             )
 
     # Connect the signals
+    signals.release_available.connect(on_release)
     signals.update_available.connect(on_update_available)
     signals.up_to_date.connect(on_up_to_date)
     signals.error.connect(on_error)
@@ -86,6 +128,7 @@ def show_advanced_settings(window, focus_direct_ip=False):
         window.tun_mode,
         direct_ip_enabled=window.direct_ip_enabled,
         direct_ips=window.direct_ips,
+        update_mirror=getattr(window, "update_mirror", "auto"),
     )
     if focus_direct_ip:
         dialog.focus_direct_ip()
@@ -120,6 +163,9 @@ def show_advanced_settings(window, focus_direct_ip=False):
         )
         window.direct_ips = list(
             settings.get("direct_ips", window.direct_ips)
+        )
+        window.update_mirror = settings.get(
+            "update_mirror", getattr(window, "update_mirror", "auto")
         )
         # 主窗口分段选择器同步（高级设置与主界面是同一配置键的两个入口）
         window.mode_switch.setCurrentIndex(1 if window.tun_mode else 0)

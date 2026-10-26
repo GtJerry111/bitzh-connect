@@ -31,6 +31,7 @@ def load_config():
         "connect_startup": False,
         "silent_mode": False,
         "check_update": True,
+        "update_mirror": "auto",
         "hide_dock_icon": False,
         "keep_alive": True,
         "debug_dump": False,
@@ -75,6 +76,7 @@ def load_settings(self):
     self.connect_startup = config["connect_startup"]
     self.silent_mode = config["silent_mode"]
     self.check_update = config["check_update"]
+    self.update_mirror = config["update_mirror"] or "auto"
     self.hide_dock_icon = config["hide_dock_icon"]
     self.keep_alive = config["keep_alive"]
     self.debug_dump = config["debug_dump"]

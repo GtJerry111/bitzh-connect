@@ -92,3 +92,133 @@ def test_get_latest_version_empty_releases(monkeypatch):
 
     monkeypatch.setattr(us.requests, "get", lambda *a, **k: FakeResp())
     assert us.UpdateChecker("1.0.0").get_latest_version() is None
+
+
+def test_mirror_urls_auto_and_custom():
+    from services.update_service import api_urls, apply_mirror, download_urls
+
+    assert apply_mirror(
+        "https://github.com/x/y.zip", "auto"
+    ) == "https://gh-proxy.com/https://github.com/x/y.zip"
+    assert apply_mirror(
+        "https://github.com/x/y.zip", "https://m.example/{url}"
+    ) == "https://m.example/https://github.com/x/y.zip"
+    assert api_urls("github") == ["https://api.github.com/repos/GtJerry111/bitzh-connect/releases"]
+    assert len(api_urls("auto")) == 2
+    assert download_urls("https://github.com/a.zip", "auto") == [
+        "https://github.com/a.zip",
+        "https://gh-proxy.com/https://github.com/a.zip",
+    ]
+
+
+def test_release_info_from_api():
+    from services.update_service import ReleaseInfo
+
+    info = ReleaseInfo.from_api(
+        {
+            "tag_name": "v1.5.0",
+            "body": "notes",
+            "html_url": "https://example/rel",
+            "assets": [{"name": "a.zip"}],
+        }
+    )
+    assert info.version == "1.5.0"
+    assert info.tag == "v1.5.0"
+    assert info.assets == ({"name": "a.zip"},)
+
+
+def test_checker_falls_back_to_mirror(monkeypatch):
+    import services.update_service as us
+
+    calls = []
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return [{"tag_name": "v1.5.0", "draft": False}]
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url == us.RELEASES_API_URL:
+            raise us.RequestException("blocked")
+        return FakeResp()
+
+    monkeypatch.setattr(us.requests, "get", fake_get)
+    checker = us.UpdateChecker("1.4.0", "auto")
+    assert checker.get_latest_version() == "1.5.0"
+    assert len(calls) == 2
+    assert checker.last_release is not None
+
+
+def test_downloader_writes_and_verifies(tmp_path, monkeypatch):
+    import hashlib
+    import services.update_service as us
+
+    payload = b"hello-update"
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"Content-Length": str(len(payload))}
+
+        def iter_content(self, chunk_size):
+            yield payload
+
+    monkeypatch.setattr(us.requests, "get", lambda *a, **k: FakeResponse())
+    signals = us.DownloadSignals()
+    progress = []
+    finished = []
+    signals.progress.connect(lambda done, total: progress.append((done, total)))
+    signals.finished.connect(lambda path: finished.append(path))
+    asset = {
+        "name": "update.zip",
+        "browser_download_url": "https://example/update.zip",
+    }
+    checksum = hashlib.sha256(payload).hexdigest()
+    worker = us.UpdateDownloader(asset, checksum, "auto", str(tmp_path))
+    worker.signals = signals
+    worker.run()
+    assert finished and finished[0].endswith("update.zip")
+    assert (tmp_path / "update.zip").read_bytes() == payload
+    assert progress[-1] == (len(payload), len(payload))
+
+
+def test_downloader_retries_mirror_on_bad_checksum(tmp_path, monkeypatch):
+    import hashlib
+    import services.update_service as us
+
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+
+        def __init__(self, payload):
+            self.payload = payload
+
+        def iter_content(self, chunk_size):
+            yield self.payload
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url.startswith("https://example/"):
+            return FakeResponse(b"bad")
+        return FakeResponse(b"good")
+
+    monkeypatch.setattr(us.requests, "get", fake_get)
+    signals = us.DownloadSignals()
+    finished, errors = [], []
+    signals.finished.connect(finished.append)
+    signals.error.connect(errors.append)
+    asset = {
+        "name": "update.zip",
+        "browser_download_url": "https://example/update.zip",
+    }
+    worker = us.UpdateDownloader(
+        asset, hashlib.sha256(b"good").hexdigest(), "auto", str(tmp_path)
+    )
+    worker.signals = signals
+    worker.run()
+    assert len(calls) == 2
+    assert finished and not errors
+    assert (tmp_path / "update.zip").read_bytes() == b"good"

@@ -460,6 +460,34 @@ class AdvancedSettingsDialog(QDialog):
         ur.addWidget(self.update_spinner, 0, Qt.AlignVCenter)
         about_inner.addWidget(update_row)
 
+        mirror_row = QWidget()
+        mrl = QHBoxLayout(mirror_row)
+        mrl.setContentsMargins(14, 4, 14, 4)
+        mrl.setSpacing(8)
+        mrl.addWidget(QLabel("更新源"))
+        self.update_mirror_combo = QComboBox()
+        self.update_mirror_combo.addItems(
+            ["自动（GitHub → gh-proxy.com）", "仅 GitHub", "自定义镜像"]
+        )
+        self.update_mirror_combo.currentIndexChanged.connect(
+            self._update_mirror_visibility
+        )
+        mrl.addWidget(self.update_mirror_combo, 1)
+        about_inner.addWidget(mirror_row)
+
+        mirror_custom_row = QWidget()
+        self.update_mirror_custom_row = mirror_custom_row
+        mcr = QHBoxLayout(mirror_custom_row)
+        mcr.setContentsMargins(14, 0, 14, 8)
+        mcr.setSpacing(8)
+        self.update_mirror_input = QLineEdit()
+        self.update_mirror_input.setPlaceholderText(
+            "https://gh-proxy.com/ 或 https://mirror.example/{url}"
+        )
+        mcr.addWidget(self.update_mirror_input, 1)
+        about_inner.addWidget(mirror_custom_row)
+        self._update_mirror_visibility()
+
         # ---- 校园网支持（方案 A：校内管理 + 网管中心电话，两行卡片）----
         support_inner = self._card_group(help_layout, "校园网支持")
 
@@ -683,7 +711,7 @@ class AdvancedSettingsDialog(QDialog):
 
         self.update_btn.setEnabled(False)
         self.update_spinner.start()
-        signals = check_for_updates(self.window(), VERSION)
+        signals = check_for_updates(self, VERSION)
 
         def _done(*_args):
             self.update_spinner.stop()
@@ -758,6 +786,7 @@ class AdvancedSettingsDialog(QDialog):
             "tun_mode": self.tun_mode_switch.isChecked(),
             "direct_ip_enabled": self.direct_ip_card.toggle.isChecked(),
             "direct_ips": self.direct_ip_card.ips(),
+            "update_mirror": self._current_update_mirror(),
         }
 
         if system() == "Darwin":
@@ -788,6 +817,7 @@ class AdvancedSettingsDialog(QDialog):
         tun_mode=False,
         direct_ip_enabled=False,
         direct_ips=(),
+        update_mirror="auto",
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -815,6 +845,14 @@ class AdvancedSettingsDialog(QDialog):
         self.direct_ip_card.set_ips(list(direct_ips))
         self.direct_ip_card.toggle.setChecked(bool(direct_ip_enabled))
         self.direct_ip_card.set_tun_enabled(self.tun_mode_switch.isChecked())
+        if update_mirror == "github":
+            self.update_mirror_combo.setCurrentIndex(1)
+        elif update_mirror and update_mirror != "auto":
+            self.update_mirror_combo.setCurrentIndex(2)
+            self.update_mirror_input.setText(update_mirror)
+        else:
+            self.update_mirror_combo.setCurrentIndex(0)
+        self._update_mirror_visibility()
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()
@@ -825,6 +863,18 @@ class AdvancedSettingsDialog(QDialog):
         if not self.direct_ip_card.toggle.isChecked():
             self.direct_ip_card.toggle.setChecked(True)
         self.direct_ip_card.focus_first()
+
+    def _current_update_mirror(self) -> str:
+        index = self.update_mirror_combo.currentIndex()
+        if index == 0:
+            return "auto"
+        if index == 1:
+            return "github"
+        return self.update_mirror_input.text().strip() or "auto"
+
+    def _update_mirror_visibility(self, *_args):
+        custom = self.update_mirror_combo.currentIndex() == 2
+        self.update_mirror_custom_row.setVisible(custom)
 
     def _direct_ip_context(self):
         parent = self.parent()

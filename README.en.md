@@ -33,6 +33,8 @@ BITZH Connect is a GUI of [ZJU Connect](https://github.com/Mythologyli/zju-conne
 - **BIT branding** — emblem-green palette, calligraphy watermark, light/dark/system appearance
 - Fast and green compared to **EasyConnect**.
 - Built with PySide6, easy to build and maintain.
+- **In-app updates**: check, download, SHA256-verify, install and relaunch; automatically falls back to a mirror when GitHub is unreachable, with a custom update source option.
+- Official builds target **macOS** (Apple Silicon / Intel); cross-platform guards remain in source, but Linux/Windows installers are no longer published.
 - Multi-platform support, with native optimization for the **macOS** version.
 - Native macOS experience: persistent menu bar icon; left-click opens a Liquid Glass quick panel (macOS 26+, vibrancy on older systems; connect toggle / rates / mode / campus navigation); the right-click menu can toggle "Show speed in menu bar" — two live rate lines next to the icon, auto-tinted with the menu bar appearance
 - Passwords are stored locally with encryption, never on disk in plaintext, and the system keychain is not used.
@@ -51,13 +53,19 @@ You can install BITZH Connect in two ways: downloading pre-built binaries or bui
 
 ### Method 1: Downloading pre-built binaries
 
-BITZH Connect provides out-of-the-box experience. You can download the latest version from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest). The Linux build is a deb package supporting Ubuntu 22.04 and later.
+BITZH Connect provides out-of-the-box experience. You can download the latest macOS build (Apple Silicon / Intel) from the [release page](https://github.com/GtJerry111/bitzh-connect/releases/latest).
 
 > [!IMPORTANT]
-> For macOS version, you need to grant access to the application by running:
+> First install: drag **BITZH Connect.app** into `Applications`, then double-click
+> **“修复并打开.command”** in the DMG. If macOS says it cannot verify the script,
+> right-click it and choose Open. The script removes the quarantine attribute and
+> launches the app. Future versions support in-app updates, so manual downloads are
+> no longer required.
+>
+> If the script cannot run, use:
 >
 > ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/BITZH\ Connect.app
+> sudo xattr -rd com.apple.quarantine "/Applications/BITZH Connect.app"
 > ```
 
 ### Method 2: Building from source
@@ -80,18 +88,11 @@ BITZH Connect provides out-of-the-box experience. You can download the latest ve
 
 3. Run the application:
 
-   macOS/Linux
+   macOS
 
    ```bash
    source .venv/bin/activate
    uv run app/main.py
-   ```
-
-   Windows (Powershell)
-
-   ```powershell
-   .\.venv\Scripts\activate.ps1
-   uv run .\app\main.py
    ```
 
 4. (Optional) Build the binaries:
@@ -109,6 +110,13 @@ TUN mode (global routing) is enabled by default: all traffic, including raw TCP 
 > 2. It can coexist with Clash/FlClash TUN mode: this app only adds campus-net routes and leaves the rest to the other side; when traffic to the VPN server would be captured by the other TUN, the kernel's underlying connection is automatically bound to the physical NIC to bypass it
 >    (campus-net direct by IP; the other side must not have strict-route enabled).
 > 3. In TUN mode the dashboard shows real rates from the virtual NIC; on macOS, proxy mode also shows rates sampled per-process from the kernel (on other platforms proxy mode shows "—").
+
+### In-app updates
+
+Settings → Help → Check for Updates now supports the full in-app flow: download, SHA256 verification,
+app replacement, privileged-helper update and relaunch. GitHub is tried first; if it is unreachable,
+`gh-proxy.com` is used automatically. You can also choose GitHub-only or a custom mirror prefix/template.
+The DMG's “修复并打开.command” is still recommended for the initial install; later updates no longer require manual downloads.
 
 ## Working with other applications
 

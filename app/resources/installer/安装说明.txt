@@ -1,0 +1,16 @@
+BITZH Connect 安装说明
+====================
+
+1. 将 BITZH Connect.app 拖到 Applications 文件夹。
+
+2. 双击“修复并打开.command”。
+   如果 macOS 提示“无法验证”或“无法打开”，请右键点击该脚本，选择“打开”。
+
+3. 脚本会移除 macOS 的隔离属性，并自动启动 App。
+
+如果脚本无法运行，也可以在终端执行：
+
+    sudo xattr -rd com.apple.quarantine "/Applications/BITZH Connect.app"
+
+说明：当前版本尚未经过 Apple 公证，所以首次安装需要这一步。
+这是临时方案；后续版本会逐步改为签名/公证分发。

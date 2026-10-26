@@ -499,3 +499,15 @@ def test_network_tab_scrollable_and_capped(dialog, qtbot, monkeypatch):
     dialog.advanced_toggle.setExpanded(True)
     qtbot.wait(30)
     assert dialog.height() <= QApplication.primaryScreen().availableGeometry().height()
+
+
+def test_update_mirror_default_and_custom_roundtrip(dialog):
+    base = dict(
+        server="1.2.3.4", port="443", dns="", proxy=True,
+        connect_startup=False, silent_mode=False, check_update=True,
+    )
+    dialog.set_settings(**base, update_mirror="auto")
+    assert dialog.get_settings()["update_mirror"] == "auto"
+    dialog.set_settings(**base, update_mirror="https://gh-proxy.com/")
+    assert dialog.get_settings()["update_mirror"] == "https://gh-proxy.com/"
+    assert dialog.update_mirror_custom_row.isHidden() is False
