@@ -51,17 +51,18 @@ def is_available(socket_path: str = SOCKET_PATH) -> bool:
     return helper_version(socket_path) is not None
 
 
-def start(args, log_path, pid_path, stop_path, socket_path: str = SOCKET_PATH):
-    return _request(
-        {
-            "cmd": CMD_START,
-            "args": list(args),
-            "log_path": log_path,
-            "pid_path": pid_path,
-            "stop_path": stop_path,
-        },
-        socket_path,
-    )
+def start(args, log_path, pid_path, stop_path, direct_ips=None,
+          socket_path: str = SOCKET_PATH):
+    payload = {
+        "cmd": CMD_START,
+        "args": list(args),
+        "log_path": log_path,
+        "pid_path": pid_path,
+        "stop_path": stop_path,
+    }
+    if direct_ips:
+        payload["direct_ips"] = list(direct_ips)
+    return _request(payload, socket_path)
 
 
 def stop(socket_path: str = SOCKET_PATH):

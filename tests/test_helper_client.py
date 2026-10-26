@@ -64,3 +64,33 @@ def test_non_dict_response_returns_none(monkeypatch):
     monkeypatch.setattr(hc, "_request", lambda *args, **kwargs: 123)
     assert hc.helper_version("/any") is None
     assert hc.is_available("/any") is False
+
+
+def test_start_includes_direct_ips(monkeypatch):
+    captured = {}
+
+    def fake_request(payload, socket_path=None, timeout=5.0):
+        captured.update(payload)
+        return {"ok": True}
+
+    monkeypatch.setattr(hc, "_request", fake_request)
+    hc.start(
+        [], "/tmp/k.log", "/tmp/k.pid", "/tmp/k.stop",
+        direct_ips=["10.182.37.18"], socket_path="/tmp/x.sock",
+    )
+    assert captured["direct_ips"] == ["10.182.37.18"]
+
+
+def test_start_omits_direct_ips_when_none(monkeypatch):
+    captured = {}
+
+    def fake_request(payload, socket_path=None, timeout=5.0):
+        captured.update(payload)
+        return {"ok": True}
+
+    monkeypatch.setattr(hc, "_request", fake_request)
+    hc.start(
+        [], "/tmp/k.log", "/tmp/k.pid", "/tmp/k.stop",
+        socket_path="/tmp/x.sock",
+    )
+    assert "direct_ips" not in captured
