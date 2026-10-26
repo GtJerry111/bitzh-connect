@@ -291,10 +291,38 @@ def test_direct_ip_row_partial_failure(panel, main, monkeypatch):
     assert "1/2" in panel._direct_ip_row.value.text()
 
 
-def test_direct_ip_row_click_opens_settings(panel, main, monkeypatch):
+def test_direct_ip_row_click_expands_details(panel, main, monkeypatch):
+    from PySide6.QtWidgets import QLabel
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (2, 2))
+    monkeypatch.setattr(
+        main,
+        "direct_ip_menu_details",
+        lambda: [("10.182.37.18", True), ("10.182.37.19", False)],
+    )
+    panel._sync_from_main()
+    assert panel._direct_ip_area.isHidden()
+    panel._direct_ip_row.clicked.emit()
+    assert not panel._direct_ip_area.isHidden()
+    texts = [w.text() for w in panel._direct_ip_area.findChildren(QLabel)]
+    assert "10.182.37.18" in texts
+    assert "10.182.37.19" in texts
+    panel._direct_ip_row.clicked.emit()
+    assert panel._direct_ip_area.isHidden()
+
+
+def test_direct_ip_edit_button_opens_settings(panel, main, monkeypatch):
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    monkeypatch.setattr("views.menu_bar_panel.reduce_motion", lambda: True)
+    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (1, 1))
+    monkeypatch.setattr(
+        main, "direct_ip_menu_details", lambda: [("10.182.37.18", True)]
+    )
     called = []
     monkeypatch.setattr(main, "open_direct_ip_settings", lambda: called.append(1))
-    monkeypatch.setattr(main, "direct_ip_menu_state", lambda: (2, 2))
     panel._sync_from_main()
     panel._direct_ip_row.clicked.emit()
+    panel._direct_ip_edit_btn.click()
     assert called == [1]

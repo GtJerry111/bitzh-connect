@@ -78,7 +78,7 @@ class DirectIpRow(QWidget):
         self.dot = _StatusDot()
         row.addWidget(self.dot, 0, Qt.AlignVCenter)
         self.edit = _DirectIpLineEdit()
-        self.edit.setPlaceholderText("10.182.37.18")
+        self.edit.setPlaceholderText("192.168.1.1")
         font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         font.setPointSize(12)
         self.edit.setFont(font)
@@ -215,6 +215,7 @@ class DirectIpCard(QWidget):
         self._pending: set[str] = set()
 
         self.toggle.toggled.connect(self._on_toggle)
+        self._update_scroll_height()
         self._update_visibility()
 
     def _on_toggle(self, checked: bool):
@@ -248,10 +249,12 @@ class DirectIpCard(QWidget):
         self.rows_layout.insertWidget(self.rows_layout.count() - 1, row)
         if not self.toggle.isChecked():
             self.toggle.setChecked(True)
+        self._update_scroll_height()
         if focus:
             row.edit.setFocus()
         self._update_delete_buttons()
         self._refresh_statuses()
+        self.layout_changed.emit()
         self.changed.emit()
         return row
 
@@ -263,7 +266,9 @@ class DirectIpCard(QWidget):
         row.deleteLater()
         if not self.rows and self.toggle.isChecked():
             self.add_row(focus=False)
+        self._update_scroll_height()
         self._update_delete_buttons()
+        self.layout_changed.emit()
         self.changed.emit()
 
     def _on_row_changed(self):
@@ -274,6 +279,18 @@ class DirectIpCard(QWidget):
         only_empty = len(self.rows) == 1 and not self.rows[0].text().strip()
         for row in self.rows:
             row.delete_btn.setEnabled(not only_empty)
+
+    def _update_scroll_height(self):
+        """列表区按行数收缩：1–4 行紧凑，超过 4 行内部滚动。"""
+        visible = max(1, min(len(self.rows), 4))
+        if self.rows:
+            row_h = max(32, self.rows[0].sizeHint().height())
+        else:
+            row_h = 32
+        spacing = max(0, self.rows_layout.spacing())
+        self.scroll.setFixedHeight(
+            visible * row_h + (visible - 1) * spacing + 4
+        )
 
     def _on_paste(self, row: DirectIpRow, tokens: list[str]):
         if not tokens:
@@ -294,7 +311,9 @@ class DirectIpCard(QWidget):
             self.add_row(ip, focus=False)
         if self.toggle.isChecked() and not self.rows:
             self.add_row(focus=False)
+        self._update_scroll_height()
         self._update_delete_buttons()
+        self.layout_changed.emit()
 
     def ips(self) -> list[str]:
         result: list[str] = []

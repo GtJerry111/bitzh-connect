@@ -484,3 +484,18 @@ def test_direct_ip_validation_refits_dialog_height(dialog, qtbot):
     qtbot.wait(30)
     assert not dialog.direct_ip_card.error.isHidden()
     assert dialog.height() >= h0
+
+
+def test_network_tab_scrollable_and_capped(dialog, qtbot, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget
+
+    monkeypatch.setattr("utils.motion_utils.reduce_motion", lambda: True)
+    dialog.show()
+    tabs = dialog.findChild(QTabWidget)
+    tabs.setCurrentIndex(1)
+    dialog._fit_to_tab(1)
+    page = tabs.widget(1)
+    assert isinstance(page, QScrollArea)
+    dialog.advanced_toggle.setExpanded(True)
+    qtbot.wait(30)
+    assert dialog.height() <= QApplication.primaryScreen().availableGeometry().height()

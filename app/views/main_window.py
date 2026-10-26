@@ -994,6 +994,9 @@ class MainWindow(QMainWindow):
         ok = sum(1 for value in self._direct_ip_results.values() if value)
         return ok, total
 
+    def direct_ip_menu_details(self):
+        return list(self._direct_ip_results.items())
+
     def open_direct_ip_settings(self):
         show_advanced_settings(self, focus_direct_ip=True)
 

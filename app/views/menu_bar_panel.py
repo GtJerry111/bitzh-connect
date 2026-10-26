@@ -13,8 +13,12 @@ from platform import system
 from PySide6.QtCore import (
     QEasingCurve, QEvent, QPointF, QRectF, Qt, QTimer, QUrl, QVariantAnimation, Signal,
 )
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import (
+    QColor, QDesktopServices, QFont, QFontDatabase, QIcon, QPainter, QPen, QPixmap,
+)
+from PySide6.QtWidgets import (
+    QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+)
 from shiboken6 import isValid
 
 from common import theme
@@ -178,6 +182,7 @@ class MenuBarPanel(QWidget):
         super().__init__()
         self._main = main_window
         self._nav_expanded = False
+        self._direct_ip_expanded = False
         self._hint_active = False
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
@@ -283,9 +288,39 @@ class MenuBarPanel(QWidget):
         self._row_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._row_sep)
         self._direct_ip_row = _Row("route", "直连 IP")
-        self._direct_ip_row.set_trailing(_Icon("chevron_right", 10))
+        self._direct_ip_chevron = Chevron(color_name="ink")
+        self._direct_ip_chevron.set_angle(90.0)  # 收起态朝下
+        self._direct_ip_row.set_trailing(self._direct_ip_chevron)
         self._direct_ip_row.clicked.connect(self._on_direct_ip_row)
         rows.addWidget(self._direct_ip_row)
+
+        self._direct_ip_area = QWidget()
+        area = QVBoxLayout(self._direct_ip_area)
+        area.setContentsMargins(6, 0, 6, 4)
+        area.setSpacing(2)
+        self._direct_ip_scroll = QScrollArea()
+        self._direct_ip_scroll.setWidgetResizable(True)
+        self._direct_ip_scroll.setFrameShape(QFrame.NoFrame)
+        self._direct_ip_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._direct_ip_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._direct_ip_scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+        self._direct_ip_details_host = QWidget()
+        self._direct_ip_details_layout = QVBoxLayout(self._direct_ip_details_host)
+        self._direct_ip_details_layout.setContentsMargins(0, 0, 0, 0)
+        self._direct_ip_details_layout.setSpacing(2)
+        self._direct_ip_scroll.setWidget(self._direct_ip_details_host)
+        self._direct_ip_scroll.setFixedHeight(26)
+        area.addWidget(self._direct_ip_scroll)
+        self._direct_ip_edit_btn = QPushButton("编辑直连 IP")
+        self._direct_ip_edit_btn.setFlat(True)
+        self._direct_ip_edit_btn.setCursor(Qt.PointingHandCursor)
+        self._direct_ip_edit_btn.clicked.connect(self._open_direct_ip_settings)
+        area.addWidget(self._direct_ip_edit_btn, 0, Qt.AlignLeft)
+        self._direct_ip_area.setVisible(False)
+        rows.addWidget(self._direct_ip_area)
+
         self._direct_ip_sep = QFrame()
         self._direct_ip_sep.setFrameShape(QFrame.HLine)
         rows.addWidget(self._direct_ip_sep)
@@ -444,6 +479,10 @@ class MenuBarPanel(QWidget):
         self._direct_ip_sep.setStyleSheet(
             f"color: {theme.with_alpha('separator', 0.4)};"
         )
+        self._direct_ip_edit_btn.setStyleSheet(
+            f"QPushButton {{ border: none; color: {theme.semantic_color('accent')};"
+            " font-size: 11.5px; text-align: left; padding: 2px 0 0 0; }"
+        )
         chip_bg = "rgba(255,255,255,107)" if not theme.is_dark() else "rgba(64,64,68,128)"
         chip_bd = "rgba(255,255,255,140)" if not theme.is_dark() else "rgba(255,255,255,36)"
         self._open_btn.setStyleSheet(f"""
@@ -516,8 +555,69 @@ class MenuBarPanel(QWidget):
         self._mode_row.value.setText("TUN" if self._main.tun_mode else "代理")
 
     def _on_direct_ip_row(self):
+        self._direct_ip_expanded = not getattr(self, "_direct_ip_expanded", False)
+        if self._direct_ip_expanded:
+            self._sync_direct_ip_details()
+        angle = 270.0 if self._direct_ip_expanded else 90.0
+        if reduce_motion():
+            self._direct_ip_chevron.set_angle(angle)
+        else:
+            old = getattr(self, "_direct_ip_anim", None)
+            if old is not None:
+                self._direct_ip_anim = None
+                if isValid(old):
+                    old.stop()
+            anim = QVariantAnimation(self)
+            anim.setDuration(150)
+            anim.setStartValue(self._direct_ip_chevron._angle)
+            anim.setEndValue(angle)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.valueChanged.connect(self._direct_ip_chevron.set_angle)
+            self._direct_ip_anim = anim
+            anim.start()
+        animated_height_toggle(
+            self._direct_ip_area,
+            self._direct_ip_expanded,
+            max_height=max(self._direct_ip_area.sizeHint().height(), 1),
+            fade=True,
+            on_frame=self.adjustSize,
+        )
+
+    def _open_direct_ip_settings(self):
         self.hide_panel()
         self._main.open_direct_ip_settings()
+
+    def _sync_direct_ip_details(self):
+        layout = self._direct_ip_details_layout
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        getter = getattr(self._main, "direct_ip_menu_details", None)
+        details = getter() if getter is not None else []
+        for ip, ok in details:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(20, 0, 6, 0)
+            row_layout.setSpacing(6)
+            dot = QLabel("●")
+            dot.setStyleSheet(
+                f"color: {theme.semantic_color('connected' if ok else 'working')};"
+                " font-size: 9px;"
+            )
+            label = QLabel(str(ip))
+            font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+            font.setPointSize(11.5)
+            label.setFont(font)
+            label.setStyleSheet(f"color: {theme.semantic_color('ink')};")
+            row_layout.addWidget(dot)
+            row_layout.addWidget(label)
+            row_layout.addStretch()
+            layout.addWidget(row)
+        visible = max(1, min(len(details), 4))
+        self._direct_ip_scroll.setFixedHeight(visible * 22 + 4)
+        self._direct_ip_area.adjustSize()
 
     def _sync_direct_ip_row(self):
         state = None
@@ -526,7 +626,10 @@ class MenuBarPanel(QWidget):
             state = getter()
         if state is None:
             self._direct_ip_row.hide()
+            self._direct_ip_area.hide()
             self._direct_ip_sep.hide()
+            self._direct_ip_expanded = False
+            self._direct_ip_chevron.set_angle(90.0)
             return
         ok, total = state
         self._direct_ip_row.show()
@@ -541,6 +644,11 @@ class MenuBarPanel(QWidget):
             self._direct_ip_row.value.setStyleSheet(
                 f"color: {theme.semantic_color('working')};"
             )
+        if getattr(self, "_direct_ip_expanded", False):
+            self._sync_direct_ip_details()
+            self._direct_ip_area.show()
+        else:
+            self._direct_ip_area.hide()
 
     def _set_stats_visible(self, visible: bool):
         if visible == getattr(self, "_stats_visible", False):

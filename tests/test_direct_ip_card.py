@@ -107,3 +107,23 @@ def test_tun_off_shows_note_and_gray_dots(qtbot):
     card.set_tun_enabled(False)
     assert not card.note.isHidden()
     assert card.rows[0].dot.state == "unapplied"
+
+
+def test_placeholder_uses_generic_example(qtbot):
+    card = DirectIpCard()
+    qtbot.addWidget(card)
+    card.toggle.setChecked(True)
+    assert card.rows[0].edit.placeholderText() == "192.168.1.1"
+
+
+def test_scroll_height_adapts_to_row_count(qtbot):
+    card = DirectIpCard()
+    qtbot.addWidget(card)
+    card.toggle.setChecked(True)
+    h1 = card.scroll.height()
+    assert h1 < 60
+    for index in range(2, 7):
+        card.add_row(f"10.182.37.{index}", focus=False)
+    h6 = card.scroll.height()
+    assert h6 > h1
+    assert h6 <= 160

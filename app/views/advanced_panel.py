@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QTabWidget,
+    QScrollArea,
     QWidget,
     QComboBox,
     QDialogButtonBox,
@@ -507,8 +508,16 @@ class AdvancedSettingsDialog(QDialog):
         help_layout.addStretch()
 
         # macOS 惯例：General 在前；帮助殿后
+        network_scroll = QScrollArea()
+        network_scroll.setWidgetResizable(True)
+        network_scroll.setFrameShape(QFrame.NoFrame)
+        network_scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+        network_scroll.setWidget(network_tab)
+
         tab_widget.addTab(general_tab, "通用")
-        tab_widget.addTab(network_tab, "网络")
+        tab_widget.addTab(network_scroll, "网络")
         tab_widget.addTab(help_tab, "帮助")
         layout.addWidget(tab_widget)
         self._tabs = tab_widget
@@ -611,14 +620,18 @@ class AdvancedSettingsDialog(QDialog):
         except RuntimeError:
             pass
 
-    def _fit_to_tab(self, index: int):
-        """对话框高度贴合当前 tab：tab 控件定高 = 当前页 sizeHint + 实测开销。"""
-        if self._tab_overhead is None:
-            self._tab_overhead = self._tabs.sizeHint().height() - max(
-                self._tabs.widget(i).sizeHint().height()
-                for i in range(self._tabs.count())
-            )
+    def _page_content(self, index: int):
         page = self._tabs.widget(index)
+        if isinstance(page, QScrollArea):
+            return page.widget()
+        return page
+
+    def _fit_to_tab(self, index: int):
+        """对话框高度贴合当前 tab，并限制在屏幕可用高度内；超出时页内滚动。"""
+        if self._tab_overhead is None:
+            self._tab_overhead = self._tabs.tabBar().sizeHint().height() + 8
+        page = self._tabs.widget(index)
+        content = self._page_content(index)
         # 内容藏在子卡片内时，隐藏/显示只异步投递 LayoutRequest，父布局里该卡片的
         # QWidgetItem sizeHint 缓存不会即时刷新；显式 updateGeometry + 失效布局缓存，
         # 保证折叠后高度即时收回（不留白）
@@ -626,8 +639,22 @@ class AdvancedSettingsDialog(QDialog):
         if card is not None:
             card.updateGeometry()
             card.layout().invalidate()
-        page.layout().invalidate()
-        self._tabs.setFixedHeight(page.sizeHint().height() + self._tab_overhead)
+        if content is not None and content.layout() is not None:
+            content.layout().invalidate()
+            content.adjustSize()
+        content_height = (
+            content.sizeHint().height()
+            if content is not None
+            else page.sizeHint().height()
+        )
+        from PySide6.QtWidgets import QApplication
+
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry().height() if screen is not None else 900
+        max_tab_height = max(320, available - 100)
+        self._tabs.setFixedHeight(
+            min(content_height + self._tab_overhead, max_tab_height)
+        )
         self.adjustSize()
 
     def _sync_log(self):
