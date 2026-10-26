@@ -256,6 +256,9 @@ def start_connection(window):
     window._rsa_noted = False  # 每次连接重新折叠 RSA 公钥提示（一次连接只提示一次）
     window._disconnect_reason = None
     window._tun_interface = None
+    clear_direct_ip = getattr(window, "clear_direct_ip_state", None)
+    if clear_direct_ip is not None:
+        clear_direct_ip()
     diagnostics.append(
         f"连接开始 server={window.server_address} tun={getattr(window, 'tun_mode', False)}"
     )
@@ -320,9 +323,49 @@ def start_connection(window):
         os.close(pid_fd)
         # 停止标记只生成路径不创建——守护循环以"文件出现"为停止信号
         stop_path = pid_path + ".stop"
-        # 优先走已安装的特权 helper（一次授权后免密）；否则首次引导安装；再否则回退 osascript
+        direct_ips = []
+        if getattr(window, "direct_ip_enabled", False):
+            direct_ips = list(getattr(window, "direct_ips", []) or [])
+        configured_direct_ips = list(direct_ips)
+
         if helper_installer.is_usable():
-            resp = helper_client.start(command_args[1:], log_path, pid_path, stop_path)
+            window._direct_ip_skip_session = False
+        if configured_direct_ips and not helper_installer.is_usable():
+            if getattr(window, "_direct_ip_skip_session", False):
+                direct_ips = []
+            else:
+                choice = window.prompt_direct_ip_helper_update()
+                if choice == "update":
+                    for path in (log_path, pid_path, stop_path):
+                        try:
+                            os.unlink(path)
+                        except OSError:
+                            pass
+                    _reset_connect_ui(window, "正在更新 TUN 特权服务")
+                    window.prompt_helper_install(on_done=window._on_helper_install_done)
+                    return
+                if choice == "skip":
+                    window._direct_ip_skip_session = True
+                    direct_ips = []
+                else:
+                    for path in (log_path, pid_path, stop_path):
+                        try:
+                            os.unlink(path)
+                        except OSError:
+                            pass
+                    _reset_connect_ui(window, "已取消连接")
+                    return
+
+        helper_can_start = helper_installer.is_usable() or (
+            getattr(window, "_direct_ip_skip_session", False)
+            and helper_installer.is_installed()
+        )
+        # 优先走已安装的特权 helper（一次授权后免密）；否则首次引导安装；再否则回退 osascript
+        if helper_can_start:
+            start_kwargs = {"direct_ips": direct_ips} if direct_ips else {}
+            resp = helper_client.start(
+                command_args[1:], log_path, pid_path, stop_path, **start_kwargs
+            )
             if resp and not resp.get("ok") and resp.get("error") == "already_running":
                 # 上一次连接的内核仍被 helper 持有（退出竞争导致残留）：先停再起。
                 # 绝不能当成失败回退 osascript——那会弹系统授权框，还会多起一个内核。
@@ -336,8 +379,35 @@ def start_connection(window):
                     if not st.get("running"):
                         break
                     time.sleep(0.2)
-                resp = helper_client.start(command_args[1:], log_path, pid_path, stop_path)
+                resp = helper_client.start(
+                    command_args[1:], log_path, pid_path, stop_path,
+                    **start_kwargs,
+                )
             if resp and resp.get("ok"):
+                window._direct_ip_configured = list(configured_direct_ips)
+                window._direct_ip_gateway = resp.get("gateway")
+                window._direct_ip_interface = resp.get("interface")
+                window._direct_ip_route_error = resp.get("route_error")
+                window._direct_ip_results = {
+                    str(item.get("ip")): bool(item.get("ok"))
+                    for item in (resp.get("routes") or [])
+                }
+                if configured_direct_ips and not window._direct_ip_results:
+                    window._direct_ip_results = {
+                        ip: False for ip in configured_direct_ips
+                    }
+                if configured_direct_ips and not direct_ips:
+                    window._direct_ip_route_error = "direct_ip_skipped"
+                    window.output_text.append(
+                        "[BITZH Connect] 本次已跳过直连 IP；学校 VPN 不受影响\n"
+                    )
+                if configured_direct_ips and resp.get("route_error"):
+                    window.output_text.append(
+                        f"[BITZH Connect] 直连 IP 路由未生效：{resp['route_error']}\n"
+                    )
+                refresh = getattr(window, "_refresh_direct_ip_ui", None)
+                if refresh is not None:
+                    refresh()
                 window.worker = TunWorker(
                     log_path, pid_path, stop_path,
                     on_kill_failed=lambda: window.output_text.append(
@@ -366,6 +436,10 @@ def start_connection(window):
         elif (
             helper_installer.can_install()
             and not getattr(window, "_helper_install_declined", False)
+            and not (
+                configured_direct_ips
+                and getattr(window, "_direct_ip_skip_session", False)
+            )
         ):
             window.output_text.append(
                 "[BITZH Connect] 首次使用 TUN，需要安装特权服务…\n"
@@ -378,6 +452,12 @@ def start_connection(window):
             _reset_connect_ui(window, "正在配置 TUN 特权服务")
             window.prompt_helper_install(on_done=window._on_helper_install_done)
             return
+        if configured_direct_ips:
+            window._direct_ip_configured = list(configured_direct_ips)
+            window._direct_ip_results = {
+                ip: False for ip in configured_direct_ips
+            }
+            window._direct_ip_route_error = "helper_unavailable"
         launcher = write_launcher(command, command_args[1:], log_path, pid_path, stop_path)
         # 授权框可能停留数十秒：提权异步执行，worker 先行启动
         # （pidfile 120s 等待窗口本就为覆盖授权时长而设）

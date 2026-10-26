@@ -1013,5 +1013,27 @@ class MainWindow(QMainWindow):
         if DirectIpReconnectDialog.ask(self):
             self._bounce_connection()
 
+    def prompt_direct_ip_helper_update(self) -> str:
+        from PySide6.QtWidgets import QMessageBox
+
+        box = QMessageBox(self)
+        box.setWindowTitle("直连 IP 需要更新特权服务")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText("当前特权服务不支持直连 IP。")
+        box.setInformativeText(
+            "更新后直连 IP 才能生效；也可以本次跳过，学校 VPN 仍可连接。"
+        )
+        update = box.addButton("更新特权服务", QMessageBox.ButtonRole.AcceptRole)
+        skip = box.addButton(
+            "本次跳过直连 IP", QMessageBox.ButtonRole.DestructiveRole
+        )
+        box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is update:
+            return "update"
+        if box.clickedButton() is skip:
+            return "skip"
+        return "cancel"
+
     def check_updates_startup(self):
         check_for_updates(self, self.version, startup=True)

@@ -574,3 +574,86 @@ def test_keepalive_only_refreshes_watchdog(qtbot):
     assert noted == []
     handle_output(win, "2026/09/22 14:33:17 KeepAlive using UDP: OK\n")
     assert noted == [1]
+
+
+def _fake_tun_worker(monkeypatch, connection_utils):
+    from PySide6.QtCore import QObject, Signal
+
+    class FakeWorker(QObject):
+        output = Signal(str)
+        finished = Signal(int)
+
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            self.kernel_started = True
+
+        def start(self):
+            pass
+
+        def isRunning(self):
+            return False
+
+        def stop(self):
+            pass
+
+    monkeypatch.setattr(connection_utils, "TunWorker", FakeWorker)
+
+
+def test_direct_ips_passed_to_helper(qtbot, monkeypatch):
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    _fake_tun_worker(monkeypatch, cu)
+    win = _make_window(qtbot)
+    win.tun_mode = True
+    win.direct_ip_enabled = True
+    win.direct_ips = ["10.182.37.18"]
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    captured = {}
+
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: True)
+    monkeypatch.setattr(
+        cu.helper_client,
+        "start",
+        lambda *a, **k: captured.update(k) or {
+            "ok": True,
+            "pid": 1,
+            "gateway": "10.0.0.1",
+            "interface": "en0",
+            "routes": [{"ip": "10.182.37.18", "ok": True}],
+        },
+    )
+    cu.start_connection(win)
+    assert captured["direct_ips"] == ["10.182.37.18"]
+    assert win._direct_ip_results == {"10.182.37.18": True}
+    win.worker = None
+
+
+def test_direct_ip_helper_skip_sets_failure_state(qtbot, monkeypatch):
+    import utils.connection_utils as cu
+    from utils import helper_installer
+
+    _fake_tun_worker(monkeypatch, cu)
+    win = _make_window(qtbot)
+    win.tun_mode = True
+    win.direct_ip_enabled = True
+    win.direct_ips = ["10.182.37.18"]
+    win.username_input.setText("u")
+    win.password_input.setText("p")
+    captured = {}
+
+    monkeypatch.setattr(helper_installer, "is_usable", lambda: False)
+    monkeypatch.setattr(helper_installer, "is_installed", lambda: True)
+    monkeypatch.setattr(win, "prompt_direct_ip_helper_update", lambda: "skip")
+    monkeypatch.setattr(
+        cu.helper_client,
+        "start",
+        lambda *a, **k: captured.update(k) or {"ok": True, "pid": 1},
+    )
+    cu.start_connection(win)
+    assert captured.get("direct_ips") is None
+    assert win._direct_ip_results == {"10.182.37.18": False}
+    assert win._direct_ip_route_error == "direct_ip_skipped"
+    assert win._direct_ip_skip_session is True
+    win.worker = None
