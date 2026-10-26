@@ -3,6 +3,7 @@ from platform import system
 from PySide6.QtCore import QSettings
 from common.constants import APP_NAME, ORG_NAME, DEFAULT_SERVER, DEFAULT_PORT, DEFAULT_DNS
 from .startup_utils import get_launch_at_login
+from .direct_ip import parse_direct_ips
 
 
 def save_config(config):
@@ -46,6 +47,9 @@ def load_config():
         "nav_expanded": False,
         # 菜单栏状态项显示实时速率（右键菜单可开关；默认关）
         "menu_bar_speed": False,
+        # 直连 IP（不走校园 VPN）
+        "direct_ip_enabled": False,
+        "direct_ips": "",
     }
 
     for key in default_config.keys():
@@ -83,6 +87,8 @@ def load_settings(self):
     self.appearance = config["appearance"]
     self.tun_mode = config["tun_mode"]
     self.menu_bar_speed = config["menu_bar_speed"]
+    self.direct_ip_enabled = bool(config["direct_ip_enabled"])
+    self.direct_ips = parse_direct_ips(config["direct_ips"])
     if system() == "Windows":
         # 与 connection_utils 的硬守卫同款策略：Windows 平台 TUN 强制关闭，
         # 防止脏配置/默认值让 Windows 用户每次连接都撞"本期暂不支持"
