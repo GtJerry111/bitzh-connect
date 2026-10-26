@@ -7,7 +7,7 @@ GUI 侧与 helper 侧统一以包路径 import
 import json
 
 # 协议版本：GUI 与 helper 握手比对；不兼容时提示用户更新特权服务
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 # ---- 运行时通信 ----
 SOCKET_PATH = "/var/run/bitzh-connect-helper.sock"

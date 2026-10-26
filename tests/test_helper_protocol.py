@@ -25,4 +25,4 @@ def test_command_constants_distinct():
 
 def test_protocol_version_is_int():
     assert isinstance(hp.PROTOCOL_VERSION, int)
-    assert hp.PROTOCOL_VERSION >= 1
+    assert hp.PROTOCOL_VERSION == 2

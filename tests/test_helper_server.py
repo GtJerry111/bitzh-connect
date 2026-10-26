@@ -28,11 +28,23 @@ class _FakeKernel:
         os.chmod(self.script, 0o755)
 
 
+class _NoopRoutes:
+    def cleanup_stale(self):
+        pass
+
+    def apply(self, ips):
+        return [], None, None, None
+
+    def cleanup(self, ips):
+        pass
+
+
 def _server(tmp_path, fake):
     return HelperServer(
         socket_path=_short_socket_path(),
         allowed_uid=os.getuid(),
         kernel_path=fake.script,
+        route_manager=_NoopRoutes(),
     )
 
 
@@ -79,6 +91,68 @@ def test_double_start_returns_error(tmp_path):
     assert second["ok"] is False
     assert second["error"] == "already_running"
     server.stop_kernel()
+
+
+class FakeRouteManager:
+    def __init__(self):
+        self.applied = []
+        self.cleaned = []
+        self.stale_cleaned = 0
+
+    def cleanup_stale(self):
+        self.stale_cleaned += 1
+
+    def apply(self, ips):
+        from privileged_helper.routes import RouteAttempt
+
+        self.applied = list(ips)
+        attempts = [RouteAttempt(ip, True) for ip in ips]
+        return attempts, "10.0.0.1", "en0", None
+
+    def cleanup(self, ips):
+        self.cleaned.append(list(ips))
+
+
+def test_start_returns_direct_route_results(tmp_path):
+    fake_kernel = _FakeKernel(tmp_path)
+    routes = FakeRouteManager()
+    server = HelperServer(
+        socket_path=_short_socket_path(),
+        allowed_uid=os.getuid(),
+        kernel_path=fake_kernel.script,
+        route_manager=routes,
+    )
+    resp = server.start_kernel(
+        [], os.path.join(tmp_path, "k.log"),
+        os.path.join(tmp_path, "k.pid"),
+        os.path.join(tmp_path, "k.stop"),
+        direct_ips=["10.182.37.18"],
+    )
+    assert resp["ok"] is True
+    assert resp["gateway"] == "10.0.0.1"
+    assert resp["interface"] == "en0"
+    assert resp["routes"] == [{"ip": "10.182.37.18", "ok": True}]
+    assert routes.applied == ["10.182.37.18"]
+    server.stop_kernel()
+    assert routes.cleaned[-1] == ["10.182.37.18"]
+
+
+def test_start_failure_rolls_back_routes(tmp_path):
+    routes = FakeRouteManager()
+    server = HelperServer(
+        socket_path=_short_socket_path(),
+        allowed_uid=os.getuid(),
+        kernel_path=os.path.join(tmp_path, "missing-kernel"),
+        route_manager=routes,
+    )
+    resp = server.start_kernel(
+        [], os.path.join(tmp_path, "k.log"),
+        os.path.join(tmp_path, "k.pid"),
+        os.path.join(tmp_path, "k.stop"),
+        direct_ips=["10.182.37.18"],
+    )
+    assert resp["ok"] is False
+    assert routes.cleaned[-1] == ["10.182.37.18"]
 
 
 def test_dispatch_hello_and_unknown(tmp_path):

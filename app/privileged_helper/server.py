@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 
+from privileged_helper.routes import DirectRouteManager
 from privileged_helper.protocol import (
     CMD_HELLO,
     CMD_PING,
@@ -34,7 +35,8 @@ _PEER_CRED_SIZE = struct.calcsize("2i")
 
 class HelperServer:
     def __init__(self, socket_path=SOCKET_PATH, allowed_uid=None,
-                 kernel_path=KERNEL_BIN, version=PROTOCOL_VERSION):
+                 kernel_path=KERNEL_BIN, version=PROTOCOL_VERSION,
+                 route_manager=None):
         self._socket_path = socket_path
         # 默认用本进程 uid（LaunchDaemon 以 root 跑时会显式传入安装者 uid）
         self._allowed_uid = os.getuid() if allowed_uid is None else allowed_uid
@@ -44,13 +46,15 @@ class HelperServer:
         self._log_f = None
         self._lock = threading.Lock()
         self._sock = None
+        self._route_manager = route_manager or DirectRouteManager()
+        self._direct_ips: list[str] = []
 
     # ---------------- 内核生命周期 ----------------
 
     def _kernel_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start_kernel(self, args, log_path, pid_path, stop_path):
+    def start_kernel(self, args, log_path, pid_path, stop_path, direct_ips=None):
         with self._lock:
             if self._kernel_alive():
                 return {"ok": False, "error": "already_running"}
@@ -60,9 +64,15 @@ class HelperServer:
                     os.unlink(stop_path)
                 except OSError:
                     pass
+            self._route_manager.cleanup_stale()
+            direct_ips = [str(ip) for ip in (direct_ips or [])][:100]
+            attempts, gateway, interface, route_error = self._route_manager.apply(
+                direct_ips
+            )
             try:
                 log_f = open(log_path, "ab", buffering=0)
             except OSError as e:
+                self._route_manager.cleanup([a.ip for a in attempts if a.ok])
                 return {"ok": False, "error": f"log_open_failed: {e}"}
             try:
                 self._proc = subprocess.Popen(
@@ -74,7 +84,9 @@ class HelperServer:
                 )
             except OSError as e:
                 log_f.close()
+                self._route_manager.cleanup([a.ip for a in attempts if a.ok])
                 return {"ok": False, "error": f"spawn_failed: {e}"}
+            self._direct_ips = [a.ip for a in attempts if a.ok]
             self._log_f = log_f
             try:
                 with open(pid_path, "w") as f:
@@ -84,15 +96,31 @@ class HelperServer:
             threading.Thread(
                 target=self._watch_stop, args=(stop_path,), daemon=True
             ).start()
-            return {"ok": True, "pid": self._proc.pid}
+            response = {
+                "ok": True,
+                "pid": self._proc.pid,
+                "gateway": gateway,
+                "interface": interface,
+                "routes": [
+                    {"ip": a.ip, "ok": a.ok, **({"error": a.error} if a.error else {})}
+                    for a in attempts
+                ],
+            }
+            if route_error:
+                response["route_error"] = route_error
+            return response
 
     def _watch_stop(self, stop_path):
         """停止标记出现即杀内核（GUI 断开走此路径，零权限）。"""
-        while self._kernel_alive():
-            if stop_path and os.path.exists(stop_path):
-                self.stop_kernel()
-                return
-            time.sleep(0.3)
+        try:
+            while self._kernel_alive():
+                if stop_path and os.path.exists(stop_path):
+                    self.stop_kernel()
+                    return
+                time.sleep(0.3)
+        finally:
+            with self._lock:
+                self._cleanup_direct_routes_locked()
 
     def _close_log(self):
         if self._log_f is None:
@@ -103,16 +131,23 @@ class HelperServer:
             pass
         self._log_f = None
 
+    def _cleanup_direct_routes_locked(self):
+        if self._direct_ips:
+            self._route_manager.cleanup(self._direct_ips)
+            self._direct_ips = []
+
     def stop_kernel(self):
         with self._lock:
             proc = self._proc
             if proc is None or proc.poll() is not None:
+                self._cleanup_direct_routes_locked()
                 self._close_log()
                 return {"ok": True, "note": "not_running"}
             try:
                 os.kill(proc.pid, signal.SIGTERM)
             except OSError:
                 pass
+            self._cleanup_direct_routes_locked()
             self._close_log()
             return {"ok": True}
 
@@ -207,6 +242,7 @@ class HelperServer:
                 req.get("log_path"),
                 req.get("pid_path"),
                 req.get("stop_path"),
+                direct_ips=req.get("direct_ips"),
             )
         if cmd == CMD_STOP:
             return self.stop_kernel()
