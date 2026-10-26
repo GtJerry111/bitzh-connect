@@ -125,6 +125,7 @@ class DirectIpRow(QWidget):
 
 class DirectIpCard(QWidget):
     changed = Signal()
+    layout_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,10 +229,12 @@ class DirectIpCard(QWidget):
             self.note.setText("当前平台暂不支持")
             self.note.show()
             self.body.setVisible(False)
+            self.layout_changed.emit()
             return
         self.note.setText("仅 TUN 模式生效")
         self.note.setVisible(not self._tun_enabled)
         self.body.setVisible(self.toggle.isChecked())
+        self.layout_changed.emit()
 
     def add_row(self, text: str = "", focus: bool = True):
         if len(self.rows) >= MAX_DIRECT_IPS:
@@ -385,7 +388,9 @@ class DirectIpCard(QWidget):
     def _show_error(self, message: str):
         self.error.setText(message)
         self.error.show()
+        self.layout_changed.emit()
 
     def _hide_error(self):
         self.error.clear()
         self.error.hide()
+        self.layout_changed.emit()

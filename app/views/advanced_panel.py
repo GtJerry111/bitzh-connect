@@ -512,6 +512,7 @@ class AdvancedSettingsDialog(QDialog):
         tab_widget.addTab(help_tab, "帮助")
         layout.addWidget(tab_widget)
         self._tabs = tab_widget
+        self.direct_ip_card.layout_changed.connect(self._refit_direct_ip)
         self._apply_tab_qss()
 
         # 按钮盒：平台惯例自动排布（macOS：取消左、保存右），保存为主按钮；
@@ -588,6 +589,27 @@ class AdvancedSettingsDialog(QDialog):
                 color: {theme.semantic_color("accent_text")};
             }}
         """)
+
+    def _refit_direct_ip(self):
+        """直连 IP 卡片显隐/校验错误改变高度时，下一拍重新贴合当前 tab。"""
+        if getattr(self, "_tabs", None) is None:
+            return
+        if getattr(self, "_direct_ip_refit_pending", False):
+            return
+        self._direct_ip_refit_pending = True
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self._do_refit_direct_ip)
+
+    def _do_refit_direct_ip(self):
+        self._direct_ip_refit_pending = False
+        if getattr(self, "_tabs", None) is None:
+            return
+        try:
+            if self._tabs.currentIndex() == 1:
+                self._fit_to_tab(1)
+        except RuntimeError:
+            pass
 
     def _fit_to_tab(self, index: int):
         """对话框高度贴合当前 tab：tab 控件定高 = 当前页 sizeHint + 实测开销。"""
