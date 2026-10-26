@@ -793,3 +793,53 @@ def test_clear_direct_ip_state(qtbot):
     assert win.direct_ip_menu_state() is None
     assert win.direct_ip_banner.isHidden()
     assert "直连 IP" not in win.status_panel.subtitle.text()
+
+
+def test_direct_ip_settings_prompt_only_when_set_changes(qtbot, monkeypatch):
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.tun_mode = True
+    win.virtual_ip = "10.0.43.111"
+    calls = []
+    monkeypatch.setattr(
+        "views.direct_ip_reconnect_dialog.DirectIpReconnectDialog.ask",
+        staticmethod(lambda parent: calls.append(1) or False),
+    )
+    win.apply_direct_ip_settings(
+        old_enabled=True,
+        old_ips=["10.182.37.18"],
+        new_enabled=True,
+        new_ips=["10.182.37.18"],
+    )
+    assert calls == []
+    win.apply_direct_ip_settings(
+        old_enabled=True,
+        old_ips=["10.182.37.18"],
+        new_enabled=True,
+        new_ips=["10.182.37.19"],
+    )
+    assert calls == [1]
+
+
+def test_direct_ip_settings_reconnect_choice(qtbot, monkeypatch):
+    from views.main_window import MainWindow
+
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.tun_mode = True
+    win.virtual_ip = "10.0.43.111"
+    bounced = []
+    monkeypatch.setattr(
+        "views.direct_ip_reconnect_dialog.DirectIpReconnectDialog.ask",
+        staticmethod(lambda parent: True),
+    )
+    monkeypatch.setattr(win, "_bounce_connection", lambda: bounced.append(1))
+    win.apply_direct_ip_settings(
+        old_enabled=True,
+        old_ips=["10.182.37.18"],
+        new_enabled=True,
+        new_ips=["10.182.37.19"],
+    )
+    assert bounced == [1]

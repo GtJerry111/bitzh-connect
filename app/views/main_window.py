@@ -997,5 +997,21 @@ class MainWindow(QMainWindow):
     def open_direct_ip_settings(self):
         show_advanced_settings(self, focus_direct_ip=True)
 
+    def apply_direct_ip_settings(
+        self, *, old_enabled, old_ips, new_enabled, new_ips
+    ):
+        old_effective = set(old_ips) if old_enabled else set()
+        new_effective = set(new_ips) if new_enabled else set()
+        self.direct_ip_enabled = bool(new_enabled)
+        self.direct_ips = list(new_ips)
+        if old_effective == new_effective:
+            return
+        if not (self.tun_mode and getattr(self, "virtual_ip", None)):
+            return
+        from views.direct_ip_reconnect_dialog import DirectIpReconnectDialog
+
+        if DirectIpReconnectDialog.ask(self):
+            self._bounce_connection()
+
     def check_updates_startup(self):
         check_for_updates(self, self.version, startup=True)

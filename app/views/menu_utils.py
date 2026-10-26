@@ -61,7 +61,7 @@ def check_for_updates(parent, current_version, startup=False):
     return signals
 
 
-def show_advanced_settings(window):
+def show_advanced_settings(window, focus_direct_ip=False):
     """Show advanced settings dialog with proper cleanup"""
     dialog = AdvancedSettingsDialog(window)
     dialog.set_settings(
@@ -84,10 +84,16 @@ def show_advanced_settings(window):
         window.auto_reconnect,
         window.appearance,
         window.tun_mode,
+        direct_ip_enabled=window.direct_ip_enabled,
+        direct_ips=window.direct_ips,
     )
+    if focus_direct_ip:
+        dialog.focus_direct_ip()
 
     if dialog.exec():
         settings = dialog.get_settings()
+        old_direct_enabled = window.direct_ip_enabled
+        old_direct_ips = list(window.direct_ips)
         server_changed = settings["server"] != window.server_address
         window.server_address = settings["server"]
         window.port = settings["port"]
@@ -109,6 +115,12 @@ def show_advanced_settings(window):
         window.reconnect_manager.set_enabled(window.auto_reconnect)
         window.appearance = settings["appearance"]
         window.tun_mode = settings["tun_mode"]
+        window.direct_ip_enabled = bool(
+            settings.get("direct_ip_enabled", window.direct_ip_enabled)
+        )
+        window.direct_ips = list(
+            settings.get("direct_ips", window.direct_ips)
+        )
         # 主窗口分段选择器同步（高级设置与主界面是同一配置键的两个入口）
         window.mode_switch.setCurrentIndex(1 if window.tun_mode else 0)
         from common import theme
@@ -117,5 +129,11 @@ def show_advanced_settings(window):
         # 服务器变了 → 同步仪表盘副标题中的服务器小字
         if server_changed:
             window.status_panel.set_server_text(window.server_address)
+        window.apply_direct_ip_settings(
+            old_enabled=old_direct_enabled,
+            old_ips=old_direct_ips,
+            new_enabled=window.direct_ip_enabled,
+            new_ips=window.direct_ips,
+        )
         if system() == "Darwin":
             hide_dock_icon(window.hide_dock_icon)
