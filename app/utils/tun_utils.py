@@ -35,6 +35,15 @@ def _parse_route_get_interface(text: str) -> str | None:
     return None
 
 
+def _parse_route_get_gateway(text: str) -> str | None:
+    """从 `route -n get <ip>` 输出里取 gateway（macOS）。"""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("gateway:"):
+            return stripped.split(":", 1)[1].strip() or None
+    return None
+
+
 def _parse_scutil_nwi(text: str) -> str | None:
     """从 `scutil --nwi` 输出取主网卡（"Network interfaces: en0, en1"）。"""
     for line in text.splitlines():
@@ -129,6 +138,29 @@ def physical_interface() -> str | None:
         return name if name and not _is_tun_name(name) else None
     except Exception:
         return None
+
+
+def physical_gateway() -> str | None:
+    """当前默认物理网关（IPv4）；取不到返回 None。"""
+    try:
+        if system() == "Darwin":
+            out = subprocess.check_output(
+                ["route", "-n", "get", "default"],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            return _parse_route_get_gateway(out)
+        if system() == "Linux":
+            out = subprocess.check_output(
+                ["ip", "route", "show", "default"],
+                text=True, stderr=subprocess.DEVNULL,
+            )
+            for line in out.splitlines():
+                parts = line.split()
+                if "via" in parts:
+                    return parts[parts.index("via") + 1]
+    except Exception:
+        return None
+    return None
 
 
 def write_launcher(

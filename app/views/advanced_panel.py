@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QGuiApplication, QColor, QPainter
 from PySide6.QtCore import QEasingCurve, QPointF, Qt, QVariantAnimation, Signal
 from utils.config_utils import save_config, load_config
+from utils.direct_ip import local_ipv4_addresses, local_ipv4_networks
+from utils.tun_utils import physical_gateway
 from utils.startup_utils import set_launch_at_login, get_launch_at_login
 from utils import helper_installer
 from utils import diagnostics
@@ -31,6 +33,7 @@ from common import theme
 from views.chevron import Chevron
 from views.toggle_switch import ToggleSwitch
 from views.settings_row import SettingRow
+from views.direct_ip_card import DirectIpCard
 
 VERSION = get_version()
 
@@ -278,6 +281,13 @@ class AdvancedSettingsDialog(QDialog):
         dns_row.addWidget(self.dns_input, 1)
         connect_inner.addLayout(dns_row)
 
+        # ---- 直连 IP ----
+        self.direct_ip_card = DirectIpCard()
+        network_layout.addWidget(self.direct_ip_card)
+        self.direct_ip_card.set_platform_supported(system() == "Darwin")
+        if system() == "Windows":
+            self.direct_ip_card.hide()
+
         # ---- 代理 ----
         proxy_inner = self._card_group(network_layout, "代理")
         proxy_form = QFormLayout()
@@ -360,6 +370,8 @@ class AdvancedSettingsDialog(QDialog):
             enabled=system() != "Windows",
             description=tun_note,
         )
+        self.tun_mode_switch.toggled.connect(self.direct_ip_card.set_tun_enabled)
+        self.direct_ip_card.set_tun_enabled(self.tun_mode_switch.isChecked())
 
         # ---- 运行日志（打开时同步主窗口日志缓冲，存活期间实时跟随）----
         from PySide6.QtGui import QFontDatabase
@@ -695,6 +707,8 @@ class AdvancedSettingsDialog(QDialog):
             "auto_reconnect": self.auto_reconnect_switch.isChecked(),
             "appearance": _APPEARANCE_MODES[self.appearance_combo.currentIndex()],
             "tun_mode": self.tun_mode_switch.isChecked(),
+            "direct_ip_enabled": self.direct_ip_card.toggle.isChecked(),
+            "direct_ips": self.direct_ip_card.ips(),
         }
 
         if system() == "Darwin":
@@ -723,6 +737,8 @@ class AdvancedSettingsDialog(QDialog):
         auto_reconnect=True,
         appearance="system",
         tun_mode=False,
+        direct_ip_enabled=False,
+        direct_ips=(),
     ):
         """Set dialog values from main window values"""
         self.server_input.setText(server)
@@ -747,9 +763,35 @@ class AdvancedSettingsDialog(QDialog):
         appearance = appearance if appearance in _APPEARANCE_MODES else "system"
         self.appearance_combo.setCurrentIndex(_APPEARANCE_MODES.index(appearance))
         self.tun_mode_switch.setChecked(tun_mode)
+        self.direct_ip_card.set_ips(list(direct_ips))
+        self.direct_ip_card.toggle.setChecked(bool(direct_ip_enabled))
+        self.direct_ip_card.set_tun_enabled(self.tun_mode_switch.isChecked())
 
         # Enable/disable DNS input based on auto DNS setting
         self.toggle_dns_input()
+
+    def focus_direct_ip(self):
+        self._tabs.setCurrentIndex(1)
+        self._fit_to_tab(1)
+        if not self.direct_ip_card.toggle.isChecked():
+            self.direct_ip_card.toggle.setChecked(True)
+        self.direct_ip_card.focus_first()
+
+    def _direct_ip_context(self):
+        parent = self.parent()
+        forbidden = set(local_ipv4_addresses())
+        gateway = physical_gateway()
+        if gateway:
+            forbidden.add(gateway)
+        server = getattr(parent, "server_address", "") or ""
+        if server:
+            import socket
+
+            try:
+                forbidden.add(socket.gethostbyname(server))
+            except (OSError, TypeError):
+                pass
+        return forbidden, local_ipv4_networks()
 
     def _primary_button_style(self) -> str:
         """与对话框"保存"同款绿实心按钮（③A）。"""
@@ -822,8 +864,19 @@ class AdvancedSettingsDialog(QDialog):
 
     def accept(self):
         """Save settings before closing"""
+        forbidden, networks = self._direct_ip_context()
+        validation = self.direct_ip_card.validate(
+            forbidden_ips=forbidden, local_networks=networks
+        )
+        if validation is None:
+            return
+        self._direct_ip_valid_ips = validation.valid
+
         current_config = load_config()
         settings = self.get_settings()
+        settings["direct_ips"] = list(
+            getattr(self, "_direct_ip_valid_ips", self.direct_ip_card.ips())
+        )
 
         settings["username"] = current_config.get("username", "")
         settings["password"] = current_config.get("password", "")

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 from dataclasses import dataclass, field
+
+import psutil
 
 MAX_DIRECT_IPS = 100
 
@@ -134,3 +137,29 @@ def status_for_ip(ip: str, results: dict[str, bool], pending: set[str]) -> str:
     if ip in results:
         return "ok" if results[ip] else "failed"
     return "unapplied"
+
+
+def local_ipv4_addresses() -> set[str]:
+    result: set[str] = set()
+    for addrs in psutil.net_if_addrs().values():
+        for addr in addrs:
+            if addr.family == socket.AF_INET and addr.address:
+                result.add(addr.address)
+    return result
+
+
+def local_ipv4_networks() -> tuple[ipaddress.IPv4Network, ...]:
+    result: list[ipaddress.IPv4Network] = []
+    for addrs in psutil.net_if_addrs().values():
+        for addr in addrs:
+            if addr.family != socket.AF_INET or not addr.address or not addr.netmask:
+                continue
+            try:
+                result.append(
+                    ipaddress.IPv4Network(
+                        f"{addr.address}/{addr.netmask}", strict=False
+                    )
+                )
+            except ValueError:
+                pass
+    return tuple(result)

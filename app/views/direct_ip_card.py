@@ -128,9 +128,9 @@ class DirectIpCard(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("SettingsCard")
+        self.setObjectName("DirectIpCard")
         self.setStyleSheet(
-            f"#SettingsCard {{ background: {theme.card_background()};"
+            f"#DirectIpCard {{ background: {theme.card_background()};"
             " border-radius: 10px; }"
         )
         outer = QVBoxLayout(self)

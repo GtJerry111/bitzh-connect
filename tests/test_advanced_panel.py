@@ -432,3 +432,42 @@ def test_open_log_dir_button_exists(qtbot, monkeypatch, tmp_path):
     qtbot.addWidget(dlg)
     dlg.open_log_button.click()
     assert opened == [diagnostics.log_dir()]
+
+
+def test_direct_ip_card_default_off(dialog):
+    from views.direct_ip_card import DirectIpCard
+
+    card = dialog.findChild(DirectIpCard)
+    assert card is not None
+    assert card.toggle.isChecked() is False
+    assert card.ips() == []
+
+
+def test_direct_ip_settings_roundtrip(dialog):
+    base = dict(
+        server="1.2.3.4",
+        port="443",
+        dns="",
+        proxy=True,
+        connect_startup=False,
+        silent_mode=False,
+        check_update=True,
+    )
+    dialog.set_settings(
+        **base,
+        direct_ip_enabled=True,
+        direct_ips=["10.182.37.18", "10.182.37.19"],
+    )
+    assert dialog.direct_ip_card.toggle.isChecked() is True
+    assert dialog.direct_ip_card.ips() == ["10.182.37.18", "10.182.37.19"]
+    settings = dialog.get_settings()
+    assert settings["direct_ip_enabled"] is True
+    assert settings["direct_ips"] == ["10.182.37.18", "10.182.37.19"]
+
+
+def test_direct_ip_invalid_blocks_accept(dialog):
+    dialog.direct_ip_card.toggle.setChecked(True)
+    dialog.direct_ip_card.rows[0].set_text("10.182.37")
+    dialog.accept()
+    assert not dialog.direct_ip_card.error.isHidden()
+    assert dialog.result() == 0
